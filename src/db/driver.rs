@@ -1,0 +1,158 @@
+use crate::{
+    db::{
+        connection::ConnectionConfig,
+        types::{QueryResult, SchemaTree},
+    },
+    error::Result,
+};
+use async_trait::async_trait;
+use std::collections::HashMap;
+use uuid::Uuid;
+
+use super::{connection::DriverType, types::DbValue};
+
+/// Core abstraction over any database engine.
+/// All driver implementations must be `Send + Sync` for use across async tasks.
+#[async_trait]
+pub trait DatabaseDriver: Send + Sync {
+    /// Establish connection using the provided config.
+    async fn connect(&mut self, config: &ConnectionConfig) -> Result<()>;
+
+    /// Close the connection and release resources.
+    async fn disconnect(&mut self) -> Result<()>;
+
+    /// Check if the connection is alive (lightweight ping).
+    async fn ping(&self) -> Result<()>;
+
+    // ── Query ────────────────────────────────────────────────────────────────
+
+    /// Execute a raw SQL string and return results.
+    async fn execute(&self, sql: &str) -> Result<QueryResult>;
+
+    /// Execute SQL with positional parameters.
+    async fn execute_with_params(&self, sql: &str, params: Vec<DbValue>) -> Result<QueryResult>;
+
+    // ── Schema ───────────────────────────────────────────────────────────────
+
+    /// Load full schema tree (databases → schemas → tables → columns/indexes/fks).
+    async fn load_schema(&self) -> Result<SchemaTree>;
+
+    /// Fetch a page of rows from a table.
+    async fn table_data(
+        &self,
+        schema: Option<&str>,
+        table: &str,
+        page: u32,
+        page_size: u32,
+    ) -> Result<QueryResult>;
+
+    // ── Mutations (inline table editor) ──────────────────────────────────────
+
+    /// Insert a new row. Returns number of rows affected.
+    async fn insert_row(
+        &self,
+        table: &str,
+        values: HashMap<String, DbValue>,
+    ) -> Result<u64>;
+
+    /// Update an existing row identified by primary key values.
+    async fn update_row(
+        &self,
+        table: &str,
+        pk: HashMap<String, DbValue>,
+        changes: HashMap<String, DbValue>,
+    ) -> Result<u64>;
+
+    /// Delete a row identified by primary key values.
+    async fn delete_row(
+        &self,
+        table: &str,
+        pk: HashMap<String, DbValue>,
+    ) -> Result<u64>;
+
+    // ── Metadata ─────────────────────────────────────────────────────────────
+
+    fn driver_type(&self) -> DriverType;
+
+    fn is_connected(&self) -> bool;
+}
+
+// ─── Async channel protocol ───────────────────────────────────────────────────
+
+/// Commands sent from the UI thread to the DB worker.
+#[derive(Debug)]
+pub enum DbCommand {
+    Connect {
+        config: ConnectionConfig,
+    },
+    Disconnect {
+        conn_id: Uuid,
+    },
+    Execute {
+        conn_id: Uuid,
+        tab_id: Uuid,
+        sql: String,
+    },
+    LoadSchema {
+        conn_id: Uuid,
+    },
+    LoadTableData {
+        conn_id: Uuid,
+        tab_id: Uuid,
+        schema: Option<String>,
+        table: String,
+        page: u32,
+        page_size: u32,
+    },
+    InsertRow {
+        conn_id: Uuid,
+        tab_id: Uuid,
+        table: String,
+        values: HashMap<String, DbValue>,
+    },
+    UpdateRow {
+        conn_id: Uuid,
+        tab_id: Uuid,
+        table: String,
+        pk: HashMap<String, DbValue>,
+        changes: HashMap<String, DbValue>,
+    },
+    DeleteRow {
+        conn_id: Uuid,
+        tab_id: Uuid,
+        table: String,
+        pk: HashMap<String, DbValue>,
+    },
+    /// Gracefully shut down the worker
+    Shutdown,
+}
+
+/// Events sent from the DB worker back to the UI thread.
+#[derive(Debug)]
+pub enum DbEvent {
+    Connected {
+        conn_id: Uuid,
+        schema: SchemaTree,
+    },
+    Disconnected {
+        conn_id: Uuid,
+    },
+    QueryResult {
+        tab_id: Uuid,
+        result: QueryResult,
+    },
+    SchemaLoaded {
+        conn_id: Uuid,
+        schema: SchemaTree,
+    },
+    RowMutated {
+        tab_id: Uuid,
+        rows_affected: u64,
+    },
+    Error {
+        /// `None` for connection-level errors
+        tab_id: Option<Uuid>,
+        conn_id: Option<Uuid>,
+        message: String,
+    },
+}

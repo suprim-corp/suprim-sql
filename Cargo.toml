@@ -1,0 +1,108 @@
+[package]
+name = "suprim-sql"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+
+[[bin]]
+name = "suprim-sql"
+path = "src/main.rs"
+
+# ---------------------------------------------------------
+# Features — disable unused DB drivers at compile time
+# ---------------------------------------------------------
+[features]
+default = ["sqlite", "postgres", "mysql", "redis", "mongodb", "mssql"]
+sqlite   = ["sqlx/sqlite"]
+postgres = ["sqlx/postgres"]
+mysql    = ["sqlx/mysql"]
+redis    = ["dep:redis"]
+mongodb  = ["dep:mongodb"]
+mssql    = ["dep:tiberius", "dep:tokio-util"]
+
+# ---------------------------------------------------------
+# Dependencies
+# ---------------------------------------------------------
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# UI
+egui   = "0.34"
+eframe = { version = "0.34", features = ["default_fonts", "persistence"] }
+
+# Database
+sqlx       = { version = "0.9.0-alpha.1", features = ["runtime-tokio", "chrono", "uuid", "macros"] }
+redis      = { version = "1", features = ["tokio-comp", "aio"], optional = true }
+mongodb    = { version = "3", optional = true }
+tiberius   = { version = "0.11", features = ["tds73", "chrono"], optional = true }
+tokio-util = { version = "0.7", features = ["compat"], optional = true }
+
+# Serialization
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml       = "1"
+
+# Types & utils
+uuid      = { version = "1", features = ["v4", "serde"] }
+chrono    = { version = "0.4", features = ["serde"] }
+thiserror = "2"
+anyhow    = "1"
+
+# Crypto (AES-256-GCM for config encryption)
+aes-gcm = "0.11.0-rc.3"
+rand    = "0.10"
+base64  = "0.22"
+
+# OS keychain
+keyring = "4.0.0-rc.3"
+
+# File dialogs
+rfd = "0.17"
+
+# SSH tunnel
+russh = "0.60"
+
+# AI
+async-openai = "0.34"
+async-trait  = "0.1"
+
+# HTTP (updater, AI)
+reqwest = { version = "0.13", features = ["json", "rustls"], default-features = false }
+
+# Logging
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# ---------------------------------------------------------
+# Dev / Test dependencies
+# ---------------------------------------------------------
+[dev-dependencies]
+# Mocking
+mockall = "0.14"
+
+# Async test runtime
+tokio = { version = "1", features = ["full"] }
+
+# Testcontainers
+testcontainers         = "0.27"
+testcontainers-modules = { version = "0.15", features = ["postgres", "mysql", "redis", "mongo"] }
+
+# Snapshot & property testing
+insta    = "1"
+proptest = "1"
+
+# Temp files for SQLite tests
+tempfile = "3"
+
+# ---------------------------------------------------------
+# Build profiles
+# ---------------------------------------------------------
+[profile.dev]
+opt-level = 0
+
+[profile.release]
+opt-level     = 3
+lto           = true
+codegen-units = 1
+strip         = true
