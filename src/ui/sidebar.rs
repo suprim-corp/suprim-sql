@@ -74,6 +74,14 @@ impl Sidebar {
         self.connections.iter().map(|c| c.conn_id).collect()
     }
 
+    pub fn conn_name(&self, conn_id: Uuid) -> String {
+        self.connections
+            .iter()
+            .find(|c| c.conn_id == conn_id)
+            .map(|c| c.label.clone())
+            .unwrap_or_default()
+    }
+
     pub fn on_connected(
         &mut self,
         conn_id: Uuid,

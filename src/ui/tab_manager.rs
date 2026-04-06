@@ -11,20 +11,45 @@ enum TabKind {
     TableViewer(TableViewerTab),
 }
 
-impl TabKind {
-    fn title(&self) -> &str {
-        match self {
-            TabKind::SqlEditor(_) => "SQL Editor",
-            TabKind::TableViewer(t) => &t.table_name,
-        }
-    }
-}
-
 // ── Tab entry ────────────────────────────────────────────────────────────────
 
 struct TabEntry {
     tab_id: Uuid,
     kind: TabKind,
+    conn_name: String,
+}
+
+impl TabEntry {
+    fn tab_label(&self) -> String {
+        let icon = match &self.kind {
+            TabKind::SqlEditor(_) => "SQL",
+            TabKind::TableViewer(_) => "\u{229e}",
+        };
+        let name = match &self.kind {
+            TabKind::SqlEditor(_) => "Query".to_string(),
+            TabKind::TableViewer(t) => truncate_str(&t.table_name, 18),
+        };
+        let conn = truncate_str(&self.conn_name, 20);
+        format!("{icon} {name} [{conn}]")
+    }
+}
+
+fn truncate_str(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        s.to_string()
+    } else {
+        let half = max / 2;
+        let start: String = s.chars().take(half).collect();
+        let end: String = s
+            .chars()
+            .rev()
+            .take(half)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        format!("{start}...{end}")
+    }
 }
 
 // ── SQL Editor tab ────────────────────────────────────────────────────────────
@@ -268,11 +293,12 @@ impl TabManager {
         }
     }
 
-    pub fn open_sql_tab(&mut self, conn_id: Option<Uuid>) {
+    pub fn open_sql_tab(&mut self, conn_id: Option<Uuid>, conn_name: String) {
         let tab_id = Uuid::new_v4();
         self.tabs.push(TabEntry {
             tab_id,
             kind: TabKind::SqlEditor(SqlEditorTab::new(conn_id)),
+            conn_name,
         });
         self.active_tab = Some(tab_id);
     }
@@ -280,6 +306,7 @@ impl TabManager {
     pub fn open_table_viewer(
         &mut self,
         conn_id: Uuid,
+        conn_name: String,
         database: String,
         schema_name: String,
         table_name: String,
@@ -293,6 +320,7 @@ impl TabManager {
                 schema_name,
                 table_name,
             )),
+            conn_name,
         });
         self.active_tab = Some(tab_id);
     }
@@ -335,35 +363,73 @@ impl TabManager {
         // Tab bar
         let mut tab_to_close: Option<Uuid> = None;
 
-        ui.horizontal(|ui| {
-            for entry in &self.tabs {
-                let is_active = Some(entry.tab_id) == self.active_tab;
-                let tab_label = entry.kind.title();
-                let tab_id = entry.tab_id;
+        let bar_bg = egui::Color32::from_gray(30);
+        egui::Frame::NONE
+            .fill(bar_bg)
+            .inner_margin(egui::Margin::symmetric(2, 0))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    for entry in &self.tabs {
+                        let is_active = Some(entry.tab_id) == self.active_tab;
+                        let tab_id = entry.tab_id;
+                        let label_text = entry.tab_label();
 
-                let fill = if is_active {
-                    ui.visuals().extreme_bg_color
-                } else {
-                    egui::Color32::TRANSPARENT
-                };
+                        let border_color = if is_active {
+                            egui::Color32::from_gray(80)
+                        } else {
+                            egui::Color32::from_gray(45)
+                        };
+                        let tab_bg = if is_active {
+                            egui::Color32::from_gray(50)
+                        } else {
+                            egui::Color32::TRANSPARENT
+                        };
 
-                egui::Frame::NONE
-                    .fill(fill)
-                    .inner_margin(egui::Margin::symmetric(8, 4))
-                    .corner_radius(egui::CornerRadius::same(4))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            let label_response = ui.selectable_label(is_active, tab_label);
-                            if label_response.clicked() {
-                                self.active_tab = Some(tab_id);
-                            }
-                            if ui.small_button("x").clicked() {
-                                tab_to_close = Some(tab_id);
-                            }
-                        });
-                    });
-            }
-        });
+                        egui::Frame::NONE
+                            .fill(tab_bg)
+                            .stroke(egui::Stroke::new(1.0, border_color))
+                            .inner_margin(egui::Margin::symmetric(6, 3))
+                            .corner_radius(egui::CornerRadius::same(0))
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    let text_color = if is_active {
+                                        egui::Color32::WHITE
+                                    } else {
+                                        egui::Color32::from_gray(170)
+                                    };
+                                    let response = ui.add(
+                                        egui::Label::new(
+                                            egui::RichText::new(&label_text).color(text_color),
+                                        )
+                                        .selectable(false)
+                                        .sense(egui::Sense::click()),
+                                    );
+                                    if response.clicked() {
+                                        self.active_tab = Some(tab_id);
+                                    }
+
+                                    ui.add_space(6.0);
+                                    let close_color = if is_active {
+                                        egui::Color32::from_gray(160)
+                                    } else {
+                                        egui::Color32::from_gray(100)
+                                    };
+                                    let close_response = ui.add(
+                                        egui::Label::new(
+                                            egui::RichText::new("\u{00d7}").color(close_color),
+                                        )
+                                        .selectable(false)
+                                        .sense(egui::Sense::click()),
+                                    );
+                                    if close_response.clicked() {
+                                        tab_to_close = Some(tab_id);
+                                    }
+                                });
+                            });
+                    }
+                });
+            });
 
         ui.separator();
 

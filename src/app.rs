@@ -172,7 +172,7 @@ impl eframe::App for App {
                 });
                 ui.menu_button("Query", |ui| {
                     if ui.button("New SQL Tab").clicked() {
-                        self.tab_manager.open_sql_tab(None);
+                        self.tab_manager.open_sql_tab(None, String::new());
                         ui.close();
                     }
                 });
@@ -214,7 +214,8 @@ impl eframe::App for App {
                             }
                         }
                         SidebarAction::OpenSqlTab { conn_id } => {
-                            self.tab_manager.open_sql_tab(Some(conn_id));
+                            let name = self.sidebar.conn_name(conn_id);
+                            self.tab_manager.open_sql_tab(Some(conn_id), name);
                         }
                         SidebarAction::OpenTableViewer {
                             conn_id,
@@ -222,8 +223,10 @@ impl eframe::App for App {
                             schema_name,
                             table_name,
                         } => {
+                            let name = self.sidebar.conn_name(conn_id);
                             self.tab_manager.open_table_viewer(
                                 conn_id,
+                                name,
                                 database,
                                 schema_name,
                                 table_name,
