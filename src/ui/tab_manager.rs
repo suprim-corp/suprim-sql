@@ -144,6 +144,8 @@ struct TableViewerTab {
     is_loading: bool,
     /// True until the first load is dispatched (auto-load on open).
     needs_initial_load: bool,
+    where_clause: String,
+    order_clause: String,
 }
 
 impl TableViewerTab {
@@ -158,6 +160,8 @@ impl TableViewerTab {
             page_size: 100,
             is_loading: false,
             needs_initial_load: true,
+            where_clause: String::new(),
+            order_clause: String::new(),
         }
     }
 
@@ -182,30 +186,95 @@ impl TableViewerTab {
         }
 
         ui.vertical(|ui| {
-            // Toolbar
-            ui.horizontal(|ui| {
-                ui.heading(&self.table_name);
-                ui.add_space(8.0);
-                if ui.button("Reload").clicked() {
-                    self.load(tab_id, cmd_tx);
-                }
-                if self.is_loading {
-                    ui.spinner();
-                }
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button(">").clicked() {
-                        self.page += 1;
-                        self.load(tab_id, cmd_tx);
-                    }
-                    ui.label(format!("Page {}", self.page + 1));
-                    if self.page > 0 && ui.button("<").clicked() {
-                        self.page -= 1;
-                        self.load(tab_id, cmd_tx);
-                    }
-                });
-            });
+            // Filter bar — full width
+            let bar_bg = egui::Color32::from_gray(30);
+            let hint_color = egui::Color32::from_gray(100);
 
-            ui.separator();
+            egui::Frame::NONE
+                .fill(bar_bg)
+                .stroke(egui::Stroke::new(1.0, egui::Color32::from_gray(50)))
+                .inner_margin(egui::Margin::symmetric(4, 3))
+                .show(ui, |ui| {
+                    let _total_w = ui.available_width();
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 4.0;
+
+                        // Reload button — left-most
+                        if self.is_loading {
+                            ui.spinner();
+                        } else {
+                            let resp = ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new("\u{21BB}") // ↻
+                                        .color(egui::Color32::from_gray(140))
+                                        .size(16.0),
+                                )
+                                .selectable(false)
+                                .sense(egui::Sense::click()),
+                            );
+                            if resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            }
+                            if resp.clicked() {
+                                self.page = 0;
+                                self.load(tab_id, cmd_tx);
+                            }
+                        }
+
+                        ui.separator();
+
+                        // WHERE section — ~55% of remaining
+                        let remaining = ui.available_width();
+                        let where_w = (remaining * 0.55 - 50.0).max(80.0);
+                        ui.label(egui::RichText::new("WHERE").color(hint_color).small());
+                        let where_edit = egui::TextEdit::singleline(&mut self.where_clause)
+                            .hint_text("e.g. id > 10")
+                            .desired_width(where_w)
+                            .frame(egui::Frame::NONE);
+                        let where_resp = ui.add(where_edit);
+
+                        ui.separator();
+
+                        // ORDER BY section — rest
+                        ui.label(egui::RichText::new("ORDER BY").color(hint_color).small());
+                        let order_edit = egui::TextEdit::singleline(&mut self.order_clause)
+                            .hint_text("e.g. id DESC")
+                            .desired_width(ui.available_width())
+                            .frame(egui::Frame::NONE);
+                        let order_resp = ui.add(order_edit);
+
+                        // Reload on Enter
+                        let enter = where_resp.lost_focus()
+                            && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        let enter2 = order_resp.lost_focus()
+                            && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        if enter || enter2 {
+                            self.page = 0;
+                            self.load(tab_id, cmd_tx);
+                        }
+                    });
+                });
+
+            // Pagination row (compact)
+            if self.result.is_some() {
+                ui.horizontal(|ui| {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.small_button(">").clicked() {
+                            self.page += 1;
+                            self.load(tab_id, cmd_tx);
+                        }
+                        ui.label(
+                            egui::RichText::new(format!("Page {}", self.page + 1))
+                                .color(egui::Color32::from_gray(140))
+                                .small(),
+                        );
+                        if self.page > 0 && ui.small_button("<").clicked() {
+                            self.page -= 1;
+                            self.load(tab_id, cmd_tx);
+                        }
+                    });
+                });
+            }
 
             if let Some(result) = &self.result {
                 render_result_grid(ui, result);
