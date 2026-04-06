@@ -12,9 +12,9 @@ use uuid::Uuid;
 use super::{connection::DriverType, types::DbValue};
 
 /// Core abstraction over any database engine.
-/// All driver implementations must be `Send + Sync` for use across async tasks.
+/// All driver implementations must be `Send + Sync + Debug` for use across async tasks.
 #[async_trait]
-pub trait DatabaseDriver: Send + Sync {
+pub trait DatabaseDriver: Send + Sync + std::fmt::Debug {
     /// Establish connection using the provided config.
     async fn connect(&mut self, config: &ConnectionConfig) -> Result<()>;
 
@@ -34,8 +34,15 @@ pub trait DatabaseDriver: Send + Sync {
 
     // ── Schema ───────────────────────────────────────────────────────────────
 
-    /// Load full schema tree (databases → schemas → tables → columns/indexes/fks).
+    /// Load schema tree — only databases + schema names (no tables/columns).
+    /// Tables/columns are loaded lazily via `load_schema_detail`.
     async fn load_schema(&self) -> Result<SchemaTree>;
+
+    /// Load full detail for a single named schema: tables, views, columns, indexes, FKs.
+    /// Returns an updated `SchemaNode` for the given schema.
+    /// Default implementation falls back to loading the full schema tree and extracting
+    /// the matching schema node (for drivers that don't support partial loading).
+    async fn load_schema_detail(&self, schema_name: &str) -> Result<super::types::SchemaNode>;
 
     /// Fetch a page of rows from a table.
     async fn table_data(
@@ -96,6 +103,11 @@ pub enum DbCommand {
     LoadSchema {
         conn_id: Uuid,
     },
+    /// Load detail (tables/views/columns) for a single schema — lazy loading.
+    LoadSchemaDetail {
+        conn_id: Uuid,
+        schema_name: String,
+    },
     LoadTableData {
         conn_id: Uuid,
         tab_id: Uuid,
@@ -144,6 +156,12 @@ pub enum DbEvent {
     SchemaLoaded {
         conn_id: Uuid,
         schema: SchemaTree,
+    },
+    /// Detail loaded for a single schema (lazy loading).
+    SchemaDetailLoaded {
+        conn_id: Uuid,
+        schema_name: String,
+        schema_node: super::types::SchemaNode,
     },
     RowMutated {
         tab_id: Uuid,

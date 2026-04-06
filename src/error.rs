@@ -93,6 +93,62 @@ mod tests {
     }
 
     #[test]
+    fn error_display_schema() {
+        let e = AppError::Schema("no such table".to_string());
+        assert!(e.to_string().contains("no such table"));
+    }
+
+    #[test]
+    fn error_display_cancelled() {
+        let e = AppError::Cancelled;
+        assert_eq!(e.to_string(), "Operation cancelled");
+    }
+
+    #[test]
+    fn error_display_crypto() {
+        let e = AppError::crypto("bad key");
+        assert!(e.to_string().contains("bad key"));
+    }
+
+    #[test]
+    fn error_display_config() {
+        let e = AppError::config("missing host");
+        assert!(e.to_string().contains("missing host"));
+    }
+
+    #[test]
+    fn error_display_keychain() {
+        let e = AppError::Keychain("keychain locked".to_string());
+        assert!(e.to_string().contains("keychain locked"));
+    }
+
+    #[test]
+    fn error_driver_constructor() {
+        use crate::db::connection::DriverType;
+        use std::fmt;
+        #[derive(Debug)]
+        struct FakeErr;
+        impl fmt::Display for FakeErr {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "fake")
+            }
+        }
+        impl std::error::Error for FakeErr {}
+
+        let e = AppError::driver(DriverType::Postgres, FakeErr);
+        assert!(e.to_string().contains("PostgreSQL"));
+        assert!(e.to_string().contains("fake"));
+    }
+
+    #[test]
+    fn error_io_from() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let e = AppError::from(io_err);
+        assert!(matches!(e, AppError::Io(_)));
+        assert!(e.to_string().contains("file not found"));
+    }
+
+    #[test]
     fn error_is_send_sync() {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<AppError>();

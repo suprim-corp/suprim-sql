@@ -148,6 +148,9 @@ mod tests {
         assert_eq!(DriverType::Postgres.to_string(), "PostgreSQL");
         assert_eq!(DriverType::Sqlite.to_string(), "SQLite");
         assert_eq!(DriverType::Mssql.to_string(), "MSSQL");
+        assert_eq!(DriverType::Mysql.to_string(), "MySQL");
+        assert_eq!(DriverType::Redis.to_string(), "Redis");
+        assert_eq!(DriverType::MongoDB.to_string(), "MongoDB");
     }
 
     #[test]

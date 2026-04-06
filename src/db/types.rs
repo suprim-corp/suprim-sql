@@ -101,6 +101,8 @@ pub struct SchemaNode {
     pub name: String,
     pub tables: Vec<TableNode>,
     pub views: Vec<ViewNode>,
+    /// Whether table/view detail has been loaded (for lazy loading in UI).
+    pub loaded: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -221,5 +223,26 @@ mod tests {
         assert_eq!(r.row_count(), 0);
         assert_eq!(r.column_count(), 0);
         assert_eq!(r.rows_affected, 0);
+    }
+
+    #[test]
+    fn db_value_display_timestamp() {
+        use chrono::TimeZone;
+        let ts = chrono::Utc.with_ymd_and_hms(2024, 1, 15, 12, 0, 0).unwrap();
+        let v = DbValue::Timestamp(ts);
+        assert!(v.display().contains("2024"));
+    }
+
+    #[test]
+    fn db_value_display_fmt() {
+        // Test Display trait (std::fmt::Display) which delegates to display()
+        let v = DbValue::Int(7);
+        assert_eq!(format!("{}", v), "7");
+    }
+
+    #[test]
+    fn schema_tree_default_is_empty() {
+        let tree = SchemaTree::default();
+        assert!(tree.databases.is_empty());
     }
 }

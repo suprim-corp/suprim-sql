@@ -2,7 +2,7 @@
 name = "suprim-sql"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.86"
 
 [[bin]]
 name = "suprim-sql"
@@ -32,7 +32,7 @@ egui   = "0.34"
 eframe = { version = "0.34", features = ["default_fonts", "persistence"] }
 
 # Database
-sqlx       = { version = "0.9.0-alpha.1", features = ["runtime-tokio", "chrono", "uuid", "macros"] }
+sqlx       = { version = "0.9.0-alpha.1", features = ["runtime-tokio", "tls-rustls", "postgres", "mysql", "sqlite", "chrono", "uuid", "macros", "json"] }
 redis      = { version = "1", features = ["tokio-comp", "aio"], optional = true }
 mongodb    = { version = "3", optional = true }
 tiberius   = { version = "0.11", features = ["tds73", "chrono"], optional = true }
@@ -48,6 +48,7 @@ uuid      = { version = "1", features = ["v4", "serde"] }
 chrono    = { version = "0.4", features = ["serde"] }
 thiserror = "2"
 anyhow    = "1"
+dirs-next = "2"
 
 # Crypto (AES-256-GCM for config encryption)
 aes-gcm = "0.11.0-rc.3"
@@ -86,7 +87,7 @@ tokio = { version = "1", features = ["full"] }
 
 # Testcontainers
 testcontainers         = "0.27"
-testcontainers-modules = { version = "0.15", features = ["postgres", "mysql", "redis", "mongo"] }
+testcontainers-modules = { version = "0.15", features = ["postgres", "mysql", "redis", "mongo", "mssql_server"] }
 
 # Snapshot & property testing
 insta    = "1"
