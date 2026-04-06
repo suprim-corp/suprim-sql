@@ -375,20 +375,30 @@ impl TabManager {
                         let tab_id = entry.tab_id;
                         let label_text = entry.tab_label();
 
-                        let border_color = if is_active {
-                            egui::Color32::from_gray(80)
-                        } else {
-                            egui::Color32::from_gray(45)
-                        };
-                        let tab_bg = if is_active {
+                        // Check hover from previous frame to adjust visuals
+                        let tab_hover_id = egui::Id::new(("tab_hover", tab_id));
+                        let was_hovered = ui
+                            .ctx()
+                            .data(|d| d.get_temp::<bool>(tab_hover_id).unwrap_or(false));
+
+                        let actual_bg = if is_active {
                             egui::Color32::from_gray(50)
+                        } else if was_hovered {
+                            egui::Color32::from_gray(42)
                         } else {
                             egui::Color32::TRANSPARENT
                         };
+                        let actual_border = if is_active {
+                            egui::Color32::from_gray(80)
+                        } else if was_hovered {
+                            egui::Color32::from_gray(65)
+                        } else {
+                            egui::Color32::from_gray(45)
+                        };
 
-                        egui::Frame::NONE
-                            .fill(tab_bg)
-                            .stroke(egui::Stroke::new(1.0, border_color))
+                        let frame_response = egui::Frame::NONE
+                            .fill(actual_bg)
+                            .stroke(egui::Stroke::new(1.0, actual_border))
                             .inner_margin(egui::Margin::symmetric(6, 3))
                             .corner_radius(egui::CornerRadius::same(0))
                             .show(ui, |ui| {
@@ -427,6 +437,15 @@ impl TabManager {
                                     }
                                 });
                             });
+
+                        // Store hover state for next frame + set cursor
+                        let tab_rect = frame_response.response.rect;
+                        let is_hovered = ui.rect_contains_pointer(tab_rect);
+                        ui.ctx()
+                            .data_mut(|d| d.insert_temp(tab_hover_id, is_hovered));
+                        if is_hovered {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
                     }
                 });
             });
