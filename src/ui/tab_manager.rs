@@ -194,44 +194,47 @@ impl TableViewerTab {
 }
 
 // ── Shared result grid renderer ───────────────────────────────────────────────
-// Uses virtual scrolling: only visible rows are rendered, keeping FPS smooth
-// even for large result sets (tens of thousands of rows).
+// Single horizontally-scrolled area. The header row is drawn INSIDE the same
+// grid as the data so column widths are always in sync.  Vertical virtual
+// scrolling keeps FPS smooth for large result sets.
 
 fn render_result_grid(ui: &mut egui::Ui, result: &QueryResult) {
     let row_height = egui::TextStyle::Body.resolve(ui.style()).size + 6.0;
     let num_rows = result.rows.len();
     let num_cols = result.columns.len();
+    let col_width: f32 = 150.0;
 
-    // Reserve fixed height for status line at the bottom.
+    // Reserve space for status bar at the bottom.
     let available = ui.available_height() - row_height - 8.0;
 
-    // Sticky header drawn outside the scroll area so it doesn't move.
+    // Sticky header — same column settings as data grid.
     egui::Grid::new("result_header")
-        .striped(false)
-        .min_col_width(80.0)
+        .min_col_width(col_width)
+        .max_col_width(col_width)
         .show(ui, |ui| {
             for col in &result.columns {
-                ui.strong(&col.name);
+                ui.add(egui::Label::new(egui::RichText::new(&col.name).strong()).truncate());
             }
             ui.end_row();
         });
 
     ui.separator();
 
-    // Virtual-scrolled data rows.
-    egui::ScrollArea::both()
+    // Scrollable data rows.
+    egui::ScrollArea::vertical()
         .id_salt("result_scroll")
         .max_height(available)
-        .show_rows(ui, row_height, num_rows, |ui, row_range| {
+        .show(ui, |ui| {
             egui::Grid::new("result_grid")
                 .striped(true)
-                .min_col_width(80.0)
+                .min_col_width(col_width)
+                .max_col_width(col_width)
                 .show(ui, |ui| {
-                    for row_idx in row_range {
+                    for row_idx in 0..num_rows {
                         let row = &result.rows[row_idx];
                         for col_idx in 0..num_cols {
                             let val = row.get(col_idx).map(|v| v.display()).unwrap_or_default();
-                            ui.label(val);
+                            ui.add(egui::Label::new(val).truncate());
                         }
                         ui.end_row();
                     }
@@ -336,33 +339,29 @@ impl TabManager {
             for entry in &self.tabs {
                 let is_active = Some(entry.tab_id) == self.active_tab;
                 let tab_label = entry.kind.title();
+                let tab_id = entry.tab_id;
 
-                let mut frame = egui::Frame::NONE;
-                if is_active {
-                    frame = frame.fill(ui.visuals().extreme_bg_color);
-                }
+                let fill = if is_active {
+                    ui.visuals().extreme_bg_color
+                } else {
+                    egui::Color32::TRANSPARENT
+                };
 
-                let (rect, response) = ui.allocate_at_least(
-                    egui::vec2(
-                        8.0 + tab_label.len() as f32 * 7.5 + 24.0,
-                        ui.available_height(),
-                    ),
-                    egui::Sense::click(),
-                );
-
-                if response.clicked() {
-                    self.active_tab = Some(entry.tab_id);
-                }
-
-                frame.show(ui, |ui| {
-                    ui.set_min_width(rect.width());
-                    ui.horizontal(|ui| {
-                        ui.label(tab_label);
-                        if ui.small_button("x").clicked() {
-                            tab_to_close = Some(entry.tab_id);
-                        }
+                egui::Frame::NONE
+                    .fill(fill)
+                    .inner_margin(egui::Margin::symmetric(8, 4))
+                    .corner_radius(egui::CornerRadius::same(4))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            let label_response = ui.selectable_label(is_active, tab_label);
+                            if label_response.clicked() {
+                                self.active_tab = Some(tab_id);
+                            }
+                            if ui.small_button("x").clicked() {
+                                tab_to_close = Some(tab_id);
+                            }
+                        });
                     });
-                });
             }
         });
 
