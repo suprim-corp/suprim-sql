@@ -186,12 +186,17 @@ impl DatabaseDriver for PostgresDriver {
 
     async fn table_data(
         &self,
+        database: Option<&str>,
         schema: Option<&str>,
         table: &str,
         page: u32,
         page_size: u32,
     ) -> Result<QueryResult> {
-        queries::table_data(self.pool()?, schema, table, page, page_size).await
+        let pool = match database {
+            Some(db) => self.pool_for_db(db).await?,
+            None => self.pool()?.clone(),
+        };
+        queries::table_data(&pool, schema, table, page, page_size).await
     }
 
     async fn insert_row(&self, table: &str, values: HashMap<String, DbValue>) -> Result<u64> {

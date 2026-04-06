@@ -13,6 +13,8 @@ pub enum SidebarAction {
     },
     OpenTableViewer {
         conn_id: Uuid,
+        database: String,
+        schema_name: String,
         table_name: String,
     },
     Disconnect {
@@ -281,6 +283,9 @@ impl Sidebar {
                                                             action = Some(
                                                                 SidebarAction::OpenTableViewer {
                                                                     conn_id,
+                                                                    database: db_name.clone(),
+                                                                    schema_name: schema_name
+                                                                        .clone(),
                                                                     table_name: tbl,
                                                                 },
                                                             );
@@ -307,6 +312,9 @@ impl Sidebar {
                                                             action = Some(
                                                                 SidebarAction::OpenTableViewer {
                                                                     conn_id,
+                                                                    database: db_name.clone(),
+                                                                    schema_name: schema_name
+                                                                        .clone(),
                                                                     table_name: v,
                                                                 },
                                                             );
@@ -335,6 +343,9 @@ impl Sidebar {
                                                             action = Some(
                                                                 SidebarAction::OpenTableViewer {
                                                                     conn_id,
+                                                                    database: db_name.clone(),
+                                                                    schema_name: schema_name
+                                                                        .clone(),
                                                                     table_name: mv,
                                                                 },
                                                             );

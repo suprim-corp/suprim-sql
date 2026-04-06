@@ -48,6 +48,7 @@ pub trait DatabaseDriver: Send + Sync + std::fmt::Debug {
     /// Fetch a page of rows from a table.
     async fn table_data(
         &self,
+        database: Option<&str>,
         schema: Option<&str>,
         table: &str,
         page: u32,
@@ -119,6 +120,7 @@ pub enum DbCommand {
     LoadTableData {
         conn_id: Uuid,
         tab_id: Uuid,
+        database: Option<String>,
         schema: Option<String>,
         table: String,
         page: u32,

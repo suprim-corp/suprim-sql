@@ -110,6 +110,8 @@ impl SqlEditorTab {
 
 struct TableViewerTab {
     conn_id: Uuid,
+    database: String,
+    schema_name: String,
     table_name: String,
     result: Option<QueryResult>,
     page: usize,
@@ -120,9 +122,11 @@ struct TableViewerTab {
 }
 
 impl TableViewerTab {
-    fn new(conn_id: Uuid, table_name: String) -> Self {
+    fn new(conn_id: Uuid, database: String, schema_name: String, table_name: String) -> Self {
         Self {
             conn_id,
+            database,
+            schema_name,
             table_name,
             result: None,
             page: 0,
@@ -136,7 +140,8 @@ impl TableViewerTab {
         let _ = cmd_tx.try_send(DbCommand::LoadTableData {
             conn_id: self.conn_id,
             tab_id,
-            schema: None,
+            database: Some(self.database.clone()),
+            schema: Some(self.schema_name.clone()),
             table: self.table_name.clone(),
             page: self.page as u32,
             page_size: self.page_size as u32,
@@ -269,11 +274,22 @@ impl TabManager {
         self.active_tab = Some(tab_id);
     }
 
-    pub fn open_table_viewer(&mut self, conn_id: Uuid, table_name: String) {
+    pub fn open_table_viewer(
+        &mut self,
+        conn_id: Uuid,
+        database: String,
+        schema_name: String,
+        table_name: String,
+    ) {
         let tab_id = Uuid::new_v4();
         self.tabs.push(TabEntry {
             tab_id,
-            kind: TabKind::TableViewer(TableViewerTab::new(conn_id, table_name)),
+            kind: TabKind::TableViewer(TableViewerTab::new(
+                conn_id,
+                database,
+                schema_name,
+                table_name,
+            )),
         });
         self.active_tab = Some(tab_id);
     }

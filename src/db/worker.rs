@@ -282,6 +282,7 @@ impl DbWorker {
             DbCommand::LoadTableData {
                 conn_id,
                 tab_id,
+                database,
                 schema,
                 table,
                 page,
@@ -300,7 +301,7 @@ impl DbWorker {
                     }
                     Some(driver) => {
                         match driver
-                            .table_data(schema.as_deref(), &table, page, page_size)
+                            .table_data(database.as_deref(), schema.as_deref(), &table, page, page_size)
                             .await
                         {
                             Ok(result) => {
@@ -617,6 +618,7 @@ mod tests {
             .send(DbCommand::LoadTableData {
                 conn_id,
                 tab_id,
+                database: None,
                 schema: None,
                 table: "users".to_string(),
                 page: 0,

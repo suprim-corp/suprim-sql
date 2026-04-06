@@ -218,9 +218,16 @@ impl eframe::App for App {
                         }
                         SidebarAction::OpenTableViewer {
                             conn_id,
+                            database,
+                            schema_name,
                             table_name,
                         } => {
-                            self.tab_manager.open_table_viewer(conn_id, table_name);
+                            self.tab_manager.open_table_viewer(
+                                conn_id,
+                                database,
+                                schema_name,
+                                table_name,
+                            );
                         }
                         SidebarAction::Disconnect { conn_id } => {
                             let _ = self.cmd_tx.try_send(DbCommand::Disconnect { conn_id });
