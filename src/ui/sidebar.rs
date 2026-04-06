@@ -1,5 +1,5 @@
 use eframe::egui;
-use suprim_sql::db::types::SchemaTree;
+use suprim_sql::db::types::{DatabaseNode, SchemaTree};
 use uuid::Uuid;
 
 /// Action the sidebar wants the app to perform.
@@ -23,14 +23,29 @@ pub enum SidebarAction {
         conn_id: Uuid,
         schema_name: String,
     },
+    /// User updated the visible databases filter for a connection.
+    UpdateVisibleDatabases {
+        conn_id: Uuid,
+        /// None = show all
+        visible: Option<Vec<String>>,
+    },
 }
 
 /// A single connection entry shown in the sidebar.
 struct ConnectionEntry {
     conn_id: Uuid,
     label: String,
+    /// Currently displayed schema tree (already filtered).
     schema: Option<SchemaTree>,
+    /// ALL databases returned from the server (unfiltered) — for the picker.
+    all_databases: Vec<DatabaseNode>,
+    /// Which database names are visible. None = all.
+    visible_databases: Option<Vec<String>>,
     expanded: bool,
+    /// Whether the db-picker popup is open.
+    picker_open: bool,
+    /// Schema names that have already had a LoadSchemaDetail request sent.
+    schema_detail_requested: std::collections::HashSet<String>,
 }
 
 /// The left-hand schema / connection browser panel.
@@ -50,13 +65,17 @@ impl Sidebar {
     }
 
     pub fn on_connected(&mut self, conn_id: Uuid, name: String, schema: SchemaTree) {
-        // Remove duplicate if reconnecting.
         self.connections.retain(|c| c.conn_id != conn_id);
+        let all_databases = schema.databases.clone();
         self.connections.push(ConnectionEntry {
             conn_id,
             label: name,
             schema: Some(schema),
+            all_databases,
+            visible_databases: None,
             expanded: true,
+            picker_open: false,
+            schema_detail_requested: std::collections::HashSet::new(),
         });
     }
 
@@ -66,11 +85,12 @@ impl Sidebar {
 
     pub fn on_schema_loaded(&mut self, conn_id: Uuid, schema: SchemaTree) {
         if let Some(entry) = self.connections.iter_mut().find(|c| c.conn_id == conn_id) {
+            entry.all_databases = schema.databases.clone();
             entry.schema = Some(schema);
+            entry.schema_detail_requested.clear();
         }
     }
 
-    /// Patch in a freshly-loaded SchemaNode for a given conn_id + schema_name.
     pub fn on_schema_detail_loaded(
         &mut self,
         conn_id: Uuid,
@@ -83,6 +103,7 @@ impl Sidebar {
                     for schema in &mut db.schemas {
                         if schema.name == schema_name {
                             *schema = schema_node;
+                            entry.schema_detail_requested.remove(schema_name);
                             return;
                         }
                     }
@@ -97,23 +118,45 @@ impl Sidebar {
 
         ui.heading("Connections");
         ui.separator();
-
         ui.add_space(4.0);
 
         let mut disconnect_id: Option<Uuid> = None;
 
         for entry in &mut self.connections {
             let conn_id = entry.conn_id;
-            let label = entry.label.clone();
+            let truncated_label = truncate_label(&entry.label, 24);
 
-            let header = egui::CollapsingHeader::new(&label)
+            // Header with db count badge
+            let total = entry.all_databases.len();
+            let shown = match &entry.visible_databases {
+                None => total,
+                Some(v) => v.len(),
+            };
+            let is_filtered = entry.visible_databases.is_some();
+            let badge = if is_filtered {
+                format!("{}/{}", shown, total)
+            } else {
+                total.to_string()
+            };
+            let header_label = format!("{}  [{}]", truncated_label, badge);
+
+            let header = egui::CollapsingHeader::new(&header_label)
                 .default_open(entry.expanded)
                 .id_salt(conn_id);
 
             let response = header.show(ui, |ui| {
-                // Schema tree
+                // Filter databases by visible list.
+                // None = show all, Some(vec) = only show those in vec (even if empty).
+                let visible_names: Option<&Vec<String>> = entry.visible_databases.as_ref();
+
                 if let Some(schema) = &entry.schema {
                     for db_node in &schema.databases {
+                        // Skip databases not in the visible filter.
+                        if let Some(names) = &visible_names {
+                            if !names.contains(&db_node.name) {
+                                continue;
+                            }
+                        }
                         egui::CollapsingHeader::new(&db_node.name)
                             .id_salt(format!("{conn_id}:{}", db_node.name))
                             .show(ui, |ui| {
@@ -121,18 +164,15 @@ impl Sidebar {
                                     let schema_name = schema_node.name.clone();
                                     let loaded = schema_node.loaded;
 
-                                    // Detect expansion: if this header is open and not yet
-                                    // loaded, request lazy load.
                                     let schema_id = egui::Id::new(format!(
                                         "{conn_id}:{}:{}",
                                         db_node.name, schema_node.name
                                     ));
 
-                                    // Show loading indicator in label when not loaded.
-                                    let display_name = if !loaded {
-                                        format!("{} ⏳", schema_name)
-                                    } else {
+                                    let display_name = if loaded {
                                         schema_name.clone()
+                                    } else {
+                                        format!("{} ...", schema_name)
                                     };
 
                                     let schema_response = egui::CollapsingHeader::new(display_name)
@@ -140,8 +180,7 @@ impl Sidebar {
                                         .show(ui, |ui| {
                                             for table_node in &schema_node.tables {
                                                 let tbl = table_node.name.clone();
-                                                let btn = egui::Button::new(format!("🗂 {tbl}"))
-                                                    .frame(false);
+                                                let btn = egui::Button::new(&tbl).frame(false);
                                                 if ui.add(btn).double_clicked() {
                                                     action = Some(SidebarAction::OpenTableViewer {
                                                         conn_id,
@@ -151,8 +190,7 @@ impl Sidebar {
                                             }
                                             for view_node in &schema_node.views {
                                                 let v = view_node.name.clone();
-                                                let btn = egui::Button::new(format!("👁 {v}"))
-                                                    .frame(false);
+                                                let btn = egui::Button::new(&v).frame(false);
                                                 if ui.add(btn).double_clicked() {
                                                     action = Some(SidebarAction::OpenTableViewer {
                                                         conn_id,
@@ -166,19 +204,22 @@ impl Sidebar {
                                                 if loaded {
                                                     ui.weak("(empty)");
                                                 } else {
-                                                    ui.weak("Loading…");
+                                                    ui.weak("loading...");
                                                 }
                                             }
                                         });
 
-                                    // If header just became open and schema is not loaded,
-                                    // request load.
                                     if schema_response.openness > 0.0 && !loaded && action.is_none()
                                     {
-                                        action = Some(SidebarAction::LoadSchemaDetail {
-                                            conn_id,
-                                            schema_name: schema_name.clone(),
-                                        });
+                                        if !entry.schema_detail_requested.contains(&schema_name) {
+                                            entry
+                                                .schema_detail_requested
+                                                .insert(schema_name.clone());
+                                            action = Some(SidebarAction::LoadSchemaDetail {
+                                                conn_id,
+                                                schema_name: schema_name.clone(),
+                                            });
+                                        }
                                     }
                                 }
                                 if db_node.schemas.is_empty() {
@@ -189,14 +230,18 @@ impl Sidebar {
                 }
             });
 
-            // Right-click context menu on the header.
+            // Right-click context menu
             response.header_response.context_menu(|ui| {
                 if ui.button("New SQL Tab").clicked() {
                     action = Some(SidebarAction::OpenSqlTab { conn_id });
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Edit Connection…").clicked() {
+                if ui.button("Filter Databases...").clicked() {
+                    entry.picker_open = !entry.picker_open;
+                    ui.close();
+                }
+                if ui.button("Edit Connection...").clicked() {
                     action = Some(SidebarAction::EditConnection { conn_id });
                     ui.close();
                 }
@@ -205,6 +250,81 @@ impl Sidebar {
                     ui.close();
                 }
             });
+
+            // DB-picker popup
+            if entry.picker_open {
+                let picker_id = egui::Id::new(format!("db_picker_{conn_id}"));
+                let mut close_picker = false;
+                let mut new_visible: Option<Option<Vec<String>>> = None;
+
+                egui::Window::new(format!("Filter databases - {}", truncated_label))
+                    .id(picker_id)
+                    .collapsible(false)
+                    .resizable(false)
+                    .min_width(260.0)
+                    .show(ui.ctx(), |ui| {
+                        ui.label("Select databases to show:");
+                        ui.add_space(4.0);
+
+                        // None = show all, Some(_) = filtered (even if empty = hide all)
+                        let all_selected = entry.visible_databases.is_none();
+                        let mut show_all = all_selected;
+                        if ui.checkbox(&mut show_all, "Show all").changed() {
+                            if show_all {
+                                new_visible = Some(None);
+                            } else {
+                                // Uncheck "show all" → start with empty (hide all)
+                                new_visible = Some(Some(vec![]));
+                            }
+                        }
+
+                        ui.separator();
+
+                        let current_visible: Vec<String> = if all_selected {
+                            // "Show all" means all names are implicitly selected.
+                            entry.all_databases.iter().map(|d| d.name.clone()).collect()
+                        } else {
+                            entry.visible_databases.clone().unwrap_or_default()
+                        };
+
+                        for db in &entry.all_databases {
+                            let mut checked = all_selected || current_visible.contains(&db.name);
+                            let prev = checked;
+                            ui.checkbox(&mut checked, &db.name);
+                            if checked != prev {
+                                let mut updated: Vec<String> =
+                                    current_visible.iter().cloned().collect();
+                                if checked {
+                                    if !updated.contains(&db.name) {
+                                        updated.push(db.name.clone());
+                                    }
+                                } else {
+                                    updated.retain(|n| n != &db.name);
+                                }
+                                if updated.len() == entry.all_databases.len() {
+                                    new_visible = Some(None);
+                                } else {
+                                    new_visible = Some(Some(updated));
+                                }
+                            }
+                        }
+
+                        ui.add_space(6.0);
+                        if ui.button("Close").clicked() {
+                            close_picker = true;
+                        }
+                    });
+
+                if close_picker {
+                    entry.picker_open = false;
+                }
+                if let Some(visible) = new_visible {
+                    entry.visible_databases = visible.clone();
+                    if action.is_none() {
+                        action = Some(SidebarAction::UpdateVisibleDatabases { conn_id, visible });
+                    }
+                }
+            }
         }
 
         if let Some(id) = disconnect_id {
@@ -212,5 +332,15 @@ impl Sidebar {
         }
 
         action
+    }
+}
+
+fn truncate_label(s: &str, max_chars: usize) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    if chars.len() <= max_chars {
+        s.to_string()
+    } else {
+        let truncated: String = chars[..max_chars - 1].iter().collect();
+        format!("{}...", truncated)
     }
 }

@@ -50,7 +50,7 @@ impl SqlEditorTab {
         ui.vertical(|ui| {
             // Toolbar row
             ui.horizontal(|ui| {
-                let run_btn = egui::Button::new("▶ Run");
+                let run_btn = egui::Button::new("Run");
                 let can_run = self.conn_id.is_some() && !self.is_running;
                 if ui.add_enabled(can_run, run_btn).clicked() {
                     if let Some(conn_id) = self.conn_id {
@@ -147,19 +147,19 @@ impl TableViewerTab {
             ui.horizontal(|ui| {
                 ui.heading(&self.table_name);
                 ui.add_space(8.0);
-                if ui.button("🔄 Reload").clicked() {
+                if ui.button("Reload").clicked() {
                     self.load(tab_id, cmd_tx);
                 }
                 if self.is_loading {
                     ui.spinner();
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button("▶").clicked() {
+                    if ui.button(">").clicked() {
                         self.page += 1;
                         self.load(tab_id, cmd_tx);
                     }
                     ui.label(format!("Page {}", self.page + 1));
-                    if self.page > 0 && ui.button("◀").clicked() {
+                    if self.page > 0 && ui.button("<").clicked() {
                         self.page -= 1;
                         self.load(tab_id, cmd_tx);
                     }
@@ -181,43 +181,60 @@ impl TableViewerTab {
 }
 
 // ── Shared result grid renderer ───────────────────────────────────────────────
+// Uses virtual scrolling: only visible rows are rendered, keeping FPS smooth
+// even for large result sets (tens of thousands of rows).
 
 fn render_result_grid(ui: &mut egui::Ui, result: &QueryResult) {
-    let text_height = egui::TextStyle::Body.resolve(ui.style()).size + 4.0;
+    let row_height = egui::TextStyle::Body.resolve(ui.style()).size + 6.0;
+    let num_rows = result.rows.len();
+    let num_cols = result.columns.len();
 
+    // Reserve fixed height for status line at the bottom.
+    let available = ui.available_height() - row_height - 8.0;
+
+    // Sticky header drawn outside the scroll area so it doesn't move.
+    egui::Grid::new("result_header")
+        .striped(false)
+        .min_col_width(80.0)
+        .show(ui, |ui| {
+            for col in &result.columns {
+                ui.strong(&col.name);
+            }
+            ui.end_row();
+        });
+
+    ui.separator();
+
+    // Virtual-scrolled data rows.
     egui::ScrollArea::both()
         .id_salt("result_scroll")
-        .show(ui, |ui| {
+        .max_height(available)
+        .show_rows(ui, row_height, num_rows, |ui, row_range| {
             egui::Grid::new("result_grid")
                 .striped(true)
-                .min_col_width(60.0)
+                .min_col_width(80.0)
                 .show(ui, |ui| {
-                    // Header row
-                    for col in &result.columns {
-                        ui.strong(&col.name);
-                    }
-                    ui.end_row();
-
-                    // Data rows
-                    for row in &result.rows {
-                        for val in row {
-                            ui.label(val.display());
+                    for row_idx in row_range {
+                        let row = &result.rows[row_idx];
+                        for col_idx in 0..num_cols {
+                            let val = row.get(col_idx).map(|v| v.display()).unwrap_or_default();
+                            ui.label(val);
                         }
                         ui.end_row();
                     }
                 });
-
-            ui.add_space(4.0);
-            ui.label(
-                egui::RichText::new(format!(
-                    "{} rows  ·  {:.1} ms",
-                    result.rows.len(),
-                    result.execution_time.as_secs_f64() * 1000.0
-                ))
-                .color(egui::Color32::GRAY)
-                .small(),
-            );
         });
+
+    ui.add_space(4.0);
+    ui.label(
+        egui::RichText::new(format!(
+            "{} rows  ·  {:.1} ms",
+            num_rows,
+            result.execution_time.as_secs_f64() * 1000.0
+        ))
+        .color(egui::Color32::GRAY)
+        .small(),
+    );
 }
 
 // ── TabManager ────────────────────────────────────────────────────────────────
@@ -317,7 +334,7 @@ impl TabManager {
                     ui.set_min_width(rect.width());
                     ui.horizontal(|ui| {
                         ui.label(tab_label);
-                        if ui.small_button("✕").clicked() {
+                        if ui.small_button("x").clicked() {
                             tab_to_close = Some(entry.tab_id);
                         }
                     });

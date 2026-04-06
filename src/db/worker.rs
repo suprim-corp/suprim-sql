@@ -96,7 +96,15 @@ impl DbWorker {
                                 let schema_result = driver.load_schema().await;
                                 self.connections.insert(conn_id, driver);
                                 match schema_result {
-                                    Ok(schema) => {
+                                    Ok(mut schema) => {
+                                        // Filter databases if visible_databases is set.
+                                        if let Some(visible) = &config.visible_databases {
+                                            if !visible.is_empty() {
+                                                schema.databases.retain(|db| {
+                                                    visible.iter().any(|v| v == &db.name)
+                                                });
+                                            }
+                                        }
                                         let _ = self
                                             .event_tx
                                             .send(DbEvent::Connected { conn_id, schema })

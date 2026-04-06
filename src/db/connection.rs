@@ -117,6 +117,10 @@ pub struct ConnectionConfig {
     pub tls: TlsConfig,
     pub created_at: DateTime<Utc>,
     pub last_used: Option<DateTime<Utc>>,
+    /// For Postgres: only show these databases in the sidebar.
+    /// None = show all databases (default). Empty vec = show all.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visible_databases: Option<Vec<String>>,
 }
 
 impl ConnectionConfig {
@@ -129,6 +133,7 @@ impl ConnectionConfig {
             tls: TlsConfig::default(),
             created_at: Utc::now(),
             last_used: None,
+            visible_databases: None,
         }
     }
 

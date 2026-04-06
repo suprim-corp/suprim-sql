@@ -200,6 +200,17 @@ impl eframe::App for App {
                                 schema_name,
                             });
                         }
+                        SidebarAction::UpdateVisibleDatabases { conn_id, visible } => {
+                            // Persist the filter into the connection config.
+                            if let Some(cfg) =
+                                self.config.connections.iter_mut().find(|c| c.id == conn_id)
+                            {
+                                cfg.visible_databases = visible;
+                                self.config.save();
+                            }
+                            // Reload schema so the worker can re-apply the filter.
+                            let _ = self.cmd_tx.try_send(DbCommand::LoadSchema { conn_id });
+                        }
                     }
                 }
             });
