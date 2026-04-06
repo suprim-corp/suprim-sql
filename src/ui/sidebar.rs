@@ -21,6 +21,7 @@ pub enum SidebarAction {
     /// Request lazy-load of a schema's tables/views.
     LoadSchemaDetail {
         conn_id: Uuid,
+        database: String,
         schema_name: String,
     },
     /// Request lazy-load of schemas for a database.
@@ -148,16 +149,21 @@ impl Sidebar {
     pub fn on_schema_detail_loaded(
         &mut self,
         conn_id: Uuid,
+        database: &str,
         schema_name: &str,
         schema_node: suprim_sql::db::types::SchemaNode,
     ) {
         if let Some(entry) = self.connections.iter_mut().find(|c| c.conn_id == conn_id) {
             if let Some(tree) = &mut entry.schema {
                 for db in &mut tree.databases {
+                    if db.name != database {
+                        continue;
+                    }
                     for schema in &mut db.schemas {
                         if schema.name == schema_name {
                             *schema = schema_node;
-                            entry.schema_detail_requested.remove(schema_name);
+                            let key = format!("{}:{}", database, schema_name);
+                            entry.schema_detail_requested.remove(&key);
                             return;
                         }
                     }
@@ -264,11 +270,13 @@ impl Sidebar {
                                         }
                                     });
 
+                                let detail_key = format!("{}:{}", db_name, schema_name);
                                 if schema_response.openness > 0.0 && !loaded && action.is_none() {
-                                    if !entry.schema_detail_requested.contains(&schema_name) {
-                                        entry.schema_detail_requested.insert(schema_name.clone());
+                                    if !entry.schema_detail_requested.contains(&detail_key) {
+                                        entry.schema_detail_requested.insert(detail_key);
                                         action = Some(SidebarAction::LoadSchemaDetail {
                                             conn_id,
+                                            database: db_name.clone(),
                                             schema_name: schema_name.clone(),
                                         });
                                     }

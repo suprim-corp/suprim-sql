@@ -239,6 +239,7 @@ impl DbWorker {
 
             DbCommand::LoadSchemaDetail {
                 conn_id,
+                database,
                 schema_name,
             } => {
                 match self.connections.get(&conn_id) {
@@ -252,12 +253,13 @@ impl DbWorker {
                             })
                             .await;
                     }
-                    Some(driver) => match driver.load_schema_detail(&schema_name).await {
+                    Some(driver) => match driver.load_schema_detail(&database, &schema_name).await {
                         Ok(schema_node) => {
                             let _ = self
                                 .event_tx
                                 .send(DbEvent::SchemaDetailLoaded {
                                     conn_id,
+                                    database,
                                     schema_name,
                                     schema_node,
                                 })

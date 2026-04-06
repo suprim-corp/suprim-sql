@@ -43,7 +43,7 @@ pub trait DatabaseDriver: Send + Sync + std::fmt::Debug {
     async fn list_schemas(&self, database: &str) -> Result<Vec<String>>;
 
     /// Load full detail for a single named schema: tables, views, columns, indexes, FKs.
-    async fn load_schema_detail(&self, schema_name: &str) -> Result<SchemaNode>;
+    async fn load_schema_detail(&self, database: &str, schema_name: &str) -> Result<SchemaNode>;
 
     /// Fetch a page of rows from a table.
     async fn table_data(
@@ -113,6 +113,7 @@ pub enum DbCommand {
     /// Load detail (tables/views/columns) for a single schema — lazy loading.
     LoadSchemaDetail {
         conn_id: Uuid,
+        database: String,
         schema_name: String,
     },
     LoadTableData {
@@ -175,6 +176,7 @@ pub enum DbEvent {
     /// Detail loaded for a single schema (lazy loading).
     SchemaDetailLoaded {
         conn_id: Uuid,
+        database: String,
         schema_name: String,
         schema_node: SchemaNode,
     },

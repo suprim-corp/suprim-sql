@@ -122,11 +122,16 @@ impl App {
                 }
                 DbEvent::SchemaDetailLoaded {
                     conn_id,
+                    database,
                     schema_name,
                     schema_node,
                 } => {
-                    self.sidebar
-                        .on_schema_detail_loaded(conn_id, &schema_name, schema_node);
+                    self.sidebar.on_schema_detail_loaded(
+                        conn_id,
+                        &database,
+                        &schema_name,
+                        schema_node,
+                    );
                 }
                 DbEvent::RowMutated {
                     tab_id,
@@ -222,10 +227,12 @@ impl eframe::App for App {
                         }
                         SidebarAction::LoadSchemaDetail {
                             conn_id,
+                            database,
                             schema_name,
                         } => {
                             let _ = self.cmd_tx.try_send(DbCommand::LoadSchemaDetail {
                                 conn_id,
+                                database,
                                 schema_name,
                             });
                         }

@@ -15,6 +15,7 @@ pub use connection_url::{build_connection_url, urlencoding_simple};
 pub use type_mapping::{pg_value_from_row, rows_to_query_result};
 
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 use async_trait::async_trait;
 use sqlx::postgres::{PgConnectOptions, PgPool, PgPoolOptions};
@@ -28,16 +29,54 @@ use crate::error::{AppError, Result};
 
 #[derive(Debug)]
 pub struct PostgresDriver {
+    /// Primary pool (for the database specified in connection config).
     pool: Option<PgPool>,
+    /// Per-database pools for cross-database browsing (behind Mutex for interior mutability).
+    db_pools: Mutex<HashMap<String, PgPool>>,
+    /// Connection options needed to create per-database pools.
+    connect_opts: Option<PgConnectOptions>,
 }
 
 impl PostgresDriver {
     pub fn new() -> Self {
-        Self { pool: None }
+        Self {
+            pool: None,
+            db_pools: Mutex::new(HashMap::new()),
+            connect_opts: None,
+        }
     }
 
     fn pool(&self) -> Result<&PgPool> {
         self.pool.as_ref().ok_or(AppError::NotConnected)
+    }
+
+    /// Get or create a pool for a specific database.
+    async fn pool_for_db(&self, database: &str) -> Result<PgPool> {
+        // Check if pool already exists.
+        {
+            let pools = self.db_pools.lock().unwrap();
+            if let Some(pool) = pools.get(database) {
+                return Ok(pool.clone());
+            }
+        }
+        // Create new pool for this database.
+        let base_opts = self
+            .connect_opts
+            .as_ref()
+            .ok_or(AppError::NotConnected)?
+            .clone();
+        let opts = base_opts.database(database);
+        let pool = PgPoolOptions::new()
+            .max_connections(2)
+            .acquire_timeout(std::time::Duration::from_secs(5))
+            .connect_with(opts)
+            .await
+            .map_err(|e| AppError::connection(e.to_string()))?;
+        {
+            let mut pools = self.db_pools.lock().unwrap();
+            pools.insert(database.to_string(), pool.clone());
+        }
+        Ok(pool)
     }
 }
 
@@ -78,6 +117,15 @@ impl DatabaseDriver for PostgresDriver {
             .username(user)
             .password(password);
 
+        // Store base connection options (without database) for cross-db pool creation.
+        self.connect_opts = Some(
+            PgConnectOptions::new()
+                .host(host)
+                .port(port)
+                .username(user)
+                .password(password),
+        );
+
         let pool = PgPoolOptions::new()
             .max_connections(10)
             .min_connections(1)
@@ -94,6 +142,14 @@ impl DatabaseDriver for PostgresDriver {
         if let Some(pool) = self.pool.take() {
             pool.close().await;
         }
+        let pools: Vec<PgPool> = {
+            let mut locked = self.db_pools.lock().unwrap();
+            locked.drain().map(|(_, p)| p).collect()
+        };
+        for pool in pools {
+            pool.close().await;
+        }
+        self.connect_opts = None;
         Ok(())
     }
 
@@ -118,14 +174,14 @@ impl DatabaseDriver for PostgresDriver {
         schema_loader::list_databases(self.pool()?).await
     }
 
-    async fn list_schemas(&self, _database: &str) -> Result<Vec<String>> {
-        // PostgreSQL: can only query schemas for current connection's database.
-        // Ignore `database` arg — always returns schemas for current db.
-        schema_loader::list_schemas(self.pool()?).await
+    async fn list_schemas(&self, database: &str) -> Result<Vec<String>> {
+        let pool = self.pool_for_db(database).await?;
+        schema_loader::list_schemas(&pool).await
     }
 
-    async fn load_schema_detail(&self, schema_name: &str) -> Result<SchemaNode> {
-        schema_loader::load_schema_detail(self.pool()?, schema_name).await
+    async fn load_schema_detail(&self, database: &str, schema_name: &str) -> Result<SchemaNode> {
+        let pool = self.pool_for_db(database).await?;
+        schema_loader::load_schema_detail(&pool, schema_name).await
     }
 
     async fn table_data(
