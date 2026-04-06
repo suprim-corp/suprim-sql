@@ -115,6 +115,8 @@ struct TableViewerTab {
     page: usize,
     page_size: usize,
     is_loading: bool,
+    /// True until the first load is dispatched (auto-load on open).
+    needs_initial_load: bool,
 }
 
 impl TableViewerTab {
@@ -126,6 +128,7 @@ impl TableViewerTab {
             page: 0,
             page_size: 100,
             is_loading: false,
+            needs_initial_load: true,
         }
     }
 
@@ -142,6 +145,12 @@ impl TableViewerTab {
     }
 
     fn show(&mut self, ui: &mut egui::Ui, tab_id: Uuid, cmd_tx: &mpsc::Sender<DbCommand>) {
+        // Auto-load data on first render.
+        if self.needs_initial_load {
+            self.needs_initial_load = false;
+            self.load(tab_id, cmd_tx);
+        }
+
         ui.vertical(|ui| {
             // Toolbar
             ui.horizontal(|ui| {
@@ -170,11 +179,10 @@ impl TableViewerTab {
 
             if let Some(result) = &self.result {
                 render_result_grid(ui, result);
-            } else {
-                ui.label(
-                    egui::RichText::new("Click Reload to load table data")
-                        .color(egui::Color32::GRAY),
-                );
+            } else if self.is_loading {
+                ui.centered_and_justified(|ui| {
+                    ui.spinner();
+                });
             }
         });
     }
