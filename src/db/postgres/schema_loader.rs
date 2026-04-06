@@ -4,7 +4,7 @@ use sqlx::{AssertSqlSafe, Row};
 use sqlx::postgres::PgPool;
 
 use crate::db::types::{
-    ColumnNode, ForeignKeyNode, IndexNode, SchemaNode, TableNode, ViewNode,
+    ColumnNode, ForeignKeyNode, IndexNode, SchemaNode, SequenceNode, TableNode, ViewNode,
 };
 use crate::error::{AppError, Result};
 
@@ -64,12 +64,51 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
     .await
     .map_err(|e| AppError::Schema(e.to_string()))?;
 
-    if table_rows.is_empty() {
+    // ── 1b. Materialized views ────────────────────────────────────────────────
+    let matview_rows = sqlx::query(AssertSqlSafe(format!(
+        "SELECT matviewname AS name \
+         FROM pg_catalog.pg_matviews \
+         WHERE schemaname = '{}' \
+         ORDER BY matviewname",
+        schema_name
+    )))
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    // ── 1c. Sequences ─────────────────────────────────────────────────────────
+    let seq_rows = sqlx::query(AssertSqlSafe(format!(
+        "SELECT sequence_name \
+         FROM information_schema.sequences \
+         WHERE sequence_schema = '{}' \
+         ORDER BY sequence_name",
+        schema_name
+    )))
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    let sequences: Vec<SequenceNode> = seq_rows
+        .iter()
+        .map(|r| SequenceNode {
+            id: uuid::Uuid::new_v4(),
+            name: r.try_get("sequence_name").unwrap_or_default(),
+        })
+        .collect();
+
+    let matview_names: Vec<String> = matview_rows
+        .iter()
+        .map(|r| r.try_get::<String, _>("name").unwrap_or_default())
+        .collect();
+
+    if table_rows.is_empty() && matview_names.is_empty() {
         return Ok(SchemaNode {
             id: uuid::Uuid::new_v4(),
             name: schema_name.to_string(),
             tables: vec![],
             views: vec![],
+            materialized_views: vec![],
+            sequences,
             loaded: true,
         });
     }
@@ -250,11 +289,24 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
         }
     }
 
+    // ── 7b. Materialized views ───────────────────────────────────────────────
+    let mut materialized_views = Vec::new();
+    for mv_name in &matview_names {
+        let columns = col_map.remove(mv_name).unwrap_or_default();
+        materialized_views.push(ViewNode {
+            id: uuid::Uuid::new_v4(),
+            name: mv_name.clone(),
+            columns,
+        });
+    }
+
     Ok(SchemaNode {
         id: uuid::Uuid::new_v4(),
         name: schema_name.to_string(),
         tables,
         views,
+        materialized_views,
+        sequences,
         loaded: true,
     })
 }

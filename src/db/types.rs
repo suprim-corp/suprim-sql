@@ -101,6 +101,8 @@ pub struct SchemaNode {
     pub name: String,
     pub tables: Vec<TableNode>,
     pub views: Vec<ViewNode>,
+    pub materialized_views: Vec<ViewNode>,
+    pub sequences: Vec<SequenceNode>,
     /// Whether table/view detail has been loaded (for lazy loading in UI).
     pub loaded: bool,
 }
@@ -138,6 +140,12 @@ pub struct IndexNode {
     pub name: String,
     pub columns: Vec<String>,
     pub is_unique: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct SequenceNode {
+    pub id: uuid::Uuid,
+    pub name: String,
 }
 
 #[derive(Debug, Clone)]

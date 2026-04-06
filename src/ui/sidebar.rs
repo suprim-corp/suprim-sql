@@ -121,6 +121,8 @@ impl Sidebar {
                                 loaded: false,
                                 tables: vec![],
                                 views: vec![],
+                                materialized_views: vec![],
+                                sequences: vec![],
                             })
                             .collect();
                         return;
@@ -138,6 +140,8 @@ impl Sidebar {
                             loaded: false,
                             tables: vec![],
                             views: vec![],
+                            materialized_views: vec![],
+                            sequences: vec![],
                         })
                         .collect();
                     return;
@@ -239,34 +243,122 @@ impl Sidebar {
                                 let schema_response = egui::CollapsingHeader::new(display_name)
                                     .id_salt(schema_id)
                                     .show(ui, |ui| {
-                                        for table_node in &schema_node.tables {
-                                            let tbl = table_node.name.clone();
-                                            let btn = egui::Button::new(&tbl).frame(false);
-                                            if ui.add(btn).double_clicked() {
-                                                action = Some(SidebarAction::OpenTableViewer {
-                                                    conn_id,
-                                                    table_name: tbl,
-                                                });
-                                            }
+                                        if !loaded {
+                                            ui.weak("loading...");
+                                            return;
                                         }
-                                        for view_node in &schema_node.views {
-                                            let v = view_node.name.clone();
-                                            let btn = egui::Button::new(&v).frame(false);
-                                            if ui.add(btn).double_clicked() {
-                                                action = Some(SidebarAction::OpenTableViewer {
-                                                    conn_id,
-                                                    table_name: v,
-                                                });
-                                            }
+
+                                        let has_tables = !schema_node.tables.is_empty();
+                                        let has_views = !schema_node.views.is_empty();
+                                        let has_matviews =
+                                            !schema_node.materialized_views.is_empty();
+                                        let has_sequences = !schema_node.sequences.is_empty();
+                                        let is_empty = !has_tables
+                                            && !has_views
+                                            && !has_matviews
+                                            && !has_sequences;
+
+                                        if is_empty {
+                                            ui.weak("(empty)");
+                                            return;
                                         }
-                                        if schema_node.tables.is_empty()
-                                            && schema_node.views.is_empty()
-                                        {
-                                            if loaded {
-                                                ui.weak("(empty)");
-                                            } else {
-                                                ui.weak("loading...");
-                                            }
+
+                                        // Tables folder
+                                        if has_tables {
+                                            let tables_label =
+                                                format!("Tables ({})", schema_node.tables.len());
+                                            egui::CollapsingHeader::new(tables_label)
+                                                .id_salt(format!(
+                                                    "{conn_id}:{}:{}:tables",
+                                                    db_node.name, schema_node.name
+                                                ))
+                                                .show(ui, |ui| {
+                                                    for table_node in &schema_node.tables {
+                                                        let tbl = table_node.name.clone();
+                                                        let btn =
+                                                            egui::Button::new(&tbl).frame(false);
+                                                        if ui.add(btn).double_clicked() {
+                                                            action = Some(
+                                                                SidebarAction::OpenTableViewer {
+                                                                    conn_id,
+                                                                    table_name: tbl,
+                                                                },
+                                                            );
+                                                        }
+                                                    }
+                                                });
+                                        }
+
+                                        // Views folder
+                                        if has_views {
+                                            let views_label =
+                                                format!("Views ({})", schema_node.views.len());
+                                            egui::CollapsingHeader::new(views_label)
+                                                .id_salt(format!(
+                                                    "{conn_id}:{}:{}:views",
+                                                    db_node.name, schema_node.name
+                                                ))
+                                                .show(ui, |ui| {
+                                                    for view_node in &schema_node.views {
+                                                        let v = view_node.name.clone();
+                                                        let btn =
+                                                            egui::Button::new(&v).frame(false);
+                                                        if ui.add(btn).double_clicked() {
+                                                            action = Some(
+                                                                SidebarAction::OpenTableViewer {
+                                                                    conn_id,
+                                                                    table_name: v,
+                                                                },
+                                                            );
+                                                        }
+                                                    }
+                                                });
+                                        }
+
+                                        // Materialized Views folder
+                                        if has_matviews {
+                                            let mv_label = format!(
+                                                "Materialized Views ({})",
+                                                schema_node.materialized_views.len()
+                                            );
+                                            egui::CollapsingHeader::new(mv_label)
+                                                .id_salt(format!(
+                                                    "{conn_id}:{}:{}:matviews",
+                                                    db_node.name, schema_node.name
+                                                ))
+                                                .show(ui, |ui| {
+                                                    for mv_node in &schema_node.materialized_views {
+                                                        let mv = mv_node.name.clone();
+                                                        let btn =
+                                                            egui::Button::new(&mv).frame(false);
+                                                        if ui.add(btn).double_clicked() {
+                                                            action = Some(
+                                                                SidebarAction::OpenTableViewer {
+                                                                    conn_id,
+                                                                    table_name: mv,
+                                                                },
+                                                            );
+                                                        }
+                                                    }
+                                                });
+                                        }
+
+                                        // Sequences folder
+                                        if has_sequences {
+                                            let seq_label = format!(
+                                                "Sequences ({})",
+                                                schema_node.sequences.len()
+                                            );
+                                            egui::CollapsingHeader::new(seq_label)
+                                                .id_salt(format!(
+                                                    "{conn_id}:{}:{}:sequences",
+                                                    db_node.name, schema_node.name
+                                                ))
+                                                .show(ui, |ui| {
+                                                    for seq_node in &schema_node.sequences {
+                                                        ui.label(&seq_node.name);
+                                                    }
+                                                });
                                         }
                                     });
 

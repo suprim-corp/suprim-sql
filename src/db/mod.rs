@@ -18,5 +18,5 @@ pub use factory::DbFactory;
 pub use worker::DbWorker;
 pub use types::{
     ColumnMeta, ColumnNode, DatabaseNode, DbValue, ForeignKeyNode, IndexNode, QueryResult,
-    SchemaNode, SchemaTree, TableNode, ViewNode,
+    SchemaNode, SchemaTree, SequenceNode, TableNode, ViewNode,
 };
