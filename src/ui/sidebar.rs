@@ -23,6 +23,11 @@ pub enum SidebarAction {
         conn_id: Uuid,
         schema_name: String,
     },
+    /// Request lazy-load of schemas for a database.
+    ListSchemas {
+        conn_id: Uuid,
+        database: String,
+    },
     /// User updated the visible databases filter for a connection.
     UpdateVisibleDatabases {
         conn_id: Uuid,
@@ -46,6 +51,8 @@ struct ConnectionEntry {
     picker_open: bool,
     /// Schema names that have already had a LoadSchemaDetail request sent.
     schema_detail_requested: std::collections::HashSet<String>,
+    /// Database names that have already had a ListSchemas request sent.
+    schemas_requested: std::collections::HashSet<String>,
 }
 
 /// The left-hand schema / connection browser panel.
@@ -64,7 +71,13 @@ impl Sidebar {
         self.connections.iter().map(|c| c.conn_id).collect()
     }
 
-    pub fn on_connected(&mut self, conn_id: Uuid, name: String, schema: SchemaTree) {
+    pub fn on_connected(
+        &mut self,
+        conn_id: Uuid,
+        name: String,
+        schema: SchemaTree,
+        visible_databases: Option<Vec<String>>,
+    ) {
         self.connections.retain(|c| c.conn_id != conn_id);
         let all_databases = schema.databases.clone();
         self.connections.push(ConnectionEntry {
@@ -72,10 +85,11 @@ impl Sidebar {
             label: name,
             schema: Some(schema),
             all_databases,
-            visible_databases: None,
+            visible_databases,
             expanded: true,
             picker_open: false,
             schema_detail_requested: std::collections::HashSet::new(),
+            schemas_requested: std::collections::HashSet::new(),
         });
     }
 
@@ -88,6 +102,46 @@ impl Sidebar {
             entry.all_databases = schema.databases.clone();
             entry.schema = Some(schema);
             entry.schema_detail_requested.clear();
+            entry.schemas_requested.clear();
+        }
+    }
+
+    /// Called when schemas for a specific database have been listed.
+    pub fn on_schemas_listed(&mut self, conn_id: Uuid, database: &str, schemas: Vec<String>) {
+        if let Some(entry) = self.connections.iter_mut().find(|c| c.conn_id == conn_id) {
+            if let Some(tree) = &mut entry.schema {
+                for db in &mut tree.databases {
+                    if db.name == database {
+                        db.schemas = schemas
+                            .into_iter()
+                            .map(|name| suprim_sql::db::types::SchemaNode {
+                                id: uuid::Uuid::new_v4(),
+                                name,
+                                loaded: false,
+                                tables: vec![],
+                                views: vec![],
+                            })
+                            .collect();
+                        return;
+                    }
+                }
+            }
+            // Also update all_databases so picker stays consistent.
+            for db in &mut entry.all_databases {
+                if db.name == database {
+                    db.schemas = schemas
+                        .into_iter()
+                        .map(|name| suprim_sql::db::types::SchemaNode {
+                            id: uuid::Uuid::new_v4(),
+                            name,
+                            loaded: false,
+                            tables: vec![],
+                            views: vec![],
+                        })
+                        .collect();
+                    return;
+                }
+            }
         }
     }
 
@@ -157,75 +211,86 @@ impl Sidebar {
                                 continue;
                             }
                         }
-                        egui::CollapsingHeader::new(&db_node.name)
-                            .id_salt(format!("{conn_id}:{}", db_node.name))
-                            .show(ui, |ui| {
-                                for schema_node in &db_node.schemas {
-                                    let schema_name = schema_node.name.clone();
-                                    let loaded = schema_node.loaded;
+                        let db_name = db_node.name.clone();
+                        let db_header = egui::CollapsingHeader::new(&db_node.name)
+                            .id_salt(format!("{conn_id}:{}", db_node.name));
+                        let db_response = db_header.show(ui, |ui| {
+                            for schema_node in &db_node.schemas {
+                                let schema_name = schema_node.name.clone();
+                                let loaded = schema_node.loaded;
 
-                                    let schema_id = egui::Id::new(format!(
-                                        "{conn_id}:{}:{}",
-                                        db_node.name, schema_node.name
-                                    ));
+                                let schema_id = egui::Id::new(format!(
+                                    "{conn_id}:{}:{}",
+                                    db_node.name, schema_node.name
+                                ));
 
-                                    let display_name = if loaded {
-                                        schema_name.clone()
-                                    } else {
-                                        format!("{} ...", schema_name)
-                                    };
+                                let display_name = if loaded {
+                                    schema_name.clone()
+                                } else {
+                                    format!("{} ...", schema_name)
+                                };
 
-                                    let schema_response = egui::CollapsingHeader::new(display_name)
-                                        .id_salt(schema_id)
-                                        .show(ui, |ui| {
-                                            for table_node in &schema_node.tables {
-                                                let tbl = table_node.name.clone();
-                                                let btn = egui::Button::new(&tbl).frame(false);
-                                                if ui.add(btn).double_clicked() {
-                                                    action = Some(SidebarAction::OpenTableViewer {
-                                                        conn_id,
-                                                        table_name: tbl,
-                                                    });
-                                                }
+                                let schema_response = egui::CollapsingHeader::new(display_name)
+                                    .id_salt(schema_id)
+                                    .show(ui, |ui| {
+                                        for table_node in &schema_node.tables {
+                                            let tbl = table_node.name.clone();
+                                            let btn = egui::Button::new(&tbl).frame(false);
+                                            if ui.add(btn).double_clicked() {
+                                                action = Some(SidebarAction::OpenTableViewer {
+                                                    conn_id,
+                                                    table_name: tbl,
+                                                });
                                             }
-                                            for view_node in &schema_node.views {
-                                                let v = view_node.name.clone();
-                                                let btn = egui::Button::new(&v).frame(false);
-                                                if ui.add(btn).double_clicked() {
-                                                    action = Some(SidebarAction::OpenTableViewer {
-                                                        conn_id,
-                                                        table_name: v,
-                                                    });
-                                                }
-                                            }
-                                            if schema_node.tables.is_empty()
-                                                && schema_node.views.is_empty()
-                                            {
-                                                if loaded {
-                                                    ui.weak("(empty)");
-                                                } else {
-                                                    ui.weak("loading...");
-                                                }
-                                            }
-                                        });
-
-                                    if schema_response.openness > 0.0 && !loaded && action.is_none()
-                                    {
-                                        if !entry.schema_detail_requested.contains(&schema_name) {
-                                            entry
-                                                .schema_detail_requested
-                                                .insert(schema_name.clone());
-                                            action = Some(SidebarAction::LoadSchemaDetail {
-                                                conn_id,
-                                                schema_name: schema_name.clone(),
-                                            });
                                         }
+                                        for view_node in &schema_node.views {
+                                            let v = view_node.name.clone();
+                                            let btn = egui::Button::new(&v).frame(false);
+                                            if ui.add(btn).double_clicked() {
+                                                action = Some(SidebarAction::OpenTableViewer {
+                                                    conn_id,
+                                                    table_name: v,
+                                                });
+                                            }
+                                        }
+                                        if schema_node.tables.is_empty()
+                                            && schema_node.views.is_empty()
+                                        {
+                                            if loaded {
+                                                ui.weak("(empty)");
+                                            } else {
+                                                ui.weak("loading...");
+                                            }
+                                        }
+                                    });
+
+                                if schema_response.openness > 0.0 && !loaded && action.is_none() {
+                                    if !entry.schema_detail_requested.contains(&schema_name) {
+                                        entry.schema_detail_requested.insert(schema_name.clone());
+                                        action = Some(SidebarAction::LoadSchemaDetail {
+                                            conn_id,
+                                            schema_name: schema_name.clone(),
+                                        });
                                     }
                                 }
-                                if db_node.schemas.is_empty() {
-                                    ui.weak("(no schemas)");
-                                }
-                            });
+                            }
+                            if db_node.schemas.is_empty() {
+                                ui.weak("loading schemas...");
+                            }
+                        });
+                        // Trigger ListSchemas when database is expanded but has no schemas yet.
+                        if db_response.openness > 0.0
+                            && db_node.schemas.is_empty()
+                            && action.is_none()
+                        {
+                            if !entry.schemas_requested.contains(&db_name) {
+                                entry.schemas_requested.insert(db_name.clone());
+                                action = Some(SidebarAction::ListSchemas {
+                                    conn_id,
+                                    database: db_name,
+                                });
+                            }
+                        }
                     }
                 }
             });

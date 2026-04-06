@@ -229,13 +229,23 @@ impl DatabaseDriver for MssqlDriver {
         ))
     }
 
-    async fn load_schema(&self) -> Result<SchemaTree> {
+    async fn list_databases(&self) -> Result<Vec<String>> {
         if self.client.is_none() {
             return Err(AppError::NotConnected);
         }
-        Err(AppError::Schema(
-            "MssqlDriver::load_schema requires mutable access — use the DbWorker channel"
-                .to_string(),
+        Err(AppError::query(
+            "",
+            "MssqlDriver::list_databases requires mutable access — use the DbWorker channel",
+        ))
+    }
+
+    async fn list_schemas(&self, _database: &str) -> Result<Vec<String>> {
+        if self.client.is_none() {
+            return Err(AppError::NotConnected);
+        }
+        Err(AppError::query(
+            "",
+            "MssqlDriver::list_schemas requires mutable access — use the DbWorker channel",
         ))
     }
 
@@ -525,9 +535,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_schema_without_connect_returns_not_connected() {
+    async fn list_databases_without_connect_returns_not_connected() {
         let driver = MssqlDriver::new();
-        let err = driver.load_schema().await.unwrap_err();
+        let err = driver.list_databases().await.unwrap_err();
         assert!(matches!(err, AppError::NotConnected));
     }
 

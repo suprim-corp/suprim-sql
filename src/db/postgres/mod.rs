@@ -21,7 +21,7 @@ use sqlx::postgres::{PgConnectOptions, PgPool, PgPoolOptions};
 
 use crate::db::connection::{ConnectionConfig, DriverParams, DriverType};
 use crate::db::driver::DatabaseDriver;
-use crate::db::types::{DbValue, QueryResult, SchemaNode, SchemaTree};
+use crate::db::types::{DbValue, QueryResult, SchemaNode};
 use crate::error::{AppError, Result};
 
 // ─── Driver ──────────────────────────────────────────────────────────────────
@@ -114,8 +114,14 @@ impl DatabaseDriver for PostgresDriver {
         queries::execute_with_params(self.pool()?, sql, params).await
     }
 
-    async fn load_schema(&self) -> Result<SchemaTree> {
-        schema_loader::load_schema(self.pool()?).await
+    async fn list_databases(&self) -> Result<Vec<String>> {
+        schema_loader::list_databases(self.pool()?).await
+    }
+
+    async fn list_schemas(&self, _database: &str) -> Result<Vec<String>> {
+        // PostgreSQL: can only query schemas for current connection's database.
+        // Ignore `database` arg — always returns schemas for current db.
+        schema_loader::list_schemas(self.pool()?).await
     }
 
     async fn load_schema_detail(&self, schema_name: &str) -> Result<SchemaNode> {
@@ -214,9 +220,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_schema_without_connect_returns_not_connected() {
+    async fn list_databases_without_connect_returns_not_connected() {
         let driver = PostgresDriver::new();
-        let err = driver.load_schema().await.unwrap_err();
+        let err = driver.list_databases().await.unwrap_err();
         assert!(matches!(err, AppError::NotConnected));
     }
 

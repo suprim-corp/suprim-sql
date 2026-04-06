@@ -131,98 +131,9 @@ impl Default for SqliteDriver {
     }
 }
 
-#[async_trait]
-impl DatabaseDriver for SqliteDriver {
-    async fn connect(&mut self, config: &ConnectionConfig) -> Result<()> {
-        let path = match &config.params {
-            DriverParams::Sqlite { path } => path.to_string_lossy().into_owned(),
-            _ => return Err(AppError::connection("SqliteDriver requires Sqlite params")),
-        };
-
-        let is_memory = path == ":memory:";
-        let opts = if is_memory {
-            // In-memory databases are per-connection; use URI with shared cache so
-            // all pool connections share the same in-memory database.
-            SqliteConnectOptions::new()
-                .filename("file::memory:")
-                .create_if_missing(true)
-        } else {
-            SqliteConnectOptions::new()
-                .filename(&path)
-                .create_if_missing(true)
-        };
-
-        // For in-memory DBs use a single connection to guarantee a shared namespace.
-        let max_conn = if is_memory { 1 } else { 5 };
-        let pool = SqlitePoolOptions::new()
-            .max_connections(max_conn)
-            .connect_with(opts)
-            .await
-            .map_err(|e| AppError::connection(e.to_string()))?;
-
-        self.pool = Some(pool);
-        self.db_path = Some(path);
-        Ok(())
-    }
-
-    async fn disconnect(&mut self) -> Result<()> {
-        if let Some(pool) = self.pool.take() {
-            pool.close().await;
-        }
-        self.db_path = None;
-        Ok(())
-    }
-
-    async fn ping(&self) -> Result<()> {
-        let pool = self.pool()?;
-        sqlx::query("SELECT 1")
-            .execute(pool)
-            .await
-            .map_err(|e| AppError::connection(e.to_string()))?;
-        Ok(())
-    }
-
-    async fn execute(&self, sql: &str) -> Result<QueryResult> {
-        let pool = self.pool()?;
-        let start = Instant::now();
-
-        let rows = sqlx::query(AssertSqlSafe(sql.to_string()))
-            .fetch_all(pool)
-            .await
-            .map_err(|e| AppError::query(sql, e.to_string()))?;
-
-        Ok(rows_to_query_result(rows, start.elapsed()))
-    }
-
-    async fn execute_with_params(&self, sql: &str, params: Vec<DbValue>) -> Result<QueryResult> {
-        let pool = self.pool()?;
-        let start = Instant::now();
-
-        let mut query = sqlx::query(AssertSqlSafe(sql.to_string()));
-        for param in params {
-            query = match param {
-                DbValue::Null => query.bind(Option::<String>::None),
-                DbValue::Bool(b) => query.bind(b),
-                DbValue::Int(i) => query.bind(i),
-                DbValue::Float(f) => query.bind(f),
-                DbValue::Text(s) => query.bind(s),
-                DbValue::Bytes(b) => query.bind(b),
-                DbValue::Json(v) => query.bind(v.to_string()),
-                DbValue::Timestamp(t) => query.bind(t.to_rfc3339()),
-            };
-        }
-
-        let rows = query
-            .fetch_all(pool)
-            .await
-            .map_err(|e| AppError::query(sql, e.to_string()))?;
-
-        Ok(rows_to_query_result(rows, start.elapsed()))
-    }
-
-    /// SQLite has no real "database list" concept — returns a single pseudo-database
-    /// named from the file path (or ":memory:"), with one schema "main".
-    async fn load_schema(&self) -> Result<SchemaTree> {
+impl SqliteDriver {
+    /// Build the full schema tree (used internally by `load_schema_detail`).
+    async fn build_schema_tree(&self) -> Result<SchemaTree> {
         let pool = self.pool()?;
         let db_name = self
             .db_path
@@ -369,13 +280,118 @@ impl DatabaseDriver for SqliteDriver {
             }],
         })
     }
+}
+
+#[async_trait]
+impl DatabaseDriver for SqliteDriver {
+    async fn connect(&mut self, config: &ConnectionConfig) -> Result<()> {
+        let path = match &config.params {
+            DriverParams::Sqlite { path } => path.to_string_lossy().into_owned(),
+            _ => return Err(AppError::connection("SqliteDriver requires Sqlite params")),
+        };
+
+        let is_memory = path == ":memory:";
+        let opts = if is_memory {
+            // In-memory databases are per-connection; use URI with shared cache so
+            // all pool connections share the same in-memory database.
+            SqliteConnectOptions::new()
+                .filename("file::memory:")
+                .create_if_missing(true)
+        } else {
+            SqliteConnectOptions::new()
+                .filename(&path)
+                .create_if_missing(true)
+        };
+
+        // For in-memory DBs use a single connection to guarantee a shared namespace.
+        let max_conn = if is_memory { 1 } else { 5 };
+        let pool = SqlitePoolOptions::new()
+            .max_connections(max_conn)
+            .connect_with(opts)
+            .await
+            .map_err(|e| AppError::connection(e.to_string()))?;
+
+        self.pool = Some(pool);
+        self.db_path = Some(path);
+        Ok(())
+    }
+
+    async fn disconnect(&mut self) -> Result<()> {
+        if let Some(pool) = self.pool.take() {
+            pool.close().await;
+        }
+        self.db_path = None;
+        Ok(())
+    }
+
+    async fn ping(&self) -> Result<()> {
+        let pool = self.pool()?;
+        sqlx::query("SELECT 1")
+            .execute(pool)
+            .await
+            .map_err(|e| AppError::connection(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn execute(&self, sql: &str) -> Result<QueryResult> {
+        let pool = self.pool()?;
+        let start = Instant::now();
+
+        let rows = sqlx::query(AssertSqlSafe(sql.to_string()))
+            .fetch_all(pool)
+            .await
+            .map_err(|e| AppError::query(sql, e.to_string()))?;
+
+        Ok(rows_to_query_result(rows, start.elapsed()))
+    }
+
+    async fn execute_with_params(&self, sql: &str, params: Vec<DbValue>) -> Result<QueryResult> {
+        let pool = self.pool()?;
+        let start = Instant::now();
+
+        let mut query = sqlx::query(AssertSqlSafe(sql.to_string()));
+        for param in params {
+            query = match param {
+                DbValue::Null => query.bind(Option::<String>::None),
+                DbValue::Bool(b) => query.bind(b),
+                DbValue::Int(i) => query.bind(i),
+                DbValue::Float(f) => query.bind(f),
+                DbValue::Text(s) => query.bind(s),
+                DbValue::Bytes(b) => query.bind(b),
+                DbValue::Json(v) => query.bind(v.to_string()),
+                DbValue::Timestamp(t) => query.bind(t.to_rfc3339()),
+            };
+        }
+
+        let rows = query
+            .fetch_all(pool)
+            .await
+            .map_err(|e| AppError::query(sql, e.to_string()))?;
+
+        Ok(rows_to_query_result(rows, start.elapsed()))
+    }
+
+    /// SQLite has a single database — return its name (file path or ":memory:").
+    async fn list_databases(&self) -> Result<Vec<String>> {
+        let _pool = self.pool()?;
+        Ok(vec![self
+            .db_path
+            .clone()
+            .unwrap_or_else(|| ":memory:".to_string())])
+    }
+
+    /// SQLite has no schema concept — return a single pseudo-schema "main".
+    async fn list_schemas(&self, _database: &str) -> Result<Vec<String>> {
+        let _pool = self.pool()?;
+        Ok(vec!["main".to_string()])
+    }
 
     async fn load_schema_detail(
         &self,
         schema_name: &str,
     ) -> Result<crate::db::types::SchemaNode> {
-        // SQLite has a single schema ("main") — reload full schema and return the node.
-        let tree = self.load_schema().await?;
+        // SQLite has a single schema ("main") — build and return the schema node.
+        let tree = self.build_schema_tree().await?;
         tree.databases
             .into_iter()
             .flat_map(|db| db.schemas)
@@ -610,9 +626,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_schema_without_connect_returns_not_connected() {
+    async fn list_databases_without_connect_returns_not_connected() {
         let driver = SqliteDriver::new();
-        let err = driver.load_schema().await.unwrap_err();
+        let err = driver.list_databases().await.unwrap_err();
         assert!(matches!(err, AppError::NotConnected));
     }
 
@@ -765,7 +781,29 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_schema_returns_tables_and_columns() {
+    async fn list_databases_returns_single_entry() {
+        let mut driver = SqliteDriver::new();
+        let config = make_config(":memory:");
+        driver.connect(&config).await.unwrap();
+
+        let dbs = driver.list_databases().await.unwrap();
+        assert_eq!(dbs.len(), 1);
+        assert_eq!(dbs[0], ":memory:");
+    }
+
+    #[tokio::test]
+    async fn list_schemas_returns_main() {
+        let mut driver = SqliteDriver::new();
+        let config = make_config(":memory:");
+        driver.connect(&config).await.unwrap();
+
+        let schemas = driver.list_schemas(":memory:").await.unwrap();
+        assert_eq!(schemas.len(), 1);
+        assert_eq!(schemas[0], "main");
+    }
+
+    #[tokio::test]
+    async fn load_schema_detail_returns_tables_and_columns() {
         let mut driver = SqliteDriver::new();
         let config = make_config(":memory:");
         driver.connect(&config).await.unwrap();
@@ -781,9 +819,7 @@ mod tests {
             .await
             .unwrap();
 
-        let tree = driver.load_schema().await.unwrap();
-        assert_eq!(tree.databases.len(), 1);
-        let schema = &tree.databases[0].schemas[0];
+        let schema = driver.load_schema_detail("main").await.unwrap();
         let table = schema.tables.iter().find(|t| t.name == "users").unwrap();
         assert_eq!(table.columns.len(), 3);
         let id_col = table.columns.iter().find(|c| c.name == "id").unwrap();
@@ -791,7 +827,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_schema_detects_foreign_keys() {
+    async fn load_schema_detail_detects_foreign_keys() {
         let mut driver = SqliteDriver::new();
         let config = make_config(":memory:");
         driver.connect(&config).await.unwrap();
@@ -813,15 +849,14 @@ mod tests {
             .await
             .unwrap();
 
-        let tree = driver.load_schema().await.unwrap();
-        let schema = &tree.databases[0].schemas[0];
+        let schema = driver.load_schema_detail("main").await.unwrap();
         let child = schema.tables.iter().find(|t| t.name == "child").unwrap();
         assert!(!child.foreign_keys.is_empty());
         assert_eq!(child.foreign_keys[0].ref_table, "parent");
     }
 
     #[tokio::test]
-    async fn load_schema_detects_indexes() {
+    async fn load_schema_detail_detects_indexes() {
         let mut driver = SqliteDriver::new();
         let config = make_config(":memory:");
         driver.connect(&config).await.unwrap();
@@ -834,8 +869,7 @@ mod tests {
             .await
             .unwrap();
 
-        let tree = driver.load_schema().await.unwrap();
-        let schema = &tree.databases[0].schemas[0];
+        let schema = driver.load_schema_detail("main").await.unwrap();
         let table = schema.tables.iter().find(|t| t.name == "idx_t").unwrap();
         let uidx = table.indexes.iter().find(|i| i.name == "uidx_email").unwrap();
         assert!(uidx.is_unique);

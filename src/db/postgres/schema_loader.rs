@@ -4,26 +4,13 @@ use sqlx::{AssertSqlSafe, Row};
 use sqlx::postgres::PgPool;
 
 use crate::db::types::{
-    ColumnNode, DatabaseNode, ForeignKeyNode, IndexNode, SchemaNode, SchemaTree, TableNode,
-    ViewNode,
+    ColumnNode, ForeignKeyNode, IndexNode, SchemaNode, TableNode, ViewNode,
 };
 use crate::error::{AppError, Result};
 
-/// Load the schema tree (lazy): returns ALL databases with schema names only (no tables).
-/// For each database we can only introspect schemas of the current connection's database;
-/// other databases are listed but shown as expandable with no schemas pre-loaded.
-pub async fn load_schema(pool: &PgPool) -> Result<SchemaTree> {
-    // Get current database name (the one we're connected to).
-    let current_db_row = sqlx::query("SELECT current_database() AS db")
-        .fetch_one(pool)
-        .await
-        .map_err(|e| AppError::Schema(e.to_string()))?;
-    let current_db: String = current_db_row
-        .try_get("db")
-        .unwrap_or_else(|_| "postgres".to_string());
-
-    // List all accessible databases from the server.
-    let db_rows = sqlx::query(
+/// List all accessible (non-template, connectable) databases on this PostgreSQL server.
+pub async fn list_databases(pool: &PgPool) -> Result<Vec<String>> {
+    let rows = sqlx::query(
         "SELECT datname FROM pg_catalog.pg_database \
          WHERE datistemplate = false \
          AND datallowconn = true \
@@ -33,8 +20,15 @@ pub async fn load_schema(pool: &PgPool) -> Result<SchemaTree> {
     .await
     .map_err(|e| AppError::Schema(e.to_string()))?;
 
-    // List schemas of the current database only (no tables/columns — loaded lazily).
-    let schema_rows = sqlx::query(
+    Ok(rows
+        .iter()
+        .map(|r| r.try_get("datname").unwrap_or_default())
+        .collect())
+}
+
+/// List schemas in the currently connected database (PostgreSQL cannot cross-db query).
+pub async fn list_schemas(pool: &PgPool) -> Result<Vec<String>> {
+    let rows = sqlx::query(
         "SELECT schema_name FROM information_schema.schemata \
          WHERE schema_name NOT IN ('pg_catalog','information_schema','pg_toast') \
          AND schema_name NOT LIKE 'pg_toast_%' \
@@ -45,40 +39,10 @@ pub async fn load_schema(pool: &PgPool) -> Result<SchemaTree> {
     .await
     .map_err(|e| AppError::Schema(e.to_string()))?;
 
-    let current_schemas: Vec<SchemaNode> = schema_rows
+    Ok(rows
         .iter()
-        .map(|row| SchemaNode {
-            id: uuid::Uuid::new_v4(),
-            name: row.try_get("schema_name").unwrap_or_default(),
-            tables: vec![],
-            views: vec![],
-            loaded: false,
-        })
-        .collect();
-
-    // Build a DatabaseNode for each database.
-    // Only the current database has schemas pre-populated; others show empty
-    // (since cross-db queries aren't supported in PostgreSQL without dblink).
-    let databases: Vec<DatabaseNode> = db_rows
-        .iter()
-        .map(|row| {
-            let db_name: String = row.try_get("datname").unwrap_or_default();
-            let schemas = if db_name == current_db {
-                current_schemas.clone()
-            } else {
-                // Other databases: show one placeholder schema indicating
-                // reconnection is needed to browse them.
-                vec![]
-            };
-            DatabaseNode {
-                id: uuid::Uuid::new_v4(),
-                name: db_name,
-                schemas,
-            }
-        })
-        .collect();
-
-    Ok(SchemaTree { databases })
+        .map(|r| r.try_get("schema_name").unwrap_or_default())
+        .collect())
 }
 
 /// Load full detail for a single named schema: tables, views, columns, indexes, FKs.
@@ -140,7 +104,6 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
         .fetch_all(pool)
         .await
         .unwrap_or_default();
-    // pk_set: table_name → Set<col_name>
     let mut pk_set: HashMap<String, std::collections::HashSet<String>> = HashMap::new();
     for r in &pk_rows {
         let tbl: String = r.try_get("table_name").unwrap_or_default();
@@ -174,7 +137,6 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
         .fetch_all(pool)
         .await
         .unwrap_or_default();
-    // index_map: table_name → Vec<IndexNode>
     let mut index_map: HashMap<String, Vec<IndexNode>> = HashMap::new();
     for r in &idx_rows {
         let tbl: String = r.try_get("table_name").unwrap_or_default();
@@ -215,7 +177,6 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
         .fetch_all(pool)
         .await
         .unwrap_or_default();
-    // fk_map: table_name → HashMap<constraint_name → ForeignKeyNode>
     let mut fk_outer: HashMap<String, HashMap<String, ForeignKeyNode>> = HashMap::new();
     for r in &fk_rows {
         let tbl: String = r.try_get("table_name").unwrap_or_default();

@@ -65,16 +65,27 @@ impl App {
     fn process_events(&mut self) {
         while let Ok(event) = self.event_rx.try_recv() {
             match event {
-                DbEvent::Connected { conn_id, schema } => {
+                DbEvent::Connected { conn_id, databases } => {
+                    // Build a minimal SchemaTree from database names for sidebar display.
+                    // Schemas will be loaded lazily via ListSchemas / LoadSchemaDetail.
+                    let schema = suprim_sql::db::types::SchemaTree {
+                        databases: databases
+                            .into_iter()
+                            .map(|name| suprim_sql::db::types::DatabaseNode {
+                                id: uuid::Uuid::new_v4(),
+                                name,
+                                schemas: vec![],
+                            })
+                            .collect(),
+                    };
                     // Use the saved connection name; fall back to conn_id string.
-                    let name = self
-                        .config
-                        .connections
-                        .iter()
-                        .find(|c| c.id == conn_id)
+                    let saved = self.config.connections.iter().find(|c| c.id == conn_id);
+                    let conn_name = saved
                         .map(|c| c.name.clone())
                         .unwrap_or_else(|| conn_id.to_string());
-                    self.sidebar.on_connected(conn_id, name, schema);
+                    let visible_dbs = saved.and_then(|c| c.visible_databases.clone());
+                    self.sidebar
+                        .on_connected(conn_id, conn_name, schema, visible_dbs);
                     self.status = "Connected".to_string();
                 }
                 DbEvent::Disconnected { conn_id } => {
@@ -88,8 +99,26 @@ impl App {
                     self.tab_manager.on_query_result(tab_id, result);
                     self.status = format!("Query complete — {row_count} rows  ({millis} ms)");
                 }
-                DbEvent::SchemaLoaded { conn_id, schema } => {
+                DbEvent::DatabasesListed { conn_id, databases } => {
+                    // Rebuild schema tree from listed databases for sidebar.
+                    let schema = suprim_sql::db::types::SchemaTree {
+                        databases: databases
+                            .into_iter()
+                            .map(|name| suprim_sql::db::types::DatabaseNode {
+                                id: uuid::Uuid::new_v4(),
+                                name,
+                                schemas: vec![],
+                            })
+                            .collect(),
+                    };
                     self.sidebar.on_schema_loaded(conn_id, schema);
+                }
+                DbEvent::SchemasListed {
+                    conn_id,
+                    database,
+                    schemas,
+                } => {
+                    self.sidebar.on_schemas_listed(conn_id, &database, schemas);
                 }
                 DbEvent::SchemaDetailLoaded {
                     conn_id,
@@ -143,9 +172,9 @@ impl eframe::App for App {
                     }
                 });
                 ui.menu_button("View", |ui| {
-                    if ui.button("Reload Schema").clicked() {
+                    if ui.button("Reload Databases").clicked() {
                         for conn_id in self.sidebar.active_connection_ids() {
-                            let _ = self.cmd_tx.try_send(DbCommand::LoadSchema { conn_id });
+                            let _ = self.cmd_tx.try_send(DbCommand::ListDatabases { conn_id });
                         }
                         ui.close();
                     }
@@ -200,6 +229,11 @@ impl eframe::App for App {
                                 schema_name,
                             });
                         }
+                        SidebarAction::ListSchemas { conn_id, database } => {
+                            let _ = self
+                                .cmd_tx
+                                .try_send(DbCommand::ListSchemas { conn_id, database });
+                        }
                         SidebarAction::UpdateVisibleDatabases { conn_id, visible } => {
                             // Persist the filter into the connection config.
                             if let Some(cfg) =
@@ -208,8 +242,8 @@ impl eframe::App for App {
                                 cfg.visible_databases = visible;
                                 self.config.save();
                             }
-                            // Reload schema so the worker can re-apply the filter.
-                            let _ = self.cmd_tx.try_send(DbCommand::LoadSchema { conn_id });
+                            // Reload databases so the worker can re-apply the filter.
+                            let _ = self.cmd_tx.try_send(DbCommand::ListDatabases { conn_id });
                         }
                     }
                 }

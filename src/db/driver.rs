@@ -1,7 +1,7 @@
 use crate::{
     db::{
         connection::ConnectionConfig,
-        types::{QueryResult, SchemaTree},
+        types::{QueryResult, SchemaNode},
     },
     error::Result,
 };
@@ -32,17 +32,18 @@ pub trait DatabaseDriver: Send + Sync + std::fmt::Debug {
     /// Execute SQL with positional parameters.
     async fn execute_with_params(&self, sql: &str, params: Vec<DbValue>) -> Result<QueryResult>;
 
-    // ── Schema ───────────────────────────────────────────────────────────────
+    // ── Schema (lazy 3-level hierarchy) ──────────────────────────────────────
 
-    /// Load schema tree — only databases + schema names (no tables/columns).
-    /// Tables/columns are loaded lazily via `load_schema_detail`.
-    async fn load_schema(&self) -> Result<SchemaTree>;
+    /// List all accessible databases on this server.
+    async fn list_databases(&self) -> Result<Vec<String>>;
+
+    /// List schemas within a specific database.
+    /// For drivers that need a separate connection per database (e.g. PostgreSQL),
+    /// this may only work for the currently connected database.
+    async fn list_schemas(&self, database: &str) -> Result<Vec<String>>;
 
     /// Load full detail for a single named schema: tables, views, columns, indexes, FKs.
-    /// Returns an updated `SchemaNode` for the given schema.
-    /// Default implementation falls back to loading the full schema tree and extracting
-    /// the matching schema node (for drivers that don't support partial loading).
-    async fn load_schema_detail(&self, schema_name: &str) -> Result<super::types::SchemaNode>;
+    async fn load_schema_detail(&self, schema_name: &str) -> Result<SchemaNode>;
 
     /// Fetch a page of rows from a table.
     async fn table_data(
@@ -100,8 +101,14 @@ pub enum DbCommand {
         tab_id: Uuid,
         sql: String,
     },
-    LoadSchema {
+    /// List all databases on a connection.
+    ListDatabases {
         conn_id: Uuid,
+    },
+    /// List schemas within a specific database.
+    ListSchemas {
+        conn_id: Uuid,
+        database: String,
     },
     /// Load detail (tables/views/columns) for a single schema — lazy loading.
     LoadSchemaDetail {
@@ -144,7 +151,8 @@ pub enum DbCommand {
 pub enum DbEvent {
     Connected {
         conn_id: Uuid,
-        schema: SchemaTree,
+        /// Database names available on this server.
+        databases: Vec<String>,
     },
     Disconnected {
         conn_id: Uuid,
@@ -153,15 +161,22 @@ pub enum DbEvent {
         tab_id: Uuid,
         result: QueryResult,
     },
-    SchemaLoaded {
+    /// Response to ListDatabases.
+    DatabasesListed {
         conn_id: Uuid,
-        schema: SchemaTree,
+        databases: Vec<String>,
+    },
+    /// Response to ListSchemas.
+    SchemasListed {
+        conn_id: Uuid,
+        database: String,
+        schemas: Vec<String>,
     },
     /// Detail loaded for a single schema (lazy loading).
     SchemaDetailLoaded {
         conn_id: Uuid,
         schema_name: String,
-        schema_node: super::types::SchemaNode,
+        schema_node: SchemaNode,
     },
     RowMutated {
         tab_id: Uuid,

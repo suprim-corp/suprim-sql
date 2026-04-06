@@ -191,6 +191,75 @@ impl Default for MongoDriver {
     }
 }
 
+impl MongoDriver {
+    /// Build the full schema tree (used internally by `load_schema_detail`).
+    async fn build_schema_tree(&self) -> Result<SchemaTree> {
+        let client = self.client.as_ref().ok_or(AppError::NotConnected)?;
+
+        let db_names = client
+            .list_database_names()
+            .await
+            .map_err(|e| AppError::Schema(e.to_string()))?;
+
+        let mut databases = Vec::new();
+
+        for db_name in &db_names {
+            let db = client.database(db_name);
+            let coll_names = db
+                .list_collection_names()
+                .await
+                .unwrap_or_default();
+
+            let tables: Vec<TableNode> = coll_names
+                .iter()
+                .map(|cname| {
+                    // MongoDB collections are schema-less; provide pseudo-columns
+                    let columns = vec![
+                        ColumnNode {
+                            id: uuid::Uuid::new_v4(),
+                            name: "_id".to_string(),
+                            db_type: "ObjectId".to_string(),
+                            nullable: false,
+                            is_primary_key: true,
+                            default_value: None,
+                        },
+                        ColumnNode {
+                            id: uuid::Uuid::new_v4(),
+                            name: "...".to_string(),
+                            db_type: "document".to_string(),
+                            nullable: true,
+                            is_primary_key: false,
+                            default_value: None,
+                        },
+                    ];
+                    TableNode {
+                        id: uuid::Uuid::new_v4(),
+                        name: cname.clone(),
+                        columns,
+                        indexes: vec![],
+                        foreign_keys: vec![],
+                        row_count: None,
+                    }
+                })
+                .collect();
+
+            databases.push(DatabaseNode {
+                id: uuid::Uuid::new_v4(),
+                name: db_name.clone(),
+                schemas: vec![SchemaNode {
+                    id: uuid::Uuid::new_v4(),
+                    name: "collections".to_string(),
+                    tables,
+                    views: vec![],
+                    loaded: true,
+                }],
+            });
+        }
+
+        Ok(SchemaTree { databases })
+    }
+}
+
 #[async_trait]
 impl DatabaseDriver for MongoDriver {
     async fn connect(&mut self, config: &ConnectionConfig) -> Result<()> {
@@ -327,78 +396,26 @@ impl DatabaseDriver for MongoDriver {
         Ok(docs_to_query_result(docs, start.elapsed()))
     }
 
-    /// Load schema: list all databases and their collections.
-    async fn load_schema(&self) -> Result<SchemaTree> {
+    /// List all databases on this MongoDB server.
+    async fn list_databases(&self) -> Result<Vec<String>> {
         let client = self.client.as_ref().ok_or(AppError::NotConnected)?;
-
-        let db_names = client
+        client
             .list_database_names()
             .await
-            .map_err(|e| AppError::Schema(e.to_string()))?;
+            .map_err(|e| AppError::Schema(e.to_string()))
+    }
 
-        let mut databases = Vec::new();
-
-        for db_name in &db_names {
-            let db = client.database(db_name);
-            let coll_names = db
-                .list_collection_names()
-                .await
-                .unwrap_or_default();
-
-            let tables: Vec<TableNode> = coll_names
-                .iter()
-                .map(|cname| {
-                    // MongoDB collections are schema-less; provide a single "_document" pseudo-column
-                    let columns = vec![
-                        ColumnNode {
-                            id: uuid::Uuid::new_v4(),
-                            name: "_id".to_string(),
-                            db_type: "ObjectId".to_string(),
-                            nullable: false,
-                            is_primary_key: true,
-                            default_value: None,
-                        },
-                        ColumnNode {
-                            id: uuid::Uuid::new_v4(),
-                            name: "...".to_string(),
-                            db_type: "document".to_string(),
-                            nullable: true,
-                            is_primary_key: false,
-                            default_value: None,
-                        },
-                    ];
-                    TableNode {
-                        id: uuid::Uuid::new_v4(),
-                        name: cname.clone(),
-                        columns,
-                        indexes: vec![],
-                        foreign_keys: vec![],
-                        row_count: None,
-                    }
-                })
-                .collect();
-
-            databases.push(DatabaseNode {
-                id: uuid::Uuid::new_v4(),
-                name: db_name.clone(),
-                schemas: vec![SchemaNode {
-                    id: uuid::Uuid::new_v4(),
-                    name: "collections".to_string(),
-                    tables,
-                    views: vec![],
-                    loaded: true,
-                }],
-            });
-        }
-
-        Ok(SchemaTree { databases })
+    /// MongoDB doesn't have schemas per se — return a single pseudo-schema.
+    async fn list_schemas(&self, _database: &str) -> Result<Vec<String>> {
+        let _client = self.client.as_ref().ok_or(AppError::NotConnected)?;
+        Ok(vec!["collections".to_string()])
     }
 
     async fn load_schema_detail(
         &self,
         schema_name: &str,
     ) -> Result<SchemaNode> {
-        let tree = self.load_schema().await?;
+        let tree = self.build_schema_tree().await?;
         tree.databases
             .into_iter()
             .flat_map(|db| db.schemas)
@@ -571,9 +588,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_schema_without_connect_returns_not_connected() {
+    async fn list_databases_without_connect_returns_not_connected() {
         let driver = MongoDriver::new();
-        let err = driver.load_schema().await.unwrap_err();
+        let err = driver.list_databases().await.unwrap_err();
         assert!(matches!(err, AppError::NotConnected));
     }
 

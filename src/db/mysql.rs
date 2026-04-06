@@ -175,100 +175,9 @@ impl Default for MysqlDriver {
     }
 }
 
-#[async_trait]
-impl DatabaseDriver for MysqlDriver {
-    async fn connect(&mut self, config: &ConnectionConfig) -> Result<()> {
-        let (host, port, database, user, password) = match &config.params {
-            DriverParams::Mysql {
-                host,
-                port,
-                database,
-                user,
-                password_key,
-            } => (
-                host.as_str(),
-                *port,
-                database.as_str(),
-                user.as_str(),
-                password_key.as_str(),
-            ),
-            _ => return Err(AppError::connection("MysqlDriver requires Mysql params")),
-        };
-
-        let opts = MySqlConnectOptions::new()
-            .host(host)
-            .port(port)
-            .database(database)
-            .username(user)
-            .password(password);
-
-        let pool = MySqlPoolOptions::new()
-            .max_connections(10)
-            .min_connections(1)
-            .acquire_timeout(std::time::Duration::from_secs(10))
-            .connect_with(opts)
-            .await
-            .map_err(|e| AppError::connection(e.to_string()))?;
-
-        self.pool = Some(pool);
-        Ok(())
-    }
-
-    async fn disconnect(&mut self) -> Result<()> {
-        if let Some(pool) = self.pool.take() {
-            pool.close().await;
-        }
-        Ok(())
-    }
-
-    async fn ping(&self) -> Result<()> {
-        let pool = self.pool()?;
-        sqlx::query("SELECT 1")
-            .execute(pool)
-            .await
-            .map_err(|e| AppError::connection(e.to_string()))?;
-        Ok(())
-    }
-
-    async fn execute(&self, sql: &str) -> Result<QueryResult> {
-        let pool = self.pool()?;
-        let start = Instant::now();
-
-        let rows = sqlx::query(AssertSqlSafe(sql.to_string()))
-            .fetch_all(pool)
-            .await
-            .map_err(|e| AppError::query(sql, e.to_string()))?;
-
-        Ok(rows_to_query_result(rows, start.elapsed()))
-    }
-
-    async fn execute_with_params(&self, sql: &str, params: Vec<DbValue>) -> Result<QueryResult> {
-        let pool = self.pool()?;
-        let start = Instant::now();
-
-        let mut query = sqlx::query(AssertSqlSafe(sql.to_string()));
-        for param in params {
-            query = match param {
-                DbValue::Null => query.bind(Option::<String>::None),
-                DbValue::Bool(b) => query.bind(b),
-                DbValue::Int(i) => query.bind(i),
-                DbValue::Float(f) => query.bind(f),
-                DbValue::Text(s) => query.bind(s),
-                DbValue::Bytes(b) => query.bind(b),
-                DbValue::Json(v) => query.bind(v.to_string()),
-                DbValue::Timestamp(t) => query.bind(t),
-            };
-        }
-
-        let rows = query
-            .fetch_all(pool)
-            .await
-            .map_err(|e| AppError::query(sql, e.to_string()))?;
-
-        Ok(rows_to_query_result(rows, start.elapsed()))
-    }
-
-    async fn load_schema(&self) -> Result<SchemaTree> {
+impl MysqlDriver {
+    /// Build the full schema tree (used internally by `load_schema_detail`).
+    async fn build_schema_tree(&self) -> Result<SchemaTree> {
         let pool = self.pool()?;
 
         // 1. Current database name
@@ -427,12 +336,127 @@ impl DatabaseDriver for MysqlDriver {
             }],
         })
     }
+}
+
+#[async_trait]
+impl DatabaseDriver for MysqlDriver {
+    async fn connect(&mut self, config: &ConnectionConfig) -> Result<()> {
+        let (host, port, database, user, password) = match &config.params {
+            DriverParams::Mysql {
+                host,
+                port,
+                database,
+                user,
+                password_key,
+            } => (
+                host.as_str(),
+                *port,
+                database.as_str(),
+                user.as_str(),
+                password_key.as_str(),
+            ),
+            _ => return Err(AppError::connection("MysqlDriver requires Mysql params")),
+        };
+
+        let opts = MySqlConnectOptions::new()
+            .host(host)
+            .port(port)
+            .database(database)
+            .username(user)
+            .password(password);
+
+        let pool = MySqlPoolOptions::new()
+            .max_connections(10)
+            .min_connections(1)
+            .acquire_timeout(std::time::Duration::from_secs(10))
+            .connect_with(opts)
+            .await
+            .map_err(|e| AppError::connection(e.to_string()))?;
+
+        self.pool = Some(pool);
+        Ok(())
+    }
+
+    async fn disconnect(&mut self) -> Result<()> {
+        if let Some(pool) = self.pool.take() {
+            pool.close().await;
+        }
+        Ok(())
+    }
+
+    async fn ping(&self) -> Result<()> {
+        let pool = self.pool()?;
+        sqlx::query("SELECT 1")
+            .execute(pool)
+            .await
+            .map_err(|e| AppError::connection(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn execute(&self, sql: &str) -> Result<QueryResult> {
+        let pool = self.pool()?;
+        let start = Instant::now();
+
+        let rows = sqlx::query(AssertSqlSafe(sql.to_string()))
+            .fetch_all(pool)
+            .await
+            .map_err(|e| AppError::query(sql, e.to_string()))?;
+
+        Ok(rows_to_query_result(rows, start.elapsed()))
+    }
+
+    async fn execute_with_params(&self, sql: &str, params: Vec<DbValue>) -> Result<QueryResult> {
+        let pool = self.pool()?;
+        let start = Instant::now();
+
+        let mut query = sqlx::query(AssertSqlSafe(sql.to_string()));
+        for param in params {
+            query = match param {
+                DbValue::Null => query.bind(Option::<String>::None),
+                DbValue::Bool(b) => query.bind(b),
+                DbValue::Int(i) => query.bind(i),
+                DbValue::Float(f) => query.bind(f),
+                DbValue::Text(s) => query.bind(s),
+                DbValue::Bytes(b) => query.bind(b),
+                DbValue::Json(v) => query.bind(v.to_string()),
+                DbValue::Timestamp(t) => query.bind(t),
+            };
+        }
+
+        let rows = query
+            .fetch_all(pool)
+            .await
+            .map_err(|e| AppError::query(sql, e.to_string()))?;
+
+        Ok(rows_to_query_result(rows, start.elapsed()))
+    }
+
+    /// List all databases on this MySQL server.
+    async fn list_databases(&self) -> Result<Vec<String>> {
+        let pool = self.pool()?;
+        let rows = sqlx::query("SHOW DATABASES")
+            .fetch_all(pool)
+            .await
+            .map_err(|e| AppError::Schema(e.to_string()))?;
+
+        let names: Vec<String> = rows
+            .iter()
+            .filter_map(|r| r.try_get::<String, _>(0).ok())
+            .collect();
+        Ok(names)
+    }
+
+    /// MySQL databases ARE schemas — return the database name itself.
+    async fn list_schemas(&self, database: &str) -> Result<Vec<String>> {
+        let _pool = self.pool()?;
+        Ok(vec![database.to_string()])
+    }
 
     async fn load_schema_detail(
         &self,
         schema_name: &str,
     ) -> Result<crate::db::types::SchemaNode> {
-        let tree = self.load_schema().await?;
+        let tree = self.build_schema_tree().await?;
         tree.databases
             .into_iter()
             .flat_map(|db| db.schemas)
@@ -651,9 +675,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_schema_without_connect_returns_not_connected() {
+    async fn list_databases_without_connect_returns_not_connected() {
         let driver = MysqlDriver::new();
-        let err = driver.load_schema().await.unwrap_err();
+        let err = driver.list_databases().await.unwrap_err();
         assert!(matches!(err, AppError::NotConnected));
     }
 

@@ -125,6 +125,88 @@ impl Default for RedisDriver {
     }
 }
 
+impl RedisDriver {
+    /// Build the full schema tree (used internally by `load_schema_detail`).
+    /// Scans all keys and groups them by their name prefix (before first `:`).
+    async fn build_schema_tree(&self) -> Result<SchemaTree> {
+        let mut conn = self.conn.clone().ok_or(AppError::NotConnected)?;
+
+        // DBSIZE for total count
+        let db_size: i64 = redis::cmd("DBSIZE")
+            .query_async(&mut conn)
+            .await
+            .unwrap_or(0);
+
+        // SCAN to collect up to 1000 keys for schema preview
+        let mut scan_iter = conn
+            .scan_match::<&str, String>("*")
+            .await
+            .map_err(|e| AppError::Schema(e.to_string()))?;
+        let mut keys: Vec<String> = Vec::new();
+        while keys.len() < 1000 {
+            match scan_iter.next_item().await {
+                Some(Ok(key)) => keys.push(key),
+                Some(Err(_)) | None => break,
+            }
+        }
+
+        // Group keys by prefix (before first ':')
+        let mut prefix_map: HashMap<String, Vec<String>> = HashMap::new();
+        for key in &keys {
+            let prefix = key.split(':').next().unwrap_or(key).to_string();
+            prefix_map.entry(prefix).or_default().push(key.clone());
+        }
+
+        let tables: Vec<TableNode> = prefix_map
+            .into_iter()
+            .map(|(prefix, group_keys)| {
+                let columns = vec![
+                    ColumnNode {
+                        id: uuid::Uuid::new_v4(),
+                        name: "key".to_string(),
+                        db_type: "string".to_string(),
+                        nullable: false,
+                        is_primary_key: true,
+                        default_value: None,
+                    },
+                    ColumnNode {
+                        id: uuid::Uuid::new_v4(),
+                        name: "value".to_string(),
+                        db_type: "string".to_string(),
+                        nullable: true,
+                        is_primary_key: false,
+                        default_value: None,
+                    },
+                ];
+                TableNode {
+                    id: uuid::Uuid::new_v4(),
+                    name: prefix,
+                    columns,
+                    indexes: vec![],
+                    foreign_keys: vec![],
+                    row_count: Some(group_keys.len() as u64),
+                }
+            })
+            .collect();
+
+        let db_name = format!("redis (db_size: {})", db_size);
+
+        Ok(SchemaTree {
+            databases: vec![DatabaseNode {
+                id: uuid::Uuid::new_v4(),
+                name: db_name,
+                schemas: vec![SchemaNode {
+                    id: uuid::Uuid::new_v4(),
+                    name: "default".to_string(),
+                    tables,
+                    views: vec![],
+                    loaded: true,
+                }],
+            }],
+        })
+    }
+}
+
 #[async_trait]
 impl DatabaseDriver for RedisDriver {
     async fn connect(&mut self, config: &ConnectionConfig) -> Result<()> {
@@ -244,91 +326,23 @@ impl DatabaseDriver for RedisDriver {
         })
     }
 
-    /// Load Redis "schema" — scans all keys and groups them by their name prefix
-    /// (the part before the first `:` separator) as pseudo-tables.
-    async fn load_schema(&self) -> Result<SchemaTree> {
-        let mut conn = self.conn.clone().ok_or(AppError::NotConnected)?;
+    /// Redis doesn't have traditional databases — return a single pseudo-database.
+    async fn list_databases(&self) -> Result<Vec<String>> {
+        let _conn = self.conn.as_ref().ok_or(AppError::NotConnected)?;
+        Ok(vec!["db0".to_string()])
+    }
 
-        // DBSIZE for total count
-        let db_size: i64 = redis::cmd("DBSIZE")
-            .query_async(&mut conn)
-            .await
-            .unwrap_or(0);
-
-        // SCAN to collect up to 1000 keys for schema preview
-        let mut scan_iter = conn
-            .scan_match::<&str, String>("*")
-            .await
-            .map_err(|e| AppError::Schema(e.to_string()))?;
-        let mut keys: Vec<String> = Vec::new();
-        while keys.len() < 1000 {
-            match scan_iter.next_item().await {
-                Some(Ok(key)) => keys.push(key),
-                Some(Err(_)) | None => break,
-            }
-        }
-
-        // Group keys by prefix (before first ':')
-        let mut prefix_map: HashMap<String, Vec<String>> = HashMap::new();
-        for key in &keys {
-            let prefix = key.split(':').next().unwrap_or(key).to_string();
-            prefix_map.entry(prefix).or_default().push(key.clone());
-        }
-
-        let tables: Vec<TableNode> = prefix_map
-            .into_iter()
-            .map(|(prefix, group_keys)| {
-                let columns = vec![
-                    ColumnNode {
-                        id: uuid::Uuid::new_v4(),
-                        name: "key".to_string(),
-                        db_type: "string".to_string(),
-                        nullable: false,
-                        is_primary_key: true,
-                        default_value: None,
-                    },
-                    ColumnNode {
-                        id: uuid::Uuid::new_v4(),
-                        name: "value".to_string(),
-                        db_type: "string".to_string(),
-                        nullable: true,
-                        is_primary_key: false,
-                        default_value: None,
-                    },
-                ];
-                TableNode {
-                    id: uuid::Uuid::new_v4(),
-                    name: prefix,
-                    columns,
-                    indexes: vec![],
-                    foreign_keys: vec![],
-                    row_count: Some(group_keys.len() as u64),
-                }
-            })
-            .collect();
-
-        let db_name = format!("redis (db_size: {})", db_size);
-
-        Ok(SchemaTree {
-            databases: vec![DatabaseNode {
-                id: uuid::Uuid::new_v4(),
-                name: db_name,
-                schemas: vec![SchemaNode {
-                    id: uuid::Uuid::new_v4(),
-                    name: "default".to_string(),
-                    tables,
-                    views: vec![],
-                    loaded: true,
-                }],
-            }],
-        })
+    /// Redis doesn't have schemas — return a single pseudo-schema.
+    async fn list_schemas(&self, _database: &str) -> Result<Vec<String>> {
+        let _conn = self.conn.as_ref().ok_or(AppError::NotConnected)?;
+        Ok(vec!["keys".to_string()])
     }
 
     async fn load_schema_detail(
         &self,
         schema_name: &str,
     ) -> Result<crate::db::types::SchemaNode> {
-        let tree = self.load_schema().await?;
+        let tree = self.build_schema_tree().await?;
         tree.databases
             .into_iter()
             .flat_map(|db| db.schemas)
@@ -524,9 +538,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_schema_without_connect_returns_not_connected() {
+    async fn list_databases_without_connect_returns_not_connected() {
         let driver = RedisDriver::new();
-        let err = driver.load_schema().await.unwrap_err();
+        let err = driver.list_databases().await.unwrap_err();
         assert!(matches!(err, AppError::NotConnected));
     }
 
