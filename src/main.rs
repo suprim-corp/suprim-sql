@@ -21,9 +21,14 @@ fn main() {
     // Spawn the DB worker inside the runtime.
     let (cmd_tx, event_rx) = DbWorker::spawn(32, 64);
 
+    // Load app icon from embedded PNG bytes.
+    let icon = eframe::icon_data::from_png_bytes(include_bytes!("../assets/icons/icon.png"))
+        .expect("Failed to decode app icon");
+
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("suprim-sql")
+            .with_icon(icon)
             .with_inner_size([1200.0, 800.0])
             .with_min_inner_size([800.0, 500.0]),
         vsync: true,
