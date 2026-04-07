@@ -1,13 +1,13 @@
 .PHONY: run build release test coverage lint fix clean
 
 run:
-	clear && cargo run --bin suprim-sql
+	clear && cargo run --bin SuprimSQL
 
 build:
-	cargo build --bin suprim-sql
+	cargo build --bin SuprimSQL
 
 release:
-	cargo build --bin suprim-sql --release
+	cargo build --bin SuprimSQL --release
 
 test:
 	cargo test --lib
@@ -32,10 +32,10 @@ coverage:
 		--exclude-files src/main.rs
 
 lint:
-	cargo clippy --bin suprim-sql -- -D warnings
+	cargo clippy --bin SuprimSQL -- -D warnings
 
 fix:
-	cargo fix --bin suprim-sql --allow-dirty
+	cargo fix --bin SuprimSQL --allow-dirty
 
 clean:
 	cargo clean

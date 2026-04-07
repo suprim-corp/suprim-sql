@@ -27,7 +27,7 @@ fn main() {
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("suprim-sql")
+            .with_title("SuprimSQL")
             .with_icon(icon)
             .with_inner_size([1200.0, 800.0])
             .with_min_inner_size([800.0, 500.0]),
@@ -36,7 +36,7 @@ fn main() {
     };
 
     eframe::run_native(
-        "suprim-sql",
+        "SuprimSQL",
         native_options,
         Box::new(move |cc| Ok(Box::new(app::App::with_channels(cc, cmd_tx, event_rx)))),
     )

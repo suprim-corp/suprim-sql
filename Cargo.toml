@@ -5,7 +5,7 @@ edition = "2021"
 rust-version = "1.86"
 
 [[bin]]
-name = "suprim-sql"
+name = "SuprimSQL"
 path = "src/main.rs"
 
 # ---------------------------------------------------------

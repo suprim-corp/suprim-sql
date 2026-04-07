@@ -158,7 +158,7 @@ impl TabManager {
             ui.centered_and_justified(|ui| {
                 ui.vertical_centered(|ui| {
                     ui.add_space(60.0);
-                    ui.heading("suprim-sql");
+                    ui.heading("SuprimSQL");
                     ui.add_space(12.0);
                     ui.label("Open a connection from the sidebar to get started.");
                 });
