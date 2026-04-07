@@ -22,8 +22,8 @@ struct TabEntry {
 impl TabEntry {
     fn tab_label(&self) -> String {
         let icon = match &self.kind {
-            TabKind::SqlEditor(_) => "SQL",
-            TabKind::TableViewer(_) => "\u{229e}",
+            TabKind::SqlEditor(_) => egui_phosphor::regular::TERMINAL_WINDOW,
+            TabKind::TableViewer(_) => egui_phosphor::regular::TABLE,
         };
         let name = match &self.kind {
             TabKind::SqlEditor(_) => "Query".to_string(),
@@ -75,7 +75,10 @@ impl SqlEditorTab {
         ui.vertical(|ui| {
             // Toolbar row
             ui.horizontal(|ui| {
-                let run_btn = egui::Button::new("Run");
+                let run_btn = egui::Button::new(egui::RichText::new(format!(
+                    "{} Run",
+                    egui_phosphor::regular::PLAY
+                )));
                 let can_run = self.conn_id.is_some() && !self.is_running;
                 if ui.add_enabled(can_run, run_btn).clicked() {
                     if let Some(conn_id) = self.conn_id {
@@ -123,9 +126,8 @@ impl SqlEditorTab {
             if let Some(result) = &self.result {
                 render_result_grid(ui, result);
             } else {
-                ui.label(
-                    egui::RichText::new("Run a query to see results").color(egui::Color32::GRAY),
-                );
+                let weak = ui.visuals().weak_text_color();
+                ui.label(egui::RichText::new("Run a query to see results").color(weak));
             }
         });
     }
@@ -185,14 +187,17 @@ impl TableViewerTab {
             self.load(tab_id, cmd_tx);
         }
 
+        // Derive colors from the current theme.
+        let vis = ui.visuals().clone();
+        let bar_bg = vis.faint_bg_color;
+        let bar_stroke_color = vis.widgets.noninteractive.bg_stroke.color;
+        let hint_color = vis.weak_text_color();
+
         ui.vertical(|ui| {
             // Filter bar — full width
-            let bar_bg = egui::Color32::from_gray(30);
-            let hint_color = egui::Color32::from_gray(100);
-
             egui::Frame::NONE
                 .fill(bar_bg)
-                .stroke(egui::Stroke::new(1.0, egui::Color32::from_gray(50)))
+                .stroke(egui::Stroke::new(1.0, bar_stroke_color))
                 .inner_margin(egui::Margin::symmetric(4, 3))
                 .show(ui, |ui| {
                     let _total_w = ui.available_width();
@@ -205,8 +210,8 @@ impl TableViewerTab {
                         } else {
                             let resp = ui.add(
                                 egui::Label::new(
-                                    egui::RichText::new("\u{21BB}") // ↻
-                                        .color(egui::Color32::from_gray(140))
+                                    egui::RichText::new(egui_phosphor::regular::ARROW_CLOCKWISE)
+                                        .color(hint_color)
                                         .size(16.0),
                                 )
                                 .selectable(false)
@@ -259,16 +264,23 @@ impl TableViewerTab {
             if self.result.is_some() {
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button(">").clicked() {
+                        if ui
+                            .small_button(egui_phosphor::regular::CARET_RIGHT)
+                            .clicked()
+                        {
                             self.page += 1;
                             self.load(tab_id, cmd_tx);
                         }
                         ui.label(
                             egui::RichText::new(format!("Page {}", self.page + 1))
-                                .color(egui::Color32::from_gray(140))
+                                .color(hint_color)
                                 .small(),
                         );
-                        if self.page > 0 && ui.small_button("<").clicked() {
+                        if self.page > 0
+                            && ui
+                                .small_button(egui_phosphor::regular::CARET_LEFT)
+                                .clicked()
+                        {
                             self.page -= 1;
                             self.load(tab_id, cmd_tx);
                         }
@@ -288,9 +300,6 @@ impl TableViewerTab {
 }
 
 // ── Shared result grid renderer ───────────────────────────────────────────────
-// Single horizontally-scrolled area. The header row is drawn INSIDE the same
-// grid as the data so column widths are always in sync.  Vertical virtual
-// scrolling keeps FPS smooth for large result sets.
 
 fn render_result_grid(ui: &mut egui::Ui, result: &QueryResult) {
     let row_height = egui::TextStyle::Body.resolve(ui.style()).size + 6.0;
@@ -335,6 +344,7 @@ fn render_result_grid(ui: &mut egui::Ui, result: &QueryResult) {
                 });
         });
 
+    let weak = ui.visuals().weak_text_color();
     ui.add_space(4.0);
     ui.label(
         egui::RichText::new(format!(
@@ -342,7 +352,7 @@ fn render_result_grid(ui: &mut egui::Ui, result: &QueryResult) {
             num_rows,
             result.execution_time.as_secs_f64() * 1000.0
         ))
-        .color(egui::Color32::GRAY)
+        .color(weak)
         .small(),
     );
 }
@@ -429,10 +439,22 @@ impl TabManager {
             return;
         }
 
+        // Derive all tab-bar colors from the current theme.
+        let vis = ui.visuals().clone();
+        let bar_bg = vis.faint_bg_color;
+        let active_bg = vis.widgets.active.bg_fill;
+        let hover_bg = vis.widgets.hovered.bg_fill;
+        let active_border = vis.widgets.active.bg_stroke.color;
+        let hover_border = vis.widgets.hovered.bg_stroke.color;
+        let inactive_border = vis.widgets.noninteractive.bg_stroke.color;
+        let active_text = vis.strong_text_color();
+        let inactive_text = vis.widgets.inactive.fg_stroke.color;
+        let close_active_color = vis.widgets.inactive.fg_stroke.color;
+        let close_inactive_color = vis.weak_text_color();
+
         // Tab bar
         let mut tab_to_close: Option<Uuid> = None;
 
-        let bar_bg = egui::Color32::from_gray(30);
         egui::Frame::NONE
             .fill(bar_bg)
             .inner_margin(egui::Margin::symmetric(2, 0))
@@ -451,18 +473,18 @@ impl TabManager {
                             .data(|d| d.get_temp::<bool>(tab_hover_id).unwrap_or(false));
 
                         let actual_bg = if is_active {
-                            egui::Color32::from_gray(50)
+                            active_bg
                         } else if was_hovered {
-                            egui::Color32::from_gray(42)
+                            hover_bg
                         } else {
                             egui::Color32::TRANSPARENT
                         };
                         let actual_border = if is_active {
-                            egui::Color32::from_gray(80)
+                            active_border
                         } else if was_hovered {
-                            egui::Color32::from_gray(65)
+                            hover_border
                         } else {
-                            egui::Color32::from_gray(45)
+                            inactive_border
                         };
 
                         let frame_response = egui::Frame::NONE
@@ -473,9 +495,9 @@ impl TabManager {
                             .show(ui, |ui| {
                                 ui.horizontal(|ui| {
                                     let text_color = if is_active {
-                                        egui::Color32::WHITE
+                                        active_text
                                     } else {
-                                        egui::Color32::from_gray(170)
+                                        inactive_text
                                     };
                                     let response = ui.add(
                                         egui::Label::new(
@@ -490,13 +512,14 @@ impl TabManager {
 
                                     ui.add_space(6.0);
                                     let close_color = if is_active {
-                                        egui::Color32::from_gray(160)
+                                        close_active_color
                                     } else {
-                                        egui::Color32::from_gray(100)
+                                        close_inactive_color
                                     };
                                     let close_response = ui.add(
                                         egui::Label::new(
-                                            egui::RichText::new("\u{00d7}").color(close_color),
+                                            egui::RichText::new(egui_phosphor::regular::X)
+                                                .color(close_color),
                                         )
                                         .selectable(false)
                                         .sense(egui::Sense::click()),

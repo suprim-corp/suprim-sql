@@ -232,7 +232,9 @@ impl Sidebar {
                             }
                         }
                         let db_name = db_node.name.clone();
-                        let db_header = egui::CollapsingHeader::new(&db_node.name)
+                        let db_header_label =
+                            format!("{} {}", egui_phosphor::regular::DATABASE, db_node.name);
+                        let db_header = egui::CollapsingHeader::new(&db_header_label)
                             .id_salt(format!("{conn_id}:{}", db_node.name));
                         let db_response = db_header.show(ui, |ui| {
                             for schema_node in &db_node.schemas {
@@ -245,9 +247,17 @@ impl Sidebar {
                                 ));
 
                                 let display_name = if loaded {
-                                    schema_name.clone()
+                                    format!(
+                                        "{} {}",
+                                        egui_phosphor::regular::TREE_STRUCTURE,
+                                        schema_name
+                                    )
                                 } else {
-                                    format!("{} ...", schema_name)
+                                    format!(
+                                        "{} {} ...",
+                                        egui_phosphor::regular::TREE_STRUCTURE,
+                                        schema_name
+                                    )
                                 };
 
                                 let schema_response = egui::CollapsingHeader::new(display_name)
@@ -275,8 +285,11 @@ impl Sidebar {
 
                                         // Tables folder
                                         if has_tables {
-                                            let tables_label =
-                                                format!("Tables ({})", schema_node.tables.len());
+                                            let tables_label = format!(
+                                                "{} Tables ({})",
+                                                egui_phosphor::regular::TABLE,
+                                                schema_node.tables.len()
+                                            );
                                             egui::CollapsingHeader::new(tables_label)
                                                 .id_salt(format!(
                                                     "{conn_id}:{}:{}:tables",
@@ -304,8 +317,11 @@ impl Sidebar {
 
                                         // Views folder
                                         if has_views {
-                                            let views_label =
-                                                format!("Views ({})", schema_node.views.len());
+                                            let views_label = format!(
+                                                "{} Views ({})",
+                                                egui_phosphor::regular::EYE,
+                                                schema_node.views.len()
+                                            );
                                             egui::CollapsingHeader::new(views_label)
                                                 .id_salt(format!(
                                                     "{conn_id}:{}:{}:views",
@@ -334,7 +350,8 @@ impl Sidebar {
                                         // Materialized Views folder
                                         if has_matviews {
                                             let mv_label = format!(
-                                                "Materialized Views ({})",
+                                                "{} Materialized Views ({})",
+                                                egui_phosphor::regular::SQUARES_FOUR,
                                                 schema_node.materialized_views.len()
                                             );
                                             egui::CollapsingHeader::new(mv_label)
@@ -365,7 +382,8 @@ impl Sidebar {
                                         // Sequences folder
                                         if has_sequences {
                                             let seq_label = format!(
-                                                "Sequences ({})",
+                                                "{} Sequences ({})",
+                                                egui_phosphor::regular::LIST_NUMBERS,
                                                 schema_node.sequences.len()
                                             );
                                             egui::CollapsingHeader::new(seq_label)

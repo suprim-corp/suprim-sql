@@ -28,10 +28,15 @@ pub struct App {
 
 impl App {
     pub fn with_channels(
-        _cc: &eframe::CreationContext<'_>,
+        cc: &eframe::CreationContext<'_>,
         cmd_tx: mpsc::Sender<DbCommand>,
         event_rx: mpsc::Receiver<DbEvent>,
     ) -> Self {
+        // Register Phosphor icon font so all UI components can use it.
+        let mut fonts = egui::FontDefinitions::default();
+        egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+        cc.egui_ctx.set_fonts(fonts);
+
         // Load saved connections from disk.
         let config = AppConfig::load();
 
