@@ -16,63 +16,105 @@ DbValue
 └── Timestamp(chrono::DateTime<Utc>)
 ```
 
-Mọi DB driver đều map native types về `DbValue`. UI chỉ biết đến `DbValue`.
+All DB drivers map native types to `DbValue`. UI only works with `DbValue`.
+
+Traits: `Debug, Clone, PartialEq, Serialize, Deserialize`.
+Helper methods: `is_null()`, `display()` (UI rendering), `Display` trait impl.
+
+### `ColumnMeta`
+
+```rust
+ColumnMeta {
+    name: String,
+    db_type: String,      // raw type string from DB (e.g. "int4", "varchar")
+    nullable: bool,
+}
+```
 
 ### `QueryResult`
 
-```
+```rust
 QueryResult {
-    columns: Vec<ColumnMeta>      // tên + type hint
-    rows: Vec<Vec<DbValue>>       // data
-    rows_affected: u64            // cho INSERT/UPDATE/DELETE
-    execution_time: Duration
-}
-
-ColumnMeta {
-    name: String
-    db_type: String               // raw type string từ DB
-    nullable: bool
+    columns: Vec<ColumnMeta>,
+    rows: Vec<Vec<DbValue>>,
+    rows_affected: u64,           // for INSERT/UPDATE/DELETE
+    execution_time: Duration,
+    total_count: Option<u64>,     // total rows before LIMIT — for pagination
 }
 ```
 
-### `SchemaTree` — sidebar model
+`total_count` is set by `table_data()` queries (runs `COUNT(*)` in same READ ONLY transaction). `None` for raw SQL execution via `execute()`.
+
+Helper methods: `empty()`, `row_count()`, `column_count()`.
+
+### `SchemaTree` — sidebar model (lazy 3-level hierarchy)
 
 ```
 SchemaTree
-└── Vec<DatabaseNode>
+└── databases: Vec<DatabaseNode>
     └── schemas: Vec<SchemaNode>
-        └── tables: Vec<TableNode>
-            ├── columns: Vec<ColumnNode>
-            ├── indexes: Vec<IndexNode>
-            └── foreign_keys: Vec<FkNode>
+        ├── tables: Vec<TableNode>
+        │   ├── columns: Vec<ColumnNode>
+        │   ├── indexes: Vec<IndexNode>
+        │   └── foreign_keys: Vec<ForeignKeyNode>
+        ├── views: Vec<ViewNode>
+        │   └── columns: Vec<ColumnNode>
+        ├── materialized_views: Vec<ViewNode>
+        └── sequences: Vec<SequenceNode>
 ```
 
-Mỗi node có `id: Uuid` để UI có thể track expand/collapse state độc lập.
+Schema loading is lazy — 3 steps:
+1. `list_databases()` → populate `DatabaseNode.name` entries
+2. `list_schemas(database)` → populate `SchemaNode.name` entries (on database click)
+3. `load_schema_detail(database, schema)` → fill tables/views/columns/indexes/FKs (on schema click)
+
+`SchemaNode.loaded: bool` tracks whether detail has been fetched.
+
+Node types:
+- `DatabaseNode { id: Uuid, name, schemas }`
+- `SchemaNode { id: Uuid, name, tables, views, materialized_views, sequences, loaded }`
+- `TableNode { id: Uuid, name, columns, indexes, foreign_keys, row_count: Option<u64> }`
+- `ViewNode { id: Uuid, name, columns }`
+- `ColumnNode { id: Uuid, name, db_type, nullable, is_primary_key, default_value: Option<String> }`
+- `IndexNode { id: Uuid, name, columns: Vec<String>, is_unique }`
+- `ForeignKeyNode { id: Uuid, name, columns, ref_table, ref_columns }`
+- `SequenceNode { id: Uuid, name }`
+
+Each node has `id: Uuid` for UI expand/collapse state tracking.
 
 ### `ConnectionConfig` — serializable, per-driver
 
-```
+```rust
 ConnectionConfig {
-    id: Uuid
-    name: String                  // display name
-    driver: DriverType            // enum: Postgres, MySQL, SQLite, ...
-    params: DriverParams          // enum variant per driver
-    ssh: Option<SshConfig>
-    tls: TlsConfig
-    created_at: DateTime<Utc>
-    last_used: Option<DateTime<Utc>>
+    id: Uuid,
+    name: String,                 // display name
+    params: DriverParams,         // enum variant per driver
+    ssh: Option<SshConfig>,
+    tls: TlsConfig,               // #[serde(default)]
+    created_at: DateTime<Utc>,
+    last_used: Option<DateTime<Utc>>,
+    visible_databases: Option<Vec<String>>,  // filter sidebar databases
 }
-
-DriverParams
-├── Postgres { host, port, database, user, password_key }
-├── MySQL    { host, port, database, user, password_key }
-├── SQLite   { path: PathBuf }
-├── Redis    { host, port, db_index, password_key }
-├── MongoDB  { uri, password_key }
-└── Mssql    { host, port, database, user, password_key }
 ```
 
-`password_key` là key để lookup từ OS keychain — không bao giờ lưu password plaintext vào disk.
+`visible_databases`: `None` or empty = show all databases. Set via database picker popup in sidebar.
+
+```
+DriverType: Sqlite | Postgres | Mysql | Redis | MongoDB | Mssql
+
+DriverParams (tagged enum, serde tag = "type")
+├── Sqlite   { path: PathBuf }
+├── Postgres { host, port, database, user, password_key }
+├── Mysql    { host, port, database, user, password_key }
+├── Redis    { host, port, db_index: u8, password_key: Option }
+├── MongoDB  { uri, password_key: Option }
+└── Mssql    { host, port, database, user, password_key }
+
+SshConfig { host, port, user, key_path: Option<PathBuf>, password_key: Option }
+TlsConfig { enabled, verify_cert, ca_cert_path, client_cert_path, client_key_path }
+```
+
+`password_key` is a key for OS keychain lookup — never stored as plaintext.
 
 ---
 
@@ -82,257 +124,264 @@ DriverParams
 
 ```rust
 #[async_trait]
-trait DatabaseDriver: Send + Sync {
+trait DatabaseDriver: Send + Sync + Debug {
+    // Connection lifecycle
     async fn connect(&mut self, config: &ConnectionConfig) -> Result<()>;
     async fn disconnect(&mut self) -> Result<()>;
     async fn ping(&self) -> Result<()>;
 
-    // Query
+    // Query execution
     async fn execute(&self, sql: &str) -> Result<QueryResult>;
     async fn execute_with_params(&self, sql: &str, params: Vec<DbValue>) -> Result<QueryResult>;
 
-    // Schema
-    async fn load_schema(&self) -> Result<SchemaTree>;
-    async fn table_data(&self, table: &str, page: u32, page_size: u32) -> Result<QueryResult>;
+    // Schema — lazy 3-level hierarchy
+    async fn list_databases(&self) -> Result<Vec<String>>;
+    async fn list_schemas(&self, database: &str) -> Result<Vec<String>>;
+    async fn load_schema_detail(&self, database: &str, schema_name: &str) -> Result<SchemaNode>;
 
-    // Mutations (inline edit)
+    // Table data with filtering
+    async fn table_data(
+        &self,
+        database: Option<&str>,
+        schema: Option<&str>,
+        table: &str,
+        page: u32,
+        page_size: u32,
+        where_clause: Option<&str>,
+        order_clause: Option<&str>,
+    ) -> Result<QueryResult>;
+
+    // Mutations (inline table editor)
     async fn insert_row(&self, table: &str, values: HashMap<String, DbValue>) -> Result<u64>;
     async fn update_row(&self, table: &str, pk: HashMap<String, DbValue>, changes: HashMap<String, DbValue>) -> Result<u64>;
     async fn delete_row(&self, table: &str, pk: HashMap<String, DbValue>) -> Result<u64>;
 
+    // Metadata
     fn driver_type(&self) -> DriverType;
+    fn is_connected(&self) -> bool;
 }
 ```
 
-`DbFactory::create(config) -> Box<dyn DatabaseDriver>` — runtime dispatch.
+`DbFactory::create(config) -> Box<dyn DatabaseDriver>` — runtime dispatch. Currently only Postgres active; other 5 return "not yet available".
+
+### PostgreSQL Driver — key implementation details
+
+- **Per-database pool cache**: `db_pools: Mutex<HashMap<String, PgPool>>` — creates/caches pool per database since Postgres doesn't support cross-database queries
+- **`pool_for_db(database)`**: Returns cached pool or creates new one from base `PgConnectOptions`
+- **READ ONLY transactions**: `table_data()` wraps queries in `BEGIN; SET TRANSACTION READ ONLY; ... COMMIT;` — prevents SQL injection via user-provided WHERE/ORDER BY
+- **COUNT in same transaction**: `table_data()` runs `SELECT COUNT(*)` alongside `SELECT` data query in same READ ONLY transaction, populates `total_count`
+- **Submodules**: `connection_url.rs` (URL builder), `type_mapping.rs` (Postgres types → DbValue), `schema_loader.rs` (lazy hierarchy queries), `queries.rs` (table_data + read-only tx)
 
 ### Async communication: UI ↔ DB worker
 
-UI thread không bao giờ `.await` trực tiếp. Dùng command/response channel:
+UI thread never calls `.await` directly. Uses command/response channels:
 
 ```
-DbCommand (UI → worker)
-├── Connect(ConnectionConfig)
-├── Execute { conn_id, sql, tab_id }
-├── LoadSchema { conn_id }
-├── LoadTableData { conn_id, table, page }
-├── InsertRow / UpdateRow / DeleteRow
-└── Disconnect(conn_id)
+DbCommand (UI → worker) — 11 variants
+├── Connect { config }
+├── Disconnect { conn_id }
+├── Execute { conn_id, tab_id, sql }
+├── ListDatabases { conn_id }
+├── ListSchemas { conn_id, database }
+├── LoadSchemaDetail { conn_id, database, schema_name }
+├── LoadTableData { conn_id, tab_id, database?, schema?, table, page, page_size, where?, order? }
+├── InsertRow { conn_id, tab_id, table, values }
+├── UpdateRow { conn_id, tab_id, table, pk, changes }
+├── DeleteRow { conn_id, tab_id, table, pk }
+└── Shutdown
 
-DbEvent (worker → UI)
-├── Connected { conn_id, schema: SchemaTree }
-├── QueryResult { tab_id, result: QueryResult }
-├── SchemaLoaded { conn_id, schema: SchemaTree }
-├── Error { tab_id, error: AppError }
-└── Disconnected(conn_id)
+DbEvent (worker → UI) — 8 variants
+├── Connected { conn_id, databases: Vec<String> }
+├── Disconnected { conn_id }
+├── QueryResult { tab_id, result }
+├── DatabasesListed { conn_id, databases }
+├── SchemasListed { conn_id, database, schemas }
+├── SchemaDetailLoaded { conn_id, database, schema_name, schema_node }
+├── RowMutated { tab_id, rows_affected }
+└── Error { tab_id?, conn_id?, message }
 ```
 
-`DbWorker` chạy trong `tokio::spawn`, nhận `mpsc::Receiver<DbCommand>`, gửi `mpsc::Sender<DbEvent>` về UI. UI poll events mỗi frame egui.
+`DbWorker` runs inside `tokio::spawn`, receives `mpsc::Receiver<DbCommand>`, sends `mpsc::Sender<DbEvent>` back to UI. Owns `HashMap<Uuid, Box<dyn DatabaseDriver>>` for all active connections. UI polls events each frame.
 
 ---
 
 ## 3. App State
 
-```
-AppState {
-    // Connections
-    connections: HashMap<Uuid, ActiveConnection>
-    saved_configs: Vec<ConnectionConfig>
-
-    // UI
-    open_tabs: Vec<Tab>
-    active_tab: usize
-    sidebar: SidebarState
-
+```rust
+App {
     // Channels
-    cmd_tx: mpsc::Sender<DbCommand>
-    event_rx: mpsc::Receiver<DbEvent>
+    cmd_tx: mpsc::Sender<DbCommand>,
+    event_rx: mpsc::Receiver<DbEvent>,
 
-    // Storage
-    config_store: ConfigStore
-    history: QueryHistory
-    workspace: Workspace
-}
+    // UI components (owned, not trait objects)
+    sidebar: Sidebar,
+    tab_manager: TabManager,
+    statusbar: StatusBar,
 
-ActiveConnection {
-    config: ConnectionConfig
-    status: ConnectionStatus    // Connecting | Connected | Error(String)
-    schema: Option<SchemaTree>
+    // Modal
+    connection_dialog: Option<ConnectionDialog>,
+
+    // State
+    status: String,
+    config: AppConfig,              // persisted connections list
 }
 ```
+
+`App` implements `eframe::App` with:
+- `fn update()`: renders UI (sidebar, tabs, statusbar, connection dialog)
+- Process events from `event_rx` each frame
+- Phosphor icon font registered in `CreationContext`
+- Auto-reconnects all saved connections on startup
+
+### Sidebar
+
+```rust
+Sidebar {
+    connections: Vec<ConnectionEntry>,    // active connections with schema trees
+    expanded: HashSet<Uuid>,              // which nodes are expanded
+    // ... database picker state, schema_detail_requested debounce
+}
+
+ConnectionEntry {
+    config: ConnectionConfig,
+    status: ConnectionStatus,
+    schema_tree: SchemaTree,
+}
+```
+
+Features: lazy-loading schema tree, database filter/picker popup, debounced detail requests.
+
+### TabManager
+
+```rust
+TabManager {
+    tabs: Vec<TabEntry>,
+    active_tab: Option<Uuid>,
+}
+
+TabEntry {
+    id: Uuid,
+    kind: TabKind,               // SqlEditor | TableViewer
+    conn_id: Uuid,
+    title: String,
+}
+```
+
+`TabKind::SqlEditor` — code editor + result grid.
+`TabKind::TableViewer` — table data with WHERE/ORDER BY filter bar, cell editor popup (with JSON syntax highlighting), pagination (page X / Y, N rows).
 
 ---
 
-## 4. UI Component Model
-
-### Tab system
-
-```
-Tab (trait)
-├── id: Uuid
-├── title: String
-├── conn_id: Option<Uuid>
-├── render(&mut self, ui: &mut egui::Ui, state: &mut AppState)
-└── on_close(&mut self)
-
-Implementations:
-├── SqlEditorTab     { editor_content, result, is_running, query_id }
-├── TableViewerTab   { table, page, rows, total_count }
-├── TableEditorTab   { table, rows, pending_changes }
-├── DiagramTab       { schema_snapshot }
-├── RedisTab         { scan_cursor, keys, selected_key, value }
-├── RedisPubSubTab   { channel, messages }
-└── MongoTab         { collection, filter, documents }
-```
-
-### Sidebar state
-
-```
-SidebarState {
-    expanded: HashSet<Uuid>       // track which nodes expanded
-    selected: Option<Uuid>        // selected node
-    search_query: String
-    width: f32
-}
-```
-
-Sidebar click vào table → gửi `DbCommand::LoadTableData` → mở `TableViewerTab`.
-
----
-
-## 5. Storage
+## 4. Storage
 
 **Config file** (`~/.config/suprim-sql/connections.toml`):
-- Lưu `ConnectionConfig` không có password
-- Mã hóa AES-256-GCM với key từ OS keychain
+- Stores `Vec<ConnectionConfig>` serialized as TOML
+- No plaintext passwords — uses `password_key` for keychain lookup
+- `AppConfig::load()` / `AppConfig::save()`
 
-**Keychain**:
-- Service name: `suprim-sql`
-- Key format: `conn-{uuid}`
-- Value: password plaintext (keychain tự encrypt ở OS level)
-
-**Query history** (SQLite local `~/.local/share/suprim-sql/history.db`):
-```sql
-CREATE TABLE history (
-    id          INTEGER PRIMARY KEY,
-    conn_id     TEXT,
-    sql         TEXT,
-    executed_at DATETIME,
-    duration_ms INTEGER,
-    error       TEXT
-);
-```
-
-**Workspace** (`~/.config/suprim-sql/workspace.toml`):
-- Open tabs state, sidebar expand state, window size/position
+**Planned (not yet implemented):**
+- Keychain: `keyring-rs` service `suprim-sql`, key `conn-{uuid}`
+- Query history: local SQLite `~/.local/share/suprim-sql/history.db`
+- Workspace state: open tabs, sidebar state, window size
 
 ---
 
-## 6. Error Handling
+## 5. Error Handling
 
 ```
-AppError
+AppError (thiserror)
 ├── Connection(String)
-├── Query { sql: String, message: String }
+├── Query { sql, message }
 ├── Schema(String)
-├── Io(std::io::Error)
+├── Io(std::io::Error)              # #[from]
 ├── Crypto(String)
 ├── Config(String)
-└── Driver { driver: DriverType, source: Box<dyn std::error::Error> }
+├── Keychain(String)
+├── Driver { driver: DriverType, source: Box<dyn Error + Send + Sync> }
+├── NotConnected
+└── Cancelled
 ```
 
-Dùng `thiserror` để derive. Tất cả `Result<T>` trong codebase đều là `Result<T, AppError>`.
+`pub type Result<T> = std::result::Result<T, AppError>;`
+
+Convenience constructors: `AppError::driver()`, `connection()`, `query()`, `config()`, `crypto()`.
+
+`AppError` is `Send + Sync`.
 
 ---
 
-## 7. Testing Strategy
+## 6. Testing Strategy
 
-### Layer 1: Unit tests (không cần DB)
+### Unit tests (in-source `#[cfg(test)]`)
 
-- `DbValue` serialization/deserialization
-- `SqlBuilder` — generate SQL đúng với các edge case
-- `ConnectionConfig` encrypt/decrypt
-- `SchemaTree` traversal/search
-- `ColumnMeta` type mapping logic
+- `DbValue` display, serialization roundtrip, `is_null()`
+- `ColumnMeta`, `QueryResult` helpers
+- `ConnectionConfig` TOML serde roundtrip
+- `DriverType` display, `DriverParams::driver_type()`
+- All `AppError` variants display formatting
+- `SchemaTree::default()`
 
-### Layer 2: Integration tests (testcontainers)
+### Integration tests (testcontainers)
 
-Mỗi driver có integration test riêng, spin up container qua `testcontainers-rs`:
+Each driver has integration tests spinning up real containers:
 
 ```
 tests/
-├── postgres_driver_test.rs    # image: postgres:15
-├── mysql_driver_test.rs       # image: mysql:8
-├── redis_driver_test.rs       # image: redis:7
-└── mongodb_driver_test.rs     # image: mongo:7
+├── postgres_driver_test.rs   # 14 tests (testcontainers postgres:15)
+├── sqlite_driver_test.rs     # 12 tests (:memory:, --test-threads=1)
+├── mysql_driver_test.rs      # 11 tests (testcontainers mysql:8)
+├── redis_driver_test.rs      # 10 tests (200ms delay, --test-threads=1)
+├── mongodb_driver_test.rs    # 10 tests (--test-threads=1)
+└── mssql_driver_test.rs      # 10 tests (crashes on Apple Silicon — excluded from coverage)
 ```
 
-Test cases chung cho mọi SQL driver:
-- `test_connect_ok / test_connect_wrong_password`
-- `test_execute_select`
-- `test_execute_insert_update_delete`
-- `test_load_schema` — verify tables/columns đúng
-- `test_table_data_pagination`
-- `test_transaction_rollback`
+Test cases per driver: connect, ping, execute DDL/DML/SELECT, list_databases, list_schemas, load_schema_detail, table_data with pagination/WHERE/ORDER BY, type mapping.
 
-SQLite không cần container — dùng `:memory:`.
+### Coverage
 
-### Layer 3: Channel tests (mock driver)
-
-- Mock `DatabaseDriver` với `mockall`
-- Test `DbWorker` nhận đúng command, gửi đúng event
-- Test error propagation qua channel
-
-### Layer 4: UI snapshot tests (tương lai)
-
-- `egui_kittest` hoặc manual egui `TestHarness`
-- Verify sidebar render, tab render không panic
-
-### CI matrix
-
-```yaml
-test:
-  matrix:
-    os: [ubuntu-latest, macos-latest, windows-latest]
-
-# Integration tests chỉ chạy trên Linux (Docker available)
-integration-test:
-  runs-on: ubuntu-latest
-  services:
-    postgres: { image: postgres:15 }
-    mysql:    { image: mysql:8 }
-    redis:    { image: redis:7 }
-    mongo:    { image: mongo:7 }
-```
+Target: 90% unit test coverage (excluding mssql.rs and main.rs).
+Command: `make coverage` (cargo tarpaulin).
 
 ---
 
-## 8. Implementation Phases
+## 7. Implementation Phases
 
 ```
-Phase 1: Foundation
+Phase 1: Foundation ✓
   ├── Cargo.toml setup
-  ├── core types (DbValue, QueryResult, SchemaTree, AppError)
-  └── ConnectionConfig + storage/keychain
+  ├── Core types (DbValue, QueryResult, SchemaTree, AppError)
+  ├── ConnectionConfig + TOML storage
+  └── DbWorker async channel protocol
 
-Phase 2: DB Drivers
-  ├── SQLite (no container, validate interface)
-  ├── PostgreSQL
-  ├── MySQL
-  └── Redis / MongoDB / MSSQL
+Phase 2: DB Drivers ✓ (written, Postgres active)
+  ├── PostgreSQL (active, split into submodules)
+  ├── SQLite (written, commented out)
+  ├── MySQL (written, commented out)
+  ├── Redis (written, commented out)
+  ├── MongoDB (written, commented out)
+  └── MSSQL (written, commented out)
 
-Phase 3: Async Worker
-  └── DbWorker + channel protocol
+Phase 3: UI ✓
+  ├── eframe App skeleton with Phosphor fonts
+  ├── Sidebar with lazy 3-level schema loading
+  ├── Tab system (SQL editor + table viewer)
+  ├── Result grid with virtual scrolling + display cache
+  ├── Connection dialog (supports all 6 DB types)
+  ├── Cell editor with JSON syntax highlighting
+  └── Pagination with total count
 
-Phase 4: UI
-  ├── App skeleton (egui window)
-  ├── Sidebar
-  ├── Tab system
-  └── SQL editor + result grid
+Phase 4: Polish (in progress)
+  ├── Coverage target (currently ~86%, target 90%)
+  ├── Theme-adaptive colors (no hardcoded colors)
+  └── Database filter/picker
 
-Phase 5: Features
-  ├── SSH tunnel
-  ├── AI assistant
-  ├── Export/import
-  └── ERD diagram
+Phase 5: Features (planned)
+  ├── Re-enable 5 commented-out drivers
+  ├── SSH tunnel (russh)
+  ├── Keychain credential storage (keyring-rs)
+  ├── AI assistant (async-openai)
+  ├── Export/import (CSV, JSON, Excel)
+  ├── ERD diagram
+  ├── SQL autocomplete & formatter
+  └── Query history
 ```
