@@ -196,112 +196,125 @@ impl Sidebar {
 
         let mut disconnect_id: Option<Uuid> = None;
 
-        for entry in &mut self.connections {
-            let conn_id = entry.conn_id;
-            let truncated_label = truncate_label(&entry.label, 24);
+        egui::ScrollArea::vertical()
+            .auto_shrink(false)
+            .show(ui, |ui| {
+                for entry in &mut self.connections {
+                    let conn_id = entry.conn_id;
+                    let truncated_label = truncate_label(&entry.label, 24);
 
-            // Header with db count badge
-            let total = entry.all_databases.len();
-            let shown = match &entry.visible_databases {
-                None => total,
-                Some(v) => v.len(),
-            };
-            let is_filtered = entry.visible_databases.is_some();
-            let badge = if is_filtered {
-                format!("{}/{}", shown, total)
-            } else {
-                total.to_string()
-            };
-            let header_label = format!("{}  [{}]", truncated_label, badge);
+                    // Header with db count badge
+                    let total = entry.all_databases.len();
+                    let shown = match &entry.visible_databases {
+                        None => total,
+                        Some(v) => v.len(),
+                    };
+                    let is_filtered = entry.visible_databases.is_some();
+                    let badge = if is_filtered {
+                        format!("{}/{}", shown, total)
+                    } else {
+                        total.to_string()
+                    };
+                    let header_label = format!("{}  [{}]", truncated_label, badge);
 
-            let header = egui::CollapsingHeader::new(&header_label)
-                .default_open(entry.expanded)
-                .id_salt(conn_id);
+                    let header = egui::CollapsingHeader::new(&header_label)
+                        .default_open(entry.expanded)
+                        .id_salt(conn_id);
 
-            let response = header.show(ui, |ui| {
-                // Filter databases by visible list.
-                // None = show all, Some(vec) = only show those in vec (even if empty).
-                let visible_names: Option<&Vec<String>> = entry.visible_databases.as_ref();
+                    let response = header.show(ui, |ui| {
+                        // Filter databases by visible list.
+                        // None = show all, Some(vec) = only show those in vec (even if empty).
+                        let visible_names: Option<&Vec<String>> = entry.visible_databases.as_ref();
 
-                if let Some(schema) = &entry.schema {
-                    for db_node in &schema.databases {
-                        // Skip databases not in the visible filter.
-                        if let Some(names) = &visible_names {
-                            if !names.contains(&db_node.name) {
-                                continue;
-                            }
-                        }
-                        let db_name = db_node.name.clone();
-                        let db_header_label =
-                            format!("{} {}", egui_phosphor::regular::DATABASE, db_node.name);
-                        let db_header = egui::CollapsingHeader::new(&db_header_label)
-                            .id_salt(format!("{conn_id}:{}", db_node.name));
-                        let db_response = db_header.show(ui, |ui| {
-                            for schema_node in &db_node.schemas {
-                                let schema_name = schema_node.name.clone();
-                                let loaded = schema_node.loaded;
+                        if let Some(schema) = &entry.schema {
+                            for db_node in &schema.databases {
+                                // Skip databases not in the visible filter.
+                                if let Some(names) = &visible_names {
+                                    if !names.contains(&db_node.name) {
+                                        continue;
+                                    }
+                                }
+                                let db_name = db_node.name.clone();
+                                let db_header_label = format!(
+                                    "{} {}",
+                                    egui_phosphor::regular::DATABASE,
+                                    db_node.name
+                                );
+                                let db_header = egui::CollapsingHeader::new(&db_header_label)
+                                    .id_salt(format!("{conn_id}:{}", db_node.name));
+                                let db_response = db_header.show(ui, |ui| {
+                                    for schema_node in &db_node.schemas {
+                                        let schema_name = schema_node.name.clone();
+                                        let loaded = schema_node.loaded;
 
-                                let schema_id = egui::Id::new(format!(
-                                    "{conn_id}:{}:{}",
-                                    db_node.name, schema_node.name
-                                ));
+                                        let schema_id = egui::Id::new(format!(
+                                            "{conn_id}:{}:{}",
+                                            db_node.name, schema_node.name
+                                        ));
 
-                                let display_name = if loaded {
-                                    format!(
-                                        "{} {}",
-                                        egui_phosphor::regular::TREE_STRUCTURE,
-                                        schema_name
-                                    )
-                                } else {
-                                    format!(
-                                        "{} {} ...",
-                                        egui_phosphor::regular::TREE_STRUCTURE,
-                                        schema_name
-                                    )
-                                };
+                                        let display_name = if loaded {
+                                            format!(
+                                                "{} {}",
+                                                egui_phosphor::regular::TREE_STRUCTURE,
+                                                schema_name
+                                            )
+                                        } else {
+                                            format!(
+                                                "{} {} ...",
+                                                egui_phosphor::regular::TREE_STRUCTURE,
+                                                schema_name
+                                            )
+                                        };
 
-                                let schema_response = egui::CollapsingHeader::new(display_name)
-                                    .id_salt(schema_id)
-                                    .show(ui, |ui| {
-                                        if !loaded {
-                                            ui.weak("loading...");
-                                            return;
-                                        }
-
-                                        let has_tables = !schema_node.tables.is_empty();
-                                        let has_views = !schema_node.views.is_empty();
-                                        let has_matviews =
-                                            !schema_node.materialized_views.is_empty();
-                                        let has_sequences = !schema_node.sequences.is_empty();
-                                        let is_empty = !has_tables
-                                            && !has_views
-                                            && !has_matviews
-                                            && !has_sequences;
-
-                                        if is_empty {
-                                            ui.weak("(empty)");
-                                            return;
-                                        }
-
-                                        // Tables folder
-                                        if has_tables {
-                                            let tables_label = format!(
-                                                "{} Tables ({})",
-                                                egui_phosphor::regular::TABLE,
-                                                schema_node.tables.len()
-                                            );
-                                            egui::CollapsingHeader::new(tables_label)
-                                                .id_salt(format!(
-                                                    "{conn_id}:{}:{}:tables",
-                                                    db_node.name, schema_node.name
-                                                ))
+                                        let schema_response =
+                                            egui::CollapsingHeader::new(display_name)
+                                                .id_salt(schema_id)
                                                 .show(ui, |ui| {
-                                                    for table_node in &schema_node.tables {
-                                                        let tbl = table_node.name.clone();
-                                                        let btn =
-                                                            egui::Button::new(&tbl).frame(false);
-                                                        if ui.add(btn).double_clicked() {
-                                                            action = Some(
+                                                    if !loaded {
+                                                        ui.weak("loading...");
+                                                        return;
+                                                    }
+
+                                                    let has_tables = !schema_node.tables.is_empty();
+                                                    let has_views = !schema_node.views.is_empty();
+                                                    let has_matviews =
+                                                        !schema_node.materialized_views.is_empty();
+                                                    let has_sequences =
+                                                        !schema_node.sequences.is_empty();
+                                                    let is_empty = !has_tables
+                                                        && !has_views
+                                                        && !has_matviews
+                                                        && !has_sequences;
+
+                                                    if is_empty {
+                                                        ui.weak("(empty)");
+                                                        return;
+                                                    }
+
+                                                    // Tables folder
+                                                    if has_tables {
+                                                        let tables_label = format!(
+                                                            "{} Tables ({})",
+                                                            egui_phosphor::regular::TABLE,
+                                                            schema_node.tables.len()
+                                                        );
+                                                        egui::CollapsingHeader::new(tables_label)
+                                                            .id_salt(format!(
+                                                                "{conn_id}:{}:{}:tables",
+                                                                db_node.name, schema_node.name
+                                                            ))
+                                                            .show(ui, |ui| {
+                                                                for table_node in
+                                                                    &schema_node.tables
+                                                                {
+                                                                    let tbl =
+                                                                        table_node.name.clone();
+                                                                    let btn =
+                                                                        egui::Button::new(&tbl)
+                                                                            .frame(false);
+                                                                    if ui.add(btn).double_clicked()
+                                                                    {
+                                                                        action = Some(
                                                                 SidebarAction::OpenTableViewer {
                                                                     conn_id,
                                                                     database: db_name.clone(),
@@ -310,30 +323,32 @@ impl Sidebar {
                                                                     table_name: tbl,
                                                                 },
                                                             );
-                                                        }
+                                                                    }
+                                                                }
+                                                            });
                                                     }
-                                                });
-                                        }
 
-                                        // Views folder
-                                        if has_views {
-                                            let views_label = format!(
-                                                "{} Views ({})",
-                                                egui_phosphor::regular::EYE,
-                                                schema_node.views.len()
-                                            );
-                                            egui::CollapsingHeader::new(views_label)
-                                                .id_salt(format!(
-                                                    "{conn_id}:{}:{}:views",
-                                                    db_node.name, schema_node.name
-                                                ))
-                                                .show(ui, |ui| {
-                                                    for view_node in &schema_node.views {
-                                                        let v = view_node.name.clone();
-                                                        let btn =
-                                                            egui::Button::new(&v).frame(false);
-                                                        if ui.add(btn).double_clicked() {
-                                                            action = Some(
+                                                    // Views folder
+                                                    if has_views {
+                                                        let views_label = format!(
+                                                            "{} Views ({})",
+                                                            egui_phosphor::regular::EYE,
+                                                            schema_node.views.len()
+                                                        );
+                                                        egui::CollapsingHeader::new(views_label)
+                                                            .id_salt(format!(
+                                                                "{conn_id}:{}:{}:views",
+                                                                db_node.name, schema_node.name
+                                                            ))
+                                                            .show(ui, |ui| {
+                                                                for view_node in &schema_node.views
+                                                                {
+                                                                    let v = view_node.name.clone();
+                                                                    let btn = egui::Button::new(&v)
+                                                                        .frame(false);
+                                                                    if ui.add(btn).double_clicked()
+                                                                    {
+                                                                        action = Some(
                                                                 SidebarAction::OpenTableViewer {
                                                                     conn_id,
                                                                     database: db_name.clone(),
@@ -342,30 +357,34 @@ impl Sidebar {
                                                                     table_name: v,
                                                                 },
                                                             );
-                                                        }
+                                                                    }
+                                                                }
+                                                            });
                                                     }
-                                                });
-                                        }
 
-                                        // Materialized Views folder
-                                        if has_matviews {
-                                            let mv_label = format!(
-                                                "{} Materialized Views ({})",
-                                                egui_phosphor::regular::SQUARES_FOUR,
-                                                schema_node.materialized_views.len()
-                                            );
-                                            egui::CollapsingHeader::new(mv_label)
-                                                .id_salt(format!(
-                                                    "{conn_id}:{}:{}:matviews",
-                                                    db_node.name, schema_node.name
-                                                ))
-                                                .show(ui, |ui| {
-                                                    for mv_node in &schema_node.materialized_views {
-                                                        let mv = mv_node.name.clone();
-                                                        let btn =
-                                                            egui::Button::new(&mv).frame(false);
-                                                        if ui.add(btn).double_clicked() {
-                                                            action = Some(
+                                                    // Materialized Views folder
+                                                    if has_matviews {
+                                                        let mv_label = format!(
+                                                            "{} Materialized Views ({})",
+                                                            egui_phosphor::regular::SQUARES_FOUR,
+                                                            schema_node.materialized_views.len()
+                                                        );
+                                                        egui::CollapsingHeader::new(mv_label)
+                                                            .id_salt(format!(
+                                                                "{conn_id}:{}:{}:matviews",
+                                                                db_node.name, schema_node.name
+                                                            ))
+                                                            .show(ui, |ui| {
+                                                                for mv_node in
+                                                                    &schema_node.materialized_views
+                                                                {
+                                                                    let mv = mv_node.name.clone();
+                                                                    let btn =
+                                                                        egui::Button::new(&mv)
+                                                                            .frame(false);
+                                                                    if ui.add(btn).double_clicked()
+                                                                    {
+                                                                        action = Some(
                                                                 SidebarAction::OpenTableViewer {
                                                                     conn_id,
                                                                     database: db_name.clone(),
@@ -374,160 +393,171 @@ impl Sidebar {
                                                                     table_name: mv,
                                                                 },
                                                             );
-                                                        }
+                                                                    }
+                                                                }
+                                                            });
+                                                    }
+
+                                                    // Sequences folder
+                                                    if has_sequences {
+                                                        let seq_label = format!(
+                                                            "{} Sequences ({})",
+                                                            egui_phosphor::regular::LIST_NUMBERS,
+                                                            schema_node.sequences.len()
+                                                        );
+                                                        egui::CollapsingHeader::new(seq_label)
+                                                            .id_salt(format!(
+                                                                "{conn_id}:{}:{}:sequences",
+                                                                db_node.name, schema_node.name
+                                                            ))
+                                                            .show(ui, |ui| {
+                                                                for seq_node in
+                                                                    &schema_node.sequences
+                                                                {
+                                                                    ui.label(&seq_node.name);
+                                                                }
+                                                            });
                                                     }
                                                 });
-                                        }
 
-                                        // Sequences folder
-                                        if has_sequences {
-                                            let seq_label = format!(
-                                                "{} Sequences ({})",
-                                                egui_phosphor::regular::LIST_NUMBERS,
-                                                schema_node.sequences.len()
-                                            );
-                                            egui::CollapsingHeader::new(seq_label)
-                                                .id_salt(format!(
-                                                    "{conn_id}:{}:{}:sequences",
-                                                    db_node.name, schema_node.name
-                                                ))
-                                                .show(ui, |ui| {
-                                                    for seq_node in &schema_node.sequences {
-                                                        ui.label(&seq_node.name);
-                                                    }
+                                        let detail_key = format!("{}:{}", db_name, schema_name);
+                                        if schema_response.openness > 0.0
+                                            && !loaded
+                                            && action.is_none()
+                                        {
+                                            if !entry.schema_detail_requested.contains(&detail_key)
+                                            {
+                                                entry.schema_detail_requested.insert(detail_key);
+                                                action = Some(SidebarAction::LoadSchemaDetail {
+                                                    conn_id,
+                                                    database: db_name.clone(),
+                                                    schema_name: schema_name.clone(),
                                                 });
+                                            }
                                         }
-                                    });
-
-                                let detail_key = format!("{}:{}", db_name, schema_name);
-                                if schema_response.openness > 0.0 && !loaded && action.is_none() {
-                                    if !entry.schema_detail_requested.contains(&detail_key) {
-                                        entry.schema_detail_requested.insert(detail_key);
-                                        action = Some(SidebarAction::LoadSchemaDetail {
+                                    }
+                                    if db_node.schemas.is_empty() {
+                                        ui.weak("loading schemas...");
+                                    }
+                                });
+                                // Trigger ListSchemas when database is expanded but has no schemas yet.
+                                if db_response.openness > 0.0
+                                    && db_node.schemas.is_empty()
+                                    && action.is_none()
+                                {
+                                    if !entry.schemas_requested.contains(&db_name) {
+                                        entry.schemas_requested.insert(db_name.clone());
+                                        action = Some(SidebarAction::ListSchemas {
                                             conn_id,
-                                            database: db_name.clone(),
-                                            schema_name: schema_name.clone(),
+                                            database: db_name,
                                         });
                                     }
                                 }
                             }
-                            if db_node.schemas.is_empty() {
-                                ui.weak("loading schemas...");
-                            }
-                        });
-                        // Trigger ListSchemas when database is expanded but has no schemas yet.
-                        if db_response.openness > 0.0
-                            && db_node.schemas.is_empty()
-                            && action.is_none()
-                        {
-                            if !entry.schemas_requested.contains(&db_name) {
-                                entry.schemas_requested.insert(db_name.clone());
-                                action = Some(SidebarAction::ListSchemas {
+                        }
+                    });
+
+                    // Right-click context menu
+                    response.header_response.context_menu(|ui| {
+                        if ui.button("New SQL Tab").clicked() {
+                            action = Some(SidebarAction::OpenSqlTab { conn_id });
+                            ui.close();
+                        }
+                        ui.separator();
+                        if ui.button("Filter Databases...").clicked() {
+                            entry.picker_open = !entry.picker_open;
+                            ui.close();
+                        }
+                        if ui.button("Edit Connection...").clicked() {
+                            action = Some(SidebarAction::EditConnection { conn_id });
+                            ui.close();
+                        }
+                        if ui.button("Disconnect").clicked() {
+                            disconnect_id = Some(conn_id);
+                            ui.close();
+                        }
+                    });
+
+                    // DB-picker popup
+                    if entry.picker_open {
+                        let picker_id = egui::Id::new(format!("db_picker_{conn_id}"));
+                        let mut close_picker = false;
+                        let mut new_visible: Option<Option<Vec<String>>> = None;
+
+                        egui::Window::new(format!("Filter databases - {}", truncated_label))
+                            .id(picker_id)
+                            .collapsible(false)
+                            .resizable(false)
+                            .min_width(260.0)
+                            .show(ui.ctx(), |ui| {
+                                ui.label("Select databases to show:");
+                                ui.add_space(4.0);
+
+                                // None = show all, Some(_) = filtered (even if empty = hide all)
+                                let all_selected = entry.visible_databases.is_none();
+                                let mut show_all = all_selected;
+                                if ui.checkbox(&mut show_all, "Show all").changed() {
+                                    if show_all {
+                                        new_visible = Some(None);
+                                    } else {
+                                        // Uncheck "show all" → start with empty (hide all)
+                                        new_visible = Some(Some(vec![]));
+                                    }
+                                }
+
+                                ui.separator();
+
+                                let current_visible: Vec<String> = if all_selected {
+                                    // "Show all" means all names are implicitly selected.
+                                    entry.all_databases.iter().map(|d| d.name.clone()).collect()
+                                } else {
+                                    entry.visible_databases.clone().unwrap_or_default()
+                                };
+
+                                for db in &entry.all_databases {
+                                    let mut checked =
+                                        all_selected || current_visible.contains(&db.name);
+                                    let prev = checked;
+                                    ui.checkbox(&mut checked, &db.name);
+                                    if checked != prev {
+                                        let mut updated: Vec<String> =
+                                            current_visible.iter().cloned().collect();
+                                        if checked {
+                                            if !updated.contains(&db.name) {
+                                                updated.push(db.name.clone());
+                                            }
+                                        } else {
+                                            updated.retain(|n| n != &db.name);
+                                        }
+                                        if updated.len() == entry.all_databases.len() {
+                                            new_visible = Some(None);
+                                        } else {
+                                            new_visible = Some(Some(updated));
+                                        }
+                                    }
+                                }
+
+                                ui.add_space(6.0);
+                                if ui.button("Close").clicked() {
+                                    close_picker = true;
+                                }
+                            });
+
+                        if close_picker {
+                            entry.picker_open = false;
+                        }
+                        if let Some(visible) = new_visible {
+                            entry.visible_databases = visible.clone();
+                            if action.is_none() {
+                                action = Some(SidebarAction::UpdateVisibleDatabases {
                                     conn_id,
-                                    database: db_name,
+                                    visible,
                                 });
                             }
                         }
                     }
                 }
-            });
-
-            // Right-click context menu
-            response.header_response.context_menu(|ui| {
-                if ui.button("New SQL Tab").clicked() {
-                    action = Some(SidebarAction::OpenSqlTab { conn_id });
-                    ui.close();
-                }
-                ui.separator();
-                if ui.button("Filter Databases...").clicked() {
-                    entry.picker_open = !entry.picker_open;
-                    ui.close();
-                }
-                if ui.button("Edit Connection...").clicked() {
-                    action = Some(SidebarAction::EditConnection { conn_id });
-                    ui.close();
-                }
-                if ui.button("Disconnect").clicked() {
-                    disconnect_id = Some(conn_id);
-                    ui.close();
-                }
-            });
-
-            // DB-picker popup
-            if entry.picker_open {
-                let picker_id = egui::Id::new(format!("db_picker_{conn_id}"));
-                let mut close_picker = false;
-                let mut new_visible: Option<Option<Vec<String>>> = None;
-
-                egui::Window::new(format!("Filter databases - {}", truncated_label))
-                    .id(picker_id)
-                    .collapsible(false)
-                    .resizable(false)
-                    .min_width(260.0)
-                    .show(ui.ctx(), |ui| {
-                        ui.label("Select databases to show:");
-                        ui.add_space(4.0);
-
-                        // None = show all, Some(_) = filtered (even if empty = hide all)
-                        let all_selected = entry.visible_databases.is_none();
-                        let mut show_all = all_selected;
-                        if ui.checkbox(&mut show_all, "Show all").changed() {
-                            if show_all {
-                                new_visible = Some(None);
-                            } else {
-                                // Uncheck "show all" → start with empty (hide all)
-                                new_visible = Some(Some(vec![]));
-                            }
-                        }
-
-                        ui.separator();
-
-                        let current_visible: Vec<String> = if all_selected {
-                            // "Show all" means all names are implicitly selected.
-                            entry.all_databases.iter().map(|d| d.name.clone()).collect()
-                        } else {
-                            entry.visible_databases.clone().unwrap_or_default()
-                        };
-
-                        for db in &entry.all_databases {
-                            let mut checked = all_selected || current_visible.contains(&db.name);
-                            let prev = checked;
-                            ui.checkbox(&mut checked, &db.name);
-                            if checked != prev {
-                                let mut updated: Vec<String> =
-                                    current_visible.iter().cloned().collect();
-                                if checked {
-                                    if !updated.contains(&db.name) {
-                                        updated.push(db.name.clone());
-                                    }
-                                } else {
-                                    updated.retain(|n| n != &db.name);
-                                }
-                                if updated.len() == entry.all_databases.len() {
-                                    new_visible = Some(None);
-                                } else {
-                                    new_visible = Some(Some(updated));
-                                }
-                            }
-                        }
-
-                        ui.add_space(6.0);
-                        if ui.button("Close").clicked() {
-                            close_picker = true;
-                        }
-                    });
-
-                if close_picker {
-                    entry.picker_open = false;
-                }
-                if let Some(visible) = new_visible {
-                    entry.visible_databases = visible.clone();
-                    if action.is_none() {
-                        action = Some(SidebarAction::UpdateVisibleDatabases { conn_id, visible });
-                    }
-                }
-            }
-        }
+            }); // end ScrollArea
 
         if let Some(id) = disconnect_id {
             action = Some(SidebarAction::Disconnect { conn_id: id });
