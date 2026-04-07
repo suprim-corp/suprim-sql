@@ -78,10 +78,32 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
 
     // ── 1c. Sequences ─────────────────────────────────────────────────────────
     let seq_rows = sqlx::query(AssertSqlSafe(format!(
-        "SELECT sequence_name \
-         FROM information_schema.sequences \
-         WHERE sequence_schema = '{}' \
-         ORDER BY sequence_name",
+        "SELECT s.sequencename AS sequence_name, \
+                s.data_type, \
+                s.start_value, \
+                s.increment_by AS increment, \
+                s.min_value, \
+                s.max_value, \
+                s.last_value, \
+                owner_tbl.relname AS owner_table, \
+                a.attname AS owner_column \
+         FROM pg_catalog.pg_sequences s \
+         JOIN pg_catalog.pg_class seq_cls \
+              ON seq_cls.relname = s.sequencename \
+         JOIN pg_catalog.pg_namespace seq_ns \
+              ON seq_ns.oid = seq_cls.relnamespace \
+              AND seq_ns.nspname = s.schemaname \
+         LEFT JOIN pg_catalog.pg_depend dep \
+              ON dep.objid = seq_cls.oid \
+              AND dep.deptype = 'a' \
+              AND dep.classid = 'pg_class'::regclass \
+         LEFT JOIN pg_catalog.pg_class owner_tbl \
+              ON owner_tbl.oid = dep.refobjid \
+         LEFT JOIN pg_catalog.pg_attribute a \
+              ON a.attrelid = dep.refobjid \
+              AND a.attnum = dep.refobjsubid \
+         WHERE s.schemaname = '{}' \
+         ORDER BY s.sequencename",
         schema_name
     )))
     .fetch_all(pool)
@@ -90,9 +112,27 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
 
     let sequences: Vec<SequenceNode> = seq_rows
         .iter()
-        .map(|r| SequenceNode {
-            id: uuid::Uuid::new_v4(),
-            name: r.try_get("sequence_name").unwrap_or_default(),
+        .map(|r| {
+            let owner_table: Option<String> = r.try_get("owner_table").unwrap_or(None);
+            let owner_column: Option<String> = r.try_get("owner_column").unwrap_or(None);
+            let owner = match (owner_table, owner_column) {
+                (Some(t), Some(c)) => Some(format!("{}.{}", t, c)),
+                _ => None,
+            };
+            SequenceNode {
+                id: uuid::Uuid::new_v4(),
+                name: r.try_get("sequence_name").unwrap_or_default(),
+                data_type: r
+                    .try_get::<Option<String>, _>("data_type")
+                    .unwrap_or(None)
+                    .unwrap_or_else(|| "bigint".into()),
+                start_value: r.try_get::<i64, _>("start_value").unwrap_or(1),
+                increment: r.try_get::<i64, _>("increment").unwrap_or(1),
+                min_value: r.try_get::<i64, _>("min_value").unwrap_or(1),
+                max_value: r.try_get::<i64, _>("max_value").unwrap_or(i64::MAX),
+                last_value: r.try_get::<Option<i64>, _>("last_value").unwrap_or(None),
+                owner,
+            }
         })
         .collect();
 

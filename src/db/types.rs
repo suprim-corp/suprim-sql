@@ -150,6 +150,14 @@ pub struct IndexNode {
 pub struct SequenceNode {
     pub id: uuid::Uuid,
     pub name: String,
+    pub data_type: String,
+    pub start_value: i64,
+    pub increment: i64,
+    pub min_value: i64,
+    pub max_value: i64,
+    pub last_value: Option<i64>,
+    /// Table.column that owns this sequence (e.g. "users.id"), if any.
+    pub owner: Option<String>,
 }
 
 #[derive(Debug, Clone)]

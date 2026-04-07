@@ -402,17 +402,100 @@ impl Sidebar {
                                                             schema_node.sequences.len()
                                                         );
                                                         egui::CollapsingHeader::new(seq_label)
-                                                            .id_salt(format!(
-                                                                "{conn_id}:{}:{}:sequences",
-                                                                db_node.name, schema_node.name
-                                                            ))
-                                                            .show(ui, |ui| {
-                                                                for seq_node in
-                                                                    &schema_node.sequences
-                                                                {
-                                                                    ui.label(&seq_node.name);
+                                                        .id_salt(format!(
+                                                            "{conn_id}:{}:{}:sequences",
+                                                            db_node.name, schema_node.name
+                                                        ))
+                                                        .show(ui, |ui| {
+                                                            for seq_node in &schema_node.sequences {
+                                                                let btn = egui::Button::new(
+                                                                    &seq_node.name,
+                                                                )
+                                                                .frame(false);
+                                                                let resp = ui.add(btn);
+
+                                                                // Show sequence details instantly on hover
+                                                                if resp.hovered() {
+                                                                    egui::show_tooltip_at_pointer(
+                                                                        ui.ctx(),
+                                                                        ui.layer_id(),
+                                                                        egui::Id::new(format!(
+                                                                            "seq_tip_{}",
+                                                                            seq_node.id
+                                                                        )),
+                                                                        |ui| {
+                                                                    ui.strong(&seq_node.name);
+                                                                    ui.separator();
+                                                                    egui::Grid::new(format!(
+                                                                        "seq_tooltip_{}",
+                                                                        seq_node.id
+                                                                    ))
+                                                                    .num_columns(2)
+                                                                    .spacing([12.0, 4.0])
+                                                                    .show(ui, |ui| {
+                                                                        ui.label("Type");
+                                                                        ui.strong(
+                                                                            &seq_node.data_type,
+                                                                        );
+                                                                        ui.end_row();
+
+                                                                        ui.label("Last value");
+                                                                        ui.strong(
+                                                                            seq_node
+                                                                                .last_value
+                                                                                .map(|v| {
+                                                                                    v.to_string()
+                                                                                })
+                                                                                .unwrap_or_else(
+                                                                                    || "—".into(),
+                                                                                ),
+                                                                        );
+                                                                        ui.end_row();
+
+                                                                        ui.label("Start");
+                                                                        ui.strong(
+                                                                            seq_node
+                                                                                .start_value
+                                                                                .to_string(),
+                                                                        );
+                                                                        ui.end_row();
+
+                                                                        ui.label("Increment");
+                                                                        ui.strong(
+                                                                            seq_node
+                                                                                .increment
+                                                                                .to_string(),
+                                                                        );
+                                                                        ui.end_row();
+
+                                                                        ui.label("Min");
+                                                                        ui.strong(
+                                                                            seq_node
+                                                                                .min_value
+                                                                                .to_string(),
+                                                                        );
+                                                                        ui.end_row();
+
+                                                                        ui.label("Max");
+                                                                        ui.strong(
+                                                                            seq_node
+                                                                                .max_value
+                                                                                .to_string(),
+                                                                        );
+                                                                        ui.end_row();
+
+                                                                        if let Some(owner) =
+                                                                            &seq_node.owner
+                                                                        {
+                                                                            ui.label("Owner");
+                                                                            ui.strong(owner);
+                                                                            ui.end_row();
+                                                                        }
+                                                                    });
+                                                                    });
                                                                 }
-                                                            });
+                                                            }
+                                                        });
                                                     }
                                                 });
 
