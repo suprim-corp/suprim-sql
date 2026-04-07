@@ -293,7 +293,7 @@ mod tests {
     async fn table_data_without_connect_returns_not_connected() {
         let driver = PostgresDriver::new();
         let err = driver
-            .table_data(None, "users", 0, 50)
+            .table_data(None, None, "users", 0, 50, None, None)
             .await
             .unwrap_err();
         assert!(matches!(err, AppError::NotConnected));

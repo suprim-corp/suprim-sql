@@ -52,6 +52,24 @@ fn truncate_str(s: &str, max: usize) -> String {
     }
 }
 
+// ── Cell editor popup state ───────────────────────────────────────────────────
+
+enum CellEditorAction {
+    None,
+    Save,
+    Close,
+}
+
+struct CellEditor {
+    row: usize,
+    col: usize,
+    column_name: String,
+    original_value: String,
+    edit_value: String,
+    is_json: bool,
+    json_error: Option<String>,
+}
+
 // ── SQL Editor tab ────────────────────────────────────────────────────────────
 
 struct SqlEditorTab {
@@ -130,7 +148,8 @@ impl SqlEditorTab {
 
             // Results grid (bottom half)
             if let Some(result) = &self.result {
-                render_result_grid(ui, result, &self.display_cache, &mut self.selected_cell);
+                let _ =
+                    render_result_grid(ui, result, &self.display_cache, &mut self.selected_cell);
             } else {
                 let weak = ui.visuals().weak_text_color();
                 ui.label(egui::RichText::new("Run a query to see results").color(weak));
@@ -158,8 +177,9 @@ struct TableViewerTab {
     order_clause: String,
     /// Currently selected data cell (row_idx, col_idx) for highlight + copy.
     selected_cell: Option<(usize, usize)>,
+    /// Popup cell editor opened by double-click.
+    cell_editor: Option<CellEditor>,
 }
-
 impl TableViewerTab {
     fn new(conn_id: Uuid, database: String, schema_name: String, table_name: String) -> Self {
         Self {
@@ -176,6 +196,7 @@ impl TableViewerTab {
             where_clause: String::new(),
             order_clause: String::new(),
             selected_cell: None,
+            cell_editor: None,
         }
     }
 
@@ -319,13 +340,249 @@ impl TableViewerTab {
             }
 
             if let Some(result) = &self.result {
-                render_result_grid(ui, result, &self.display_cache, &mut self.selected_cell);
+                let dbl =
+                    render_result_grid(ui, result, &self.display_cache, &mut self.selected_cell);
+                // Double-click → open cell editor popup
+                if let Some((row, col)) = dbl {
+                    if let Some(col_meta) = result.columns.get(col) {
+                        let db_val = result.rows.get(row).and_then(|r| r.get(col));
+                        let (raw, is_json) = match db_val {
+                            Some(suprim_sql::db::types::DbValue::Json(v)) => {
+                                // Pretty-print JSON
+                                let pretty = serde_json::to_string_pretty(v)
+                                    .unwrap_or_else(|_| v.to_string());
+                                (pretty, true)
+                            }
+                            Some(v) => {
+                                let s = v.display();
+                                // Also detect JSON-like text strings
+                                let looks_json = s.starts_with('{') || s.starts_with('[');
+                                if looks_json {
+                                    if let Ok(parsed) =
+                                        serde_json::from_str::<serde_json::Value>(&s)
+                                    {
+                                        let pretty = serde_json::to_string_pretty(&parsed)
+                                            .unwrap_or(s.clone());
+                                        (pretty, true)
+                                    } else {
+                                        (s, false)
+                                    }
+                                } else {
+                                    (s, false)
+                                }
+                            }
+                            None => (String::new(), false),
+                        };
+                        self.cell_editor = Some(CellEditor {
+                            row,
+                            col,
+                            column_name: col_meta.name.clone(),
+                            original_value: raw.clone(),
+                            edit_value: raw,
+                            is_json,
+                            json_error: None,
+                        });
+                    }
+                }
             } else if self.is_loading {
                 ui.centered_and_justified(|ui| {
                     ui.spinner();
                 });
             }
+
+            // ── Cell editor popup ──
+            self.render_cell_editor_popup(ui, tab_id, cmd_tx);
         });
+    }
+
+    /// Render the cell-editor popup when active.
+    fn render_cell_editor_popup(
+        &mut self,
+        ui: &mut egui::Ui,
+        tab_id: Uuid,
+        cmd_tx: &mpsc::Sender<DbCommand>,
+    ) {
+        let mut action = CellEditorAction::None;
+
+        if let Some(editor) = &mut self.cell_editor {
+            let mut open = true;
+            let title = if editor.is_json {
+                format!("Edit JSON: {}", &editor.column_name)
+            } else {
+                format!("Edit: {}", &editor.column_name)
+            };
+            let col_name = editor.column_name.clone();
+            let is_json = editor.is_json;
+            egui::Window::new(title)
+                .open(&mut open)
+                .resizable([true, true])
+                .default_width(if is_json { 520.0 } else { 420.0 })
+                .default_height(if is_json { 380.0 } else { 260.0 })
+                .pivot(egui::Align2::CENTER_CENTER)
+                .default_pos(ui.ctx().screen_rect().center())
+                .show(ui.ctx(), |ui| {
+                    // Column name label
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new(format!("Column: {col_name}"))
+                                .small()
+                                .color(ui.visuals().weak_text_color()),
+                        );
+                        if is_json {
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    ui.label(
+                                        egui::RichText::new("JSON")
+                                            .small()
+                                            .color(egui::Color32::from_rgb(86, 156, 214)),
+                                    );
+                                },
+                            );
+                        }
+                    });
+                    ui.add_space(4.0);
+
+                    // Fill all available height minus buttons area
+                    let text_height = (ui.available_height() - 38.0).max(80.0);
+
+                    if is_json {
+                        // JSON editor with syntax highlighting
+                        let mut layouter =
+                            |ui: &egui::Ui, text: &dyn egui::TextBuffer, wrap_width: f32| {
+                                let layout_job =
+                                    json_syntax_highlight(ui, text.as_str(), wrap_width);
+                                ui.ctx().fonts_mut(|f| f.layout_job(layout_job))
+                            };
+                        egui::ScrollArea::vertical()
+                            .max_height(text_height)
+                            .min_scrolled_height(text_height)
+                            .show(ui, |ui| {
+                                ui.add_sized(
+                                    [ui.available_width(), text_height],
+                                    egui::TextEdit::multiline(&mut editor.edit_value)
+                                        .font(egui::TextStyle::Monospace)
+                                        .layouter(&mut layouter),
+                                );
+                            });
+                    } else {
+                        // Plain text editor
+                        egui::ScrollArea::vertical()
+                            .max_height(text_height)
+                            .min_scrolled_height(text_height)
+                            .show(ui, |ui| {
+                                ui.add_sized(
+                                    [ui.available_width(), text_height],
+                                    egui::TextEdit::multiline(&mut editor.edit_value)
+                                        .font(egui::TextStyle::Monospace),
+                                );
+                            });
+                    }
+
+                    // JSON validation error message
+                    if let Some(err) = &editor.json_error {
+                        ui.add_space(2.0);
+                        ui.label(
+                            egui::RichText::new(err)
+                                .small()
+                                .color(egui::Color32::from_rgb(220, 80, 80)),
+                        );
+                    }
+
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        let changed = editor.edit_value != editor.original_value;
+                        if is_json {
+                            // Format button
+                            if ui.button("Format").clicked() {
+                                if let Ok(parsed) =
+                                    serde_json::from_str::<serde_json::Value>(&editor.edit_value)
+                                {
+                                    editor.edit_value = serde_json::to_string_pretty(&parsed)
+                                        .unwrap_or(editor.edit_value.clone());
+                                    editor.json_error = None;
+                                } else {
+                                    editor.json_error = Some("Invalid JSON — cannot format".into());
+                                }
+                            }
+                        }
+                        if ui.add_enabled(changed, egui::Button::new("Save")).clicked() {
+                            if is_json {
+                                // Validate JSON before saving
+                                match serde_json::from_str::<serde_json::Value>(&editor.edit_value)
+                                {
+                                    Ok(_) => {
+                                        editor.json_error = None;
+                                        action = CellEditorAction::Save;
+                                    }
+                                    Err(e) => {
+                                        editor.json_error = Some(format!("Invalid JSON: {e}"));
+                                    }
+                                }
+                            } else {
+                                action = CellEditorAction::Save;
+                            }
+                        }
+                        if ui.button("Cancel").clicked()
+                            || ui.input(|i| i.key_pressed(egui::Key::Escape))
+                        {
+                            action = CellEditorAction::Close;
+                        }
+                    });
+                });
+            if !open {
+                action = CellEditorAction::Close;
+            }
+        }
+
+        match action {
+            CellEditorAction::Save => self.save_cell_edit(tab_id, cmd_tx),
+            CellEditorAction::Close => self.cell_editor = None,
+            CellEditorAction::None => {}
+        }
+    }
+
+    /// Build and send an UpdateRow command from the current cell editor state.
+    fn save_cell_edit(&mut self, tab_id: Uuid, cmd_tx: &mpsc::Sender<DbCommand>) {
+        let editor = match &self.cell_editor {
+            Some(e) => e,
+            None => return,
+        };
+        let result = match &self.result {
+            Some(r) => r,
+            None => return,
+        };
+
+        // Build primary key map from the first column (fallback: use all columns).
+        // For now, use all column values of the row as the "where" key.
+        let mut pk = std::collections::HashMap::new();
+        if let Some(row_data) = result.rows.get(editor.row) {
+            for (i, col) in result.columns.iter().enumerate() {
+                if let Some(val) = row_data.get(i) {
+                    pk.insert(col.name.clone(), val.clone());
+                }
+            }
+        }
+
+        let mut changes = std::collections::HashMap::new();
+        changes.insert(
+            editor.column_name.clone(),
+            suprim_sql::db::types::DbValue::Text(editor.edit_value.clone()),
+        );
+
+        let schema_table = format!("\"{}\".\"{}\"", self.schema_name, self.table_name);
+
+        let _ = cmd_tx.try_send(DbCommand::UpdateRow {
+            conn_id: self.conn_id,
+            tab_id,
+            table: schema_table,
+            pk,
+            changes,
+        });
+
+        self.cell_editor = None;
+        // Reload data to reflect update
+        self.load(tab_id, cmd_tx);
     }
 }
 
@@ -371,12 +628,14 @@ fn fixed_cell(
     rect
 }
 
+/// Returns `Some((row, col))` when a cell is double-clicked (for opening an editor).
 fn render_result_grid(
     ui: &mut egui::Ui,
     result: &QueryResult,
     display_cache: &[Vec<String>],
     selected_cell: &mut Option<(usize, usize)>,
-) {
+) -> Option<(usize, usize)> {
+    let mut double_clicked_cell: Option<(usize, usize)> = None;
     let num_rows = result.rows.len();
     let num_cols = result.columns.len();
     let col_width: f32 = 160.0;
@@ -480,6 +739,13 @@ fn render_result_grid(
                                             if ui.input(|i| i.pointer.any_click()) {
                                                 *selected_cell = Some((row_idx, col_idx));
                                             }
+                                            if ui.input(|i| {
+                                                i.pointer.button_double_clicked(
+                                                    egui::PointerButton::Primary,
+                                                )
+                                            }) {
+                                                double_clicked_cell = Some((row_idx, col_idx));
+                                            }
                                         }
                                     }
                                 }
@@ -499,6 +765,208 @@ fn render_result_grid(
         .color(weak)
         .small(),
     );
+
+    double_clicked_cell
+}
+
+// ── JSON syntax highlighter ─────────────────────────────────────────────────
+
+fn json_syntax_highlight(ui: &egui::Ui, text: &str, wrap_width: f32) -> egui::text::LayoutJob {
+    use egui::text::{LayoutJob, LayoutSection, TextFormat};
+    use egui::{Color32, FontId, TextStyle};
+
+    let font_id = ui
+        .style()
+        .text_styles
+        .get(&TextStyle::Monospace)
+        .cloned()
+        .unwrap_or_else(|| FontId::monospace(13.0));
+    let bg = ui.visuals().extreme_bg_color;
+    let is_dark = ui.visuals().dark_mode;
+
+    let col_key = if is_dark {
+        Color32::from_rgb(156, 220, 254)
+    } else {
+        Color32::from_rgb(0, 51, 179)
+    };
+    let col_string = if is_dark {
+        Color32::from_rgb(206, 145, 120)
+    } else {
+        Color32::from_rgb(163, 21, 21)
+    };
+    let col_number = if is_dark {
+        Color32::from_rgb(181, 206, 168)
+    } else {
+        Color32::from_rgb(9, 134, 88)
+    };
+    let col_bool = if is_dark {
+        Color32::from_rgb(86, 156, 214)
+    } else {
+        Color32::from_rgb(0, 0, 255)
+    };
+    let col_null = if is_dark {
+        Color32::from_rgb(86, 156, 214)
+    } else {
+        Color32::from_rgb(0, 0, 255)
+    };
+    let col_punct = if is_dark {
+        Color32::from_rgb(150, 150, 150)
+    } else {
+        Color32::from_rgb(100, 100, 100)
+    };
+    let col_default = ui.visuals().text_color();
+
+    let fmt = |color: Color32| -> TextFormat {
+        TextFormat {
+            font_id: font_id.clone(),
+            color,
+            background: bg,
+            ..Default::default()
+        }
+    };
+
+    let mut job = LayoutJob {
+        text: text.into(),
+        wrap: egui::text::TextWrapping {
+            max_width: wrap_width,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let bytes = text.as_bytes();
+    let len = bytes.len();
+    let mut i = 0;
+    let mut expect_key = true;
+
+    while i < len {
+        let ch = bytes[i];
+        match ch {
+            b'"' => {
+                let start = i;
+                i += 1;
+                while i < len {
+                    if bytes[i] == b'\\' {
+                        i += 2;
+                    } else if bytes[i] == b'"' {
+                        i += 1;
+                        break;
+                    } else {
+                        i += 1;
+                    }
+                }
+                let color = if expect_key { col_key } else { col_string };
+                job.sections.push(LayoutSection {
+                    leading_space: 0.0,
+                    byte_range: start..i,
+                    format: fmt(color),
+                });
+            }
+            b':' => {
+                job.sections.push(LayoutSection {
+                    leading_space: 0.0,
+                    byte_range: i..i + 1,
+                    format: fmt(col_punct),
+                });
+                expect_key = false;
+                i += 1;
+            }
+            b',' => {
+                job.sections.push(LayoutSection {
+                    leading_space: 0.0,
+                    byte_range: i..i + 1,
+                    format: fmt(col_punct),
+                });
+                expect_key = true;
+                i += 1;
+            }
+            b'{' | b'}' | b'[' | b']' => {
+                job.sections.push(LayoutSection {
+                    leading_space: 0.0,
+                    byte_range: i..i + 1,
+                    format: fmt(col_punct),
+                });
+                expect_key = ch == b'{' || ch == b'[';
+                i += 1;
+            }
+            b't' if text[i..].starts_with("true") => {
+                job.sections.push(LayoutSection {
+                    leading_space: 0.0,
+                    byte_range: i..i + 4,
+                    format: fmt(col_bool),
+                });
+                i += 4;
+                expect_key = false;
+            }
+            b'f' if text[i..].starts_with("false") => {
+                job.sections.push(LayoutSection {
+                    leading_space: 0.0,
+                    byte_range: i..i + 5,
+                    format: fmt(col_bool),
+                });
+                i += 5;
+                expect_key = false;
+            }
+            b'n' if text[i..].starts_with("null") => {
+                job.sections.push(LayoutSection {
+                    leading_space: 0.0,
+                    byte_range: i..i + 4,
+                    format: fmt(col_null),
+                });
+                i += 4;
+                expect_key = false;
+            }
+            b'0'..=b'9' | b'-' => {
+                let start = i;
+                if bytes[i] == b'-' {
+                    i += 1;
+                }
+                while i < len
+                    && (bytes[i].is_ascii_digit()
+                        || bytes[i] == b'.'
+                        || bytes[i] == b'e'
+                        || bytes[i] == b'E'
+                        || bytes[i] == b'+'
+                        || bytes[i] == b'-')
+                {
+                    if (bytes[i] == b'+' || bytes[i] == b'-')
+                        && i > start + 1
+                        && bytes[i - 1] != b'e'
+                        && bytes[i - 1] != b'E'
+                    {
+                        break;
+                    }
+                    i += 1;
+                }
+                job.sections.push(LayoutSection {
+                    leading_space: 0.0,
+                    byte_range: start..i,
+                    format: fmt(col_number),
+                });
+                expect_key = false;
+            }
+            b' ' | b'\n' | b'\r' | b'\t' => {
+                let start = i;
+                while i < len && matches!(bytes[i], b' ' | b'\n' | b'\r' | b'\t') {
+                    i += 1;
+                }
+                job.sections.push(LayoutSection {
+                    leading_space: 0.0,
+                    byte_range: start..i,
+                    format: fmt(col_default),
+                });
+            }
+            _ => {
+                job.sections.push(LayoutSection {
+                    leading_space: 0.0,
+                    byte_range: i..i + 1,
+                    format: fmt(col_default),
+                });
+                i += 1;
+            }
+        }
+    }
+    job
 }
 
 // ── TabManager ────────────────────────────────────────────────────────────────
