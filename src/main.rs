@@ -26,6 +26,7 @@ fn main() {
             .with_title("suprim-sql")
             .with_inner_size([1200.0, 800.0])
             .with_min_inner_size([800.0, 500.0]),
+        vsync: true,
         ..Default::default()
     };
 

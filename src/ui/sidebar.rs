@@ -190,10 +190,6 @@ impl Sidebar {
     pub fn show(&mut self, ui: &mut egui::Ui) -> Option<SidebarAction> {
         let mut action: Option<SidebarAction> = None;
 
-        ui.heading("Connections");
-        ui.separator();
-        ui.add_space(4.0);
-
         let mut disconnect_id: Option<Uuid> = None;
 
         egui::ScrollArea::vertical()

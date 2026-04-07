@@ -67,8 +67,11 @@ impl App {
     }
 
     /// Drain all pending events from the DbWorker and update state.
-    fn process_events(&mut self) {
+    /// Returns `true` if at least one event was processed.
+    fn process_events(&mut self) -> bool {
+        let mut had_events = false;
         while let Ok(event) = self.event_rx.try_recv() {
+            had_events = true;
             match event {
                 DbEvent::Connected { conn_id, databases } => {
                     // Build a minimal SchemaTree from database names for sidebar display.
@@ -150,13 +153,24 @@ impl App {
                 }
             }
         }
+        had_events
     }
 }
 
 impl eframe::App for App {
     /// Process DB events (called before rendering each frame).
-    fn logic(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.process_events();
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let had_events = self.process_events();
+        if had_events {
+            // More events may arrive — repaint immediately.
+            ctx.request_repaint();
+        }
+        // Poll for DB responses at 30fps while any tab is loading.
+        // Otherwise, egui only repaints on user interaction (fully reactive).
+        let any_loading = self.tab_manager.any_tab_loading();
+        if any_loading {
+            ctx.request_repaint_after(std::time::Duration::from_millis(33));
+        }
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {

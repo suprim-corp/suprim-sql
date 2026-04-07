@@ -58,7 +58,11 @@ struct SqlEditorTab {
     conn_id: Option<Uuid>,
     sql_text: String,
     result: Option<QueryResult>,
+    /// Pre-computed display strings for each cell — avoids per-frame allocations.
+    display_cache: Vec<Vec<String>>,
     is_running: bool,
+    /// Currently selected data cell (row_idx, col_idx) for highlight + copy.
+    selected_cell: Option<(usize, usize)>,
 }
 
 impl SqlEditorTab {
@@ -67,7 +71,9 @@ impl SqlEditorTab {
             conn_id,
             sql_text: String::new(),
             result: None,
+            display_cache: Vec::new(),
             is_running: false,
+            selected_cell: None,
         }
     }
 
@@ -124,7 +130,7 @@ impl SqlEditorTab {
 
             // Results grid (bottom half)
             if let Some(result) = &self.result {
-                render_result_grid(ui, result);
+                render_result_grid(ui, result, &self.display_cache, &mut self.selected_cell);
             } else {
                 let weak = ui.visuals().weak_text_color();
                 ui.label(egui::RichText::new("Run a query to see results").color(weak));
@@ -141,6 +147,8 @@ struct TableViewerTab {
     schema_name: String,
     table_name: String,
     result: Option<QueryResult>,
+    /// Pre-computed display strings for each cell — avoids per-frame allocations.
+    display_cache: Vec<Vec<String>>,
     page: usize,
     page_size: usize,
     is_loading: bool,
@@ -148,6 +156,8 @@ struct TableViewerTab {
     needs_initial_load: bool,
     where_clause: String,
     order_clause: String,
+    /// Currently selected data cell (row_idx, col_idx) for highlight + copy.
+    selected_cell: Option<(usize, usize)>,
 }
 
 impl TableViewerTab {
@@ -158,12 +168,14 @@ impl TableViewerTab {
             schema_name,
             table_name,
             result: None,
+            display_cache: Vec::new(),
             page: 0,
             page_size: 100,
             is_loading: false,
             needs_initial_load: true,
             where_clause: String::new(),
             order_clause: String::new(),
+            selected_cell: None,
         }
     }
 
@@ -307,7 +319,7 @@ impl TableViewerTab {
             }
 
             if let Some(result) = &self.result {
-                render_result_grid(ui, result);
+                render_result_grid(ui, result, &self.display_cache, &mut self.selected_cell);
             } else if self.is_loading {
                 ui.centered_and_justified(|ui| {
                     ui.spinner();
@@ -319,50 +331,164 @@ impl TableViewerTab {
 
 // ── Shared result grid renderer ───────────────────────────────────────────────
 
-fn render_result_grid(ui: &mut egui::Ui, result: &QueryResult) {
-    let row_height = egui::TextStyle::Body.resolve(ui.style()).size + 6.0;
+/// Pre-compute display strings for all cells once (avoids per-frame allocations).
+fn build_display_cache(result: &QueryResult) -> Vec<Vec<String>> {
+    result
+        .rows
+        .iter()
+        .enumerate()
+        .map(|(i, row)| {
+            let mut cached = Vec::with_capacity(row.len() + 1);
+            // First entry is the row number (1-indexed).
+            cached.push(format!("{}", i + 1));
+            for v in row {
+                cached.push(v.display());
+            }
+            cached
+        })
+        .collect()
+}
+
+/// Render a fixed-width, left-aligned, clipped cell inside a `horizontal` row.
+/// Returns the allocated `Rect` so callers can detect clicks on it.
+fn fixed_cell(
+    ui: &mut egui::Ui,
+    width: f32,
+    height: f32,
+    add_content: impl FnOnce(&mut egui::Ui),
+) -> egui::Rect {
+    let parent_clip = ui.clip_rect();
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
+    let clip = rect.intersect(parent_clip);
+    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+    child.set_clip_rect(clip);
+    child.with_layout(
+        egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
+        |ui| {
+            add_content(ui);
+        },
+    );
+    rect
+}
+
+fn render_result_grid(
+    ui: &mut egui::Ui,
+    result: &QueryResult,
+    display_cache: &[Vec<String>],
+    selected_cell: &mut Option<(usize, usize)>,
+) {
     let num_rows = result.rows.len();
     let num_cols = result.columns.len();
-    let col_width: f32 = 150.0;
+    let col_width: f32 = 160.0;
+    let row_num_width: f32 = 40.0;
+    let row_height: f32 = 22.0;
 
-    // Reserve space for status bar at the bottom.
-    let available = ui.available_height() - row_height - 8.0;
+    let available = ui.available_height() - 28.0;
+    let weak = ui.visuals().weak_text_color();
+    let border = ui.visuals().widgets.noninteractive.bg_stroke.color;
+    let selection_fill = ui.visuals().selection.bg_fill;
 
-    // Sticky header — same column settings as data grid.
-    egui::Grid::new("result_header")
-        .min_col_width(col_width)
-        .max_col_width(col_width)
-        .show(ui, |ui| {
-            for col in &result.columns {
-                ui.add(egui::Label::new(egui::RichText::new(&col.name).strong()).truncate());
+    let total_width = row_num_width + (num_cols as f32 * col_width);
+
+    // Handle Cmd+C / Ctrl+C to copy selected cell raw value
+    if let Some((row, col)) = *selected_cell {
+        let copy_requested = ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Copy)));
+        if copy_requested {
+            if let Some(db_val) = result.rows.get(row).and_then(|r| r.get(col)) {
+                let raw = db_val.display();
+                ui.ctx().copy_text(raw);
             }
-            ui.end_row();
-        });
+        }
+    }
 
-    ui.separator();
-
-    // Scrollable data rows.
-    egui::ScrollArea::vertical()
-        .id_salt("result_scroll")
-        .max_height(available)
+    egui::ScrollArea::horizontal()
+        .id_salt("result_hscroll")
         .show(ui, |ui| {
-            egui::Grid::new("result_grid")
-                .striped(true)
-                .min_col_width(col_width)
-                .max_col_width(col_width)
-                .show(ui, |ui| {
-                    for row_idx in 0..num_rows {
-                        let row = &result.rows[row_idx];
-                        for col_idx in 0..num_cols {
-                            let val = row.get(col_idx).map(|v| v.display()).unwrap_or_default();
-                            ui.add(egui::Label::new(val).truncate());
+            ui.set_min_width(total_width);
+
+            // ── Header row ──
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                fixed_cell(ui, row_num_width, row_height, |ui| {
+                    ui.add_space(4.0);
+                    ui.label(egui::RichText::new("#").strong().color(weak));
+                });
+                for col in &result.columns {
+                    fixed_cell(ui, col_width, row_height, |ui| {
+                        let rect = ui.max_rect();
+                        ui.painter().vline(
+                            rect.left(),
+                            rect.y_range(),
+                            egui::Stroke::new(1.0, border),
+                        );
+                        ui.add_space(6.0);
+                        ui.add(
+                            egui::Label::new(egui::RichText::new(&col.name).strong()).truncate(),
+                        );
+                    });
+                }
+            });
+
+            // ── Separator ──
+            let sep_rect = ui.available_rect_before_wrap();
+            ui.painter().hline(
+                sep_rect.left()..=sep_rect.left() + total_width,
+                sep_rect.top(),
+                egui::Stroke::new(1.0, border),
+            );
+            ui.add_space(1.0);
+
+            // ── Data rows (virtual) ──
+            egui::ScrollArea::vertical()
+                .id_salt("result_vscroll")
+                .max_height(available)
+                .show_rows(ui, row_height, num_rows, |ui, row_range| {
+                    for row_idx in row_range {
+                        if let Some(cached_row) = display_cache.get(row_idx) {
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 0.0;
+                                let row_num = cached_row.first().map(|s| s.as_str()).unwrap_or("");
+                                fixed_cell(ui, row_num_width, row_height, |ui| {
+                                    ui.add_space(4.0);
+                                    ui.label(egui::RichText::new(row_num).color(weak));
+                                });
+                                for col_idx in 0..num_cols {
+                                    let val = cached_row
+                                        .get(col_idx + 1)
+                                        .map(|s| s.as_str())
+                                        .unwrap_or("");
+                                    let is_selected = *selected_cell == Some((row_idx, col_idx));
+                                    let cell_rect = fixed_cell(ui, col_width, row_height, |ui| {
+                                        let rect = ui.max_rect();
+                                        // Draw selection bg BEFORE text
+                                        if is_selected {
+                                            ui.painter().rect_filled(rect, 0.0, selection_fill);
+                                        }
+                                        ui.painter().vline(
+                                            rect.left(),
+                                            rect.y_range(),
+                                            egui::Stroke::new(1.0, border),
+                                        );
+                                        ui.add_space(6.0);
+                                        ui.add(egui::Label::new(val).selectable(false).truncate());
+                                    });
+                                    // Click detection + pointer cursor
+                                    let pointer_pos = ui.input(|i| i.pointer.interact_pos());
+                                    if let Some(pos) = pointer_pos {
+                                        if cell_rect.contains(pos) {
+                                            ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
+                                            if ui.input(|i| i.pointer.any_click()) {
+                                                *selected_cell = Some((row_idx, col_idx));
+                                            }
+                                        }
+                                    }
+                                }
+                            });
                         }
-                        ui.end_row();
                     }
                 });
         });
 
-    let weak = ui.visuals().weak_text_color();
     ui.add_space(4.0);
     ui.label(
         egui::RichText::new(format!(
@@ -425,13 +551,16 @@ impl TabManager {
     pub fn on_query_result(&mut self, tab_id: Uuid, result: QueryResult) {
         for entry in &mut self.tabs {
             if entry.tab_id == tab_id {
+                let cache = build_display_cache(&result);
                 match &mut entry.kind {
                     TabKind::SqlEditor(t) => {
                         t.result = Some(result);
+                        t.display_cache = cache;
                         t.is_running = false;
                     }
                     TabKind::TableViewer(t) => {
                         t.result = Some(result);
+                        t.display_cache = cache;
                         t.is_loading = false;
                     }
                 }
@@ -442,6 +571,14 @@ impl TabManager {
 
     pub fn on_row_mutated(&mut self, _tab_id: Uuid, _rows_affected: u64) {
         // Could refresh the table viewer here.
+    }
+
+    /// Returns true if any tab is currently waiting for a DB response.
+    pub fn any_tab_loading(&self) -> bool {
+        self.tabs.iter().any(|entry| match &entry.kind {
+            TabKind::SqlEditor(t) => t.is_running,
+            TabKind::TableViewer(t) => t.is_loading,
+        })
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, cmd_tx: &mpsc::Sender<DbCommand>) {
