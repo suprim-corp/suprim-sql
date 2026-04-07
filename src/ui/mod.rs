@@ -1,4 +1,5 @@
 mod connection_dialog;
+mod editor_themes;
 mod result_grid;
 mod sidebar;
 mod sql_editor_tab;
