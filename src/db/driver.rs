@@ -86,6 +86,41 @@ pub trait DatabaseDriver: Send + Sync + std::fmt::Debug {
     fn driver_type(&self) -> DriverType;
 
     fn is_connected(&self) -> bool;
+
+    // ── DDL operations ───────────────────────────────────────────────────────
+    // Default implementations generate standard SQL and delegate to execute().
+    // Drivers can override for dialect-specific behavior.
+
+    /// Truncate a table (remove all rows without dropping the table).
+    async fn truncate_table(&self, schema: &str, table: &str) -> Result<()> {
+        let sql = format!("TRUNCATE TABLE \"{}\".\"{}\"", schema, table);
+        self.execute(&sql).await?;
+        Ok(())
+    }
+
+    /// Drop a table.
+    async fn drop_table(&self, schema: &str, table: &str) -> Result<()> {
+        let sql = format!("DROP TABLE \"{}\".\"{}\"", schema, table);
+        self.execute(&sql).await?;
+        Ok(())
+    }
+
+    /// Drop a view.
+    async fn drop_view(&self, schema: &str, view: &str) -> Result<()> {
+        let sql = format!("DROP VIEW IF EXISTS \"{}\".\"{}\"", schema, view);
+        self.execute(&sql).await?;
+        Ok(())
+    }
+
+    /// Rename a table.
+    async fn rename_table(&self, schema: &str, old_name: &str, new_name: &str) -> Result<()> {
+        let sql = format!(
+            "ALTER TABLE \"{}\".\"{}\" RENAME TO \"{}\"",
+            schema, old_name, new_name
+        );
+        self.execute(&sql).await?;
+        Ok(())
+    }
 }
 
 // ─── Async channel protocol ───────────────────────────────────────────────────
@@ -149,6 +184,35 @@ pub enum DbCommand {
         table: String,
         pk: HashMap<String, DbValue>,
     },
+    /// Truncate a table (remove all rows).
+    TruncateTable {
+        conn_id: Uuid,
+        database: String,
+        schema_name: String,
+        table_name: String,
+    },
+    /// Drop a table.
+    DropTable {
+        conn_id: Uuid,
+        database: String,
+        schema_name: String,
+        table_name: String,
+    },
+    /// Drop a view.
+    DropView {
+        conn_id: Uuid,
+        database: String,
+        schema_name: String,
+        view_name: String,
+    },
+    /// Rename a table.
+    RenameTable {
+        conn_id: Uuid,
+        database: String,
+        schema_name: String,
+        old_name: String,
+        new_name: String,
+    },
     /// Gracefully shut down the worker
     Shutdown,
 }
@@ -189,6 +253,12 @@ pub enum DbEvent {
     RowMutated {
         tab_id: Uuid,
         rows_affected: u64,
+    },
+    /// DDL operation completed — triggers a schema refresh on the UI side.
+    DdlCompleted {
+        conn_id: Uuid,
+        database: String,
+        schema_name: String,
     },
     Error {
         /// `None` for connection-level errors

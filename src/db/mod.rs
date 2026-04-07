@@ -2,7 +2,9 @@ pub mod connection;
 pub mod driver;
 pub mod factory;
 pub mod postgres;
+pub mod schema;
 pub mod types;
+pub mod values;
 pub mod worker;
 
 // ── Drivers planned for future releases ──────────────────────────────────────

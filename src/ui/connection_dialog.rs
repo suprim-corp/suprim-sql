@@ -1,6 +1,10 @@
+/// Connection dialog — modal UI for creating or editing a database connection.
+/// Config building and validation logic is in `connection_dialog_config.rs`.
 use eframe::egui;
-use suprim_sql::db::connection::{ConnectionConfig, DriverParams};
+use suprim_sql::db::connection::ConnectionConfig;
 use uuid::Uuid;
+
+use super::connection_dialog_config::{build_config, extract_fields, DbType, DialogFields};
 
 /// Result returned from a dialog each frame.
 pub enum DialogResult {
@@ -9,45 +13,9 @@ pub enum DialogResult {
     Confirmed(ConnectionConfig),
 }
 
-/// Which database type is selected in the dialog.
-#[derive(Debug, Clone, PartialEq)]
-enum DbType {
-    Sqlite,
-    Postgres,
-    Mysql,
-    Redis,
-    MongoDB,
-    Mssql,
-}
-
-impl DbType {
-    fn label(&self) -> &str {
-        match self {
-            DbType::Sqlite => "SQLite",
-            DbType::Postgres => "PostgreSQL",
-            DbType::Mysql => "MySQL / MariaDB",
-            DbType::Redis => "Redis",
-            DbType::MongoDB => "MongoDB",
-            DbType::Mssql => "MSSQL / Azure",
-        }
-    }
-
-    fn all() -> &'static [DbType] {
-        &[
-            DbType::Sqlite,
-            DbType::Postgres,
-            DbType::Mysql,
-            DbType::Redis,
-            DbType::MongoDB,
-            DbType::Mssql,
-        ]
-    }
-}
-
 /// Modal dialog for creating or editing a database connection.
 pub struct ConnectionDialog {
     /// When editing an existing connection, this holds the original id.
-    /// None means "create new" (a fresh UUID will be assigned on confirm).
     edit_id: Option<Uuid>,
 
     name: String,
@@ -89,196 +57,35 @@ impl ConnectionDialog {
 
     /// Open dialog pre-populated with an existing connection for editing.
     pub fn from_config(config: &ConnectionConfig) -> Self {
-        let (db_type, host, port, database, username, password, sqlite_path, mongodb_uri) =
-            match &config.params {
-                DriverParams::Sqlite { path } => (
-                    DbType::Sqlite,
-                    String::new(),
-                    String::new(),
-                    String::new(),
-                    String::new(),
-                    String::new(),
-                    path.to_string_lossy().to_string(),
-                    String::new(),
-                ),
-                DriverParams::Postgres {
-                    host,
-                    port,
-                    database,
-                    user,
-                    password_key,
-                } => (
-                    DbType::Postgres,
-                    host.clone(),
-                    port.to_string(),
-                    database.clone(),
-                    user.clone(),
-                    password_key.clone(),
-                    String::new(),
-                    String::new(),
-                ),
-                DriverParams::Mysql {
-                    host,
-                    port,
-                    database,
-                    user,
-                    password_key,
-                } => (
-                    DbType::Mysql,
-                    host.clone(),
-                    port.to_string(),
-                    database.clone(),
-                    user.clone(),
-                    password_key.clone(),
-                    String::new(),
-                    String::new(),
-                ),
-                DriverParams::Redis {
-                    host,
-                    port,
-                    password_key,
-                    ..
-                } => (
-                    DbType::Redis,
-                    host.clone(),
-                    port.to_string(),
-                    String::new(),
-                    String::new(),
-                    password_key.clone().unwrap_or_default(),
-                    String::new(),
-                    String::new(),
-                ),
-                DriverParams::MongoDB { uri, .. } => (
-                    DbType::MongoDB,
-                    String::new(),
-                    String::new(),
-                    String::new(),
-                    String::new(),
-                    String::new(),
-                    String::new(),
-                    uri.clone(),
-                ),
-                DriverParams::Mssql {
-                    host,
-                    port,
-                    database,
-                    user,
-                    password_key,
-                } => (
-                    DbType::Mssql,
-                    host.clone(),
-                    port.to_string(),
-                    database.clone(),
-                    user.clone(),
-                    password_key.clone(),
-                    String::new(),
-                    String::new(),
-                ),
-            };
-
+        let f = extract_fields(config);
         Self {
             edit_id: Some(config.id),
             name: config.name.clone(),
-            db_type,
-            host,
-            port,
-            database,
-            username,
-            password,
-            sqlite_path,
-            mongodb_uri,
+            db_type: f.db_type,
+            host: f.host,
+            port: f.port,
+            database: f.database,
+            username: f.username,
+            password: f.password,
+            sqlite_path: f.sqlite_path,
+            mongodb_uri: f.mongodb_uri,
             error: None,
         }
     }
 
-    fn default_port(db_type: &DbType) -> &'static str {
-        match db_type {
-            DbType::Sqlite | DbType::MongoDB => "",
-            DbType::Postgres => "5432",
-            DbType::Mysql => "3306",
-            DbType::Redis => "6379",
-            DbType::Mssql => "1433",
+    fn fields(&self) -> DialogFields<'_> {
+        DialogFields {
+            edit_id: self.edit_id,
+            name: &self.name,
+            db_type: &self.db_type,
+            host: &self.host,
+            port: &self.port,
+            database: &self.database,
+            username: &self.username,
+            password: &self.password,
+            sqlite_path: &self.sqlite_path,
+            mongodb_uri: &self.mongodb_uri,
         }
-    }
-
-    fn build_config(&self) -> Result<ConnectionConfig, String> {
-        let name = if self.name.is_empty() {
-            format!("{} @ {}", self.db_type.label(), self.host)
-        } else {
-            self.name.clone()
-        };
-
-        let params = match &self.db_type {
-            DbType::Sqlite => {
-                if self.sqlite_path.is_empty() {
-                    return Err("SQLite path is required".into());
-                }
-                DriverParams::Sqlite {
-                    path: std::path::PathBuf::from(&self.sqlite_path),
-                }
-            }
-            DbType::Postgres => {
-                let port: u16 = self.port.parse().map_err(|_| "Invalid port number")?;
-                DriverParams::Postgres {
-                    host: self.host.clone(),
-                    port,
-                    database: self.database.clone(),
-                    user: self.username.clone(),
-                    password_key: self.password.clone(),
-                }
-            }
-            DbType::Mysql => {
-                let port: u16 = self.port.parse().map_err(|_| "Invalid port number")?;
-                DriverParams::Mysql {
-                    host: self.host.clone(),
-                    port,
-                    database: self.database.clone(),
-                    user: self.username.clone(),
-                    password_key: self.password.clone(),
-                }
-            }
-            DbType::Redis => {
-                let port: u16 = self.port.parse().map_err(|_| "Invalid port number")?;
-                DriverParams::Redis {
-                    host: self.host.clone(),
-                    port,
-                    db_index: 0,
-                    password_key: if self.password.is_empty() {
-                        None
-                    } else {
-                        Some(self.password.clone())
-                    },
-                }
-            }
-            DbType::MongoDB => {
-                if self.mongodb_uri.is_empty() {
-                    return Err("MongoDB URI is required".into());
-                }
-                DriverParams::MongoDB {
-                    uri: self.mongodb_uri.clone(),
-                    password_key: None,
-                }
-            }
-            DbType::Mssql => {
-                let port: u16 = self.port.parse().map_err(|_| "Invalid port number")?;
-                DriverParams::Mssql {
-                    host: self.host.clone(),
-                    port,
-                    database: self.database.clone(),
-                    user: self.username.clone(),
-                    password_key: self.password.clone(),
-                }
-            }
-        };
-
-        let mut config = ConnectionConfig::new(&name, params);
-
-        // Preserve the original id when editing so saved entries are updated in-place.
-        if let Some(id) = self.edit_id {
-            config.id = id;
-        }
-
-        Ok(config)
     }
 
     /// Render the dialog. Returns `DialogResult` each frame.
@@ -320,7 +127,7 @@ impl ConnectionDialog {
                                         && !selected
                                     {
                                         self.db_type = db_type.clone();
-                                        self.port = Self::default_port(&self.db_type).to_string();
+                                        self.port = self.db_type.default_port().to_string();
                                     }
                                 }
                             });
@@ -338,7 +145,7 @@ impl ConnectionDialog {
                             ui.label("File path:");
                             ui.horizontal(|ui| {
                                 ui.text_edit_singleline(&mut self.sqlite_path);
-                                if ui.small_button("Browse…").clicked() {
+                                if ui.small_button("Browse\u{2026}").clicked() {
                                     if let Some(path) = rfd::FileDialog::new()
                                         .add_filter("SQLite", &["db", "sqlite", "sqlite3"])
                                         .pick_file()
@@ -389,7 +196,7 @@ impl ConnectionDialog {
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
                     if ui.button(confirm_label).clicked() {
-                        match self.build_config() {
+                        match build_config(&self.fields()) {
                             Ok(config) => {
                                 result = DialogResult::Confirmed(config);
                                 self.error = None;

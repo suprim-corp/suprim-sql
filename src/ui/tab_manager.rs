@@ -1,5 +1,6 @@
-/// Tab manager — orchestrates tab bar rendering, tab lifecycle, and routing to
-/// SqlEditorTab / TableViewerTab implementations.
+/// Tab manager — orchestrates tab lifecycle, routing to
+/// SqlEditorTab / TableViewerTab / TableEditorTab implementations.
+/// Tab bar rendering is delegated to `tab_bar.rs`.
 use eframe::egui;
 use suprim_sql::db::driver::DbCommand;
 use suprim_sql::db::types::QueryResult;
@@ -8,6 +9,7 @@ use uuid::Uuid;
 
 use super::result_grid::build_display_cache;
 use super::sql_editor_tab::SqlEditorTab;
+use super::tab_bar::render_tab_bar;
 use super::table_editor_tab::TableEditorTab;
 use super::table_viewer_tab::TableViewerTab;
 
@@ -166,113 +168,23 @@ impl TabManager {
             return;
         }
 
-        // Derive all tab-bar colors from the current theme.
-        let vis = ui.visuals().clone();
-        let bar_bg = vis.faint_bg_color;
-        let active_bg = vis.widgets.active.bg_fill;
-        let hover_bg = vis.widgets.hovered.bg_fill;
-        let active_border = vis.widgets.active.bg_stroke.color;
-        let hover_border = vis.widgets.hovered.bg_stroke.color;
-        let inactive_border = vis.widgets.noninteractive.bg_stroke.color;
-        let active_text = vis.strong_text_color();
-        let inactive_text = vis.widgets.inactive.fg_stroke.color;
-        let close_active_color = vis.widgets.inactive.fg_stroke.color;
-        let close_inactive_color = vis.weak_text_color();
+        // Collect tab data for the bar renderer
+        let tab_data: Vec<(Uuid, String)> = self
+            .tabs
+            .iter()
+            .map(|e| (e.tab_id, e.tab_label()))
+            .collect();
 
-        // Tab bar
-        let mut tab_to_close: Option<Uuid> = None;
+        let bar_out = render_tab_bar(ui, &tab_data, self.active_tab);
 
-        egui::Frame::NONE
-            .fill(bar_bg)
-            .inner_margin(egui::Margin::symmetric(2, 0))
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 0.0;
-                    for entry in &self.tabs {
-                        let is_active = Some(entry.tab_id) == self.active_tab;
-                        let tab_id = entry.tab_id;
-                        let label_text = entry.tab_label();
-
-                        // Check hover from previous frame to adjust visuals
-                        let tab_hover_id = egui::Id::new(("tab_hover", tab_id));
-                        let was_hovered = ui
-                            .ctx()
-                            .data(|d| d.get_temp::<bool>(tab_hover_id).unwrap_or(false));
-
-                        let actual_bg = if is_active {
-                            active_bg
-                        } else if was_hovered {
-                            hover_bg
-                        } else {
-                            egui::Color32::TRANSPARENT
-                        };
-                        let actual_border = if is_active {
-                            active_border
-                        } else if was_hovered {
-                            hover_border
-                        } else {
-                            inactive_border
-                        };
-
-                        let frame_response = egui::Frame::NONE
-                            .fill(actual_bg)
-                            .stroke(egui::Stroke::new(1.0, actual_border))
-                            .inner_margin(egui::Margin::symmetric(6, 3))
-                            .corner_radius(egui::CornerRadius::same(0))
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    let text_color = if is_active {
-                                        active_text
-                                    } else {
-                                        inactive_text
-                                    };
-                                    let response = ui.add(
-                                        egui::Label::new(
-                                            egui::RichText::new(&label_text).color(text_color),
-                                        )
-                                        .selectable(false)
-                                        .sense(egui::Sense::click()),
-                                    );
-                                    if response.clicked() {
-                                        self.active_tab = Some(tab_id);
-                                    }
-
-                                    ui.add_space(6.0);
-                                    let close_color = if is_active {
-                                        close_active_color
-                                    } else {
-                                        close_inactive_color
-                                    };
-                                    let close_response = ui.add(
-                                        egui::Label::new(
-                                            egui::RichText::new(egui_phosphor::regular::X)
-                                                .color(close_color),
-                                        )
-                                        .selectable(false)
-                                        .sense(egui::Sense::click()),
-                                    );
-                                    if close_response.clicked() {
-                                        tab_to_close = Some(tab_id);
-                                    }
-                                });
-                            });
-
-                        // Store hover state for next frame + set cursor
-                        let tab_rect = frame_response.response.rect;
-                        let is_hovered = ui.rect_contains_pointer(tab_rect);
-                        ui.ctx()
-                            .data_mut(|d| d.insert_temp(tab_hover_id, is_hovered));
-                        if is_hovered {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                        }
-                    }
-                });
-            });
+        if let Some(id) = bar_out.activated {
+            self.active_tab = Some(id);
+        }
 
         ui.separator();
 
         // Close tab if requested
-        if let Some(id) = tab_to_close {
+        if let Some(id) = bar_out.closed {
             self.tabs.retain(|t| t.tab_id != id);
             if self.active_tab == Some(id) {
                 self.active_tab = self.tabs.last().map(|t| t.tab_id);

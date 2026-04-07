@@ -2,8 +2,8 @@ use eframe::egui;
 use suprim_sql::db::driver::{DbCommand, DbEvent};
 use suprim_sql::storage::AppConfig;
 use tokio::sync::mpsc;
-use uuid::Uuid;
 
+use crate::sidebar_action_handler::{handle_sidebar_action, SidebarContext};
 use crate::ui::{ConnectionDialog, Sidebar, StatusBar, TabManager};
 
 /// Main application state — owned by the eframe runtime on the UI thread.
@@ -149,6 +149,19 @@ impl App {
                     self.tab_manager.on_row_mutated(tab_id, rows_affected);
                     self.status = format!("{rows_affected} row(s) affected");
                 }
+                DbEvent::DdlCompleted {
+                    conn_id,
+                    database,
+                    schema_name,
+                } => {
+                    // Auto-refresh schema after DDL operations.
+                    let _ = self.cmd_tx.try_send(DbCommand::LoadSchemaDetail {
+                        conn_id,
+                        database,
+                        schema_name,
+                    });
+                    self.status = "Operation completed".to_string();
+                }
                 DbEvent::Error { message, .. } => {
                     self.status = format!("Error: {message}");
                 }
@@ -220,183 +233,15 @@ impl eframe::App for App {
             .show_inside(ui, |ui| {
                 let action = self.sidebar.show(ui);
                 if let Some(act) = action {
-                    use crate::ui::SidebarAction;
-                    match act {
-                        SidebarAction::NewConnection => {
-                            self.connection_dialog = Some(ConnectionDialog::new());
-                        }
-                        SidebarAction::EditConnection { conn_id } => {
-                            // Pre-populate dialog with current connection data.
-                            if let Some(cfg) =
-                                self.config.connections.iter().find(|c| c.id == conn_id)
-                            {
-                                self.connection_dialog = Some(ConnectionDialog::from_config(cfg));
-                            }
-                        }
-                        SidebarAction::OpenSqlTab { conn_id } => {
-                            let name = self.sidebar.conn_name(conn_id);
-                            self.tab_manager.open_sql_tab(Some(conn_id), name);
-                        }
-                        SidebarAction::OpenTableViewer {
-                            conn_id,
-                            database,
-                            schema_name,
-                            table_name,
-                        } => {
-                            let name = self.sidebar.conn_name(conn_id);
-                            self.tab_manager.open_table_viewer(
-                                conn_id,
-                                name,
-                                database,
-                                schema_name,
-                                table_name,
-                            );
-                        }
-                        SidebarAction::EditTable {
-                            conn_id,
-                            database,
-                            schema_name,
-                            table,
-                        } => {
-                            let name = self.sidebar.conn_name(conn_id);
-                            self.tab_manager.open_table_editor(
-                                conn_id,
-                                name,
-                                database,
-                                schema_name,
-                                &table,
-                            );
-                        }
-                        SidebarAction::Disconnect { conn_id } => {
-                            let _ = self.cmd_tx.try_send(DbCommand::Disconnect { conn_id });
-                        }
-                        SidebarAction::LoadSchemaDetail {
-                            conn_id,
-                            database,
-                            schema_name,
-                        } => {
-                            let _ = self.cmd_tx.try_send(DbCommand::LoadSchemaDetail {
-                                conn_id,
-                                database,
-                                schema_name,
-                            });
-                        }
-                        SidebarAction::ListSchemas { conn_id, database } => {
-                            let _ = self
-                                .cmd_tx
-                                .try_send(DbCommand::ListSchemas { conn_id, database });
-                        }
-                        SidebarAction::UpdateVisibleDatabases { conn_id, visible } => {
-                            // Persist the filter into the connection config.
-                            if let Some(cfg) =
-                                self.config.connections.iter_mut().find(|c| c.id == conn_id)
-                            {
-                                cfg.visible_databases = visible;
-                                self.config.save();
-                            }
-                            // Reload databases so the worker can re-apply the filter.
-                            let _ = self.cmd_tx.try_send(DbCommand::ListDatabases { conn_id });
-                        }
-                        SidebarAction::RefreshSchema {
-                            conn_id,
-                            database,
-                            schema_name,
-                        } => {
-                            let _ = self.cmd_tx.try_send(DbCommand::LoadSchemaDetail {
-                                conn_id,
-                                database,
-                                schema_name,
-                            });
-                        }
-                        SidebarAction::TruncateTable {
-                            conn_id,
-                            database,
-                            schema_name,
-                            table_name,
-                        } => {
-                            let sql =
-                                format!("TRUNCATE TABLE \"{}\".\"{}\"", schema_name, table_name);
-                            let tab_id = Uuid::new_v4();
-                            let _ = self.cmd_tx.try_send(DbCommand::Execute {
-                                conn_id,
-                                tab_id,
-                                sql,
-                            });
-                            // Refresh schema to reflect changes
-                            let _ = self.cmd_tx.try_send(DbCommand::LoadSchemaDetail {
-                                conn_id,
-                                database,
-                                schema_name,
-                            });
-                        }
-                        SidebarAction::DropTable {
-                            conn_id,
-                            database,
-                            schema_name,
-                            table_name,
-                        } => {
-                            let sql = format!("DROP TABLE \"{}\".\"{}\"", schema_name, table_name);
-                            let tab_id = Uuid::new_v4();
-                            let _ = self.cmd_tx.try_send(DbCommand::Execute {
-                                conn_id,
-                                tab_id,
-                                sql,
-                            });
-                            // Refresh schema to reflect deletion
-                            let _ = self.cmd_tx.try_send(DbCommand::LoadSchemaDetail {
-                                conn_id,
-                                database,
-                                schema_name,
-                            });
-                        }
-                        SidebarAction::DropView {
-                            conn_id,
-                            database,
-                            schema_name,
-                            view_name,
-                        } => {
-                            let sql = format!(
-                                "DROP VIEW IF EXISTS \"{}\".\"{}\"",
-                                schema_name, view_name
-                            );
-                            let tab_id = Uuid::new_v4();
-                            let _ = self.cmd_tx.try_send(DbCommand::Execute {
-                                conn_id,
-                                tab_id,
-                                sql,
-                            });
-                            // Refresh schema to reflect deletion
-                            let _ = self.cmd_tx.try_send(DbCommand::LoadSchemaDetail {
-                                conn_id,
-                                database,
-                                schema_name,
-                            });
-                        }
-                        SidebarAction::RenameTable {
-                            conn_id,
-                            database,
-                            schema_name,
-                            old_name,
-                            new_name,
-                        } => {
-                            let sql = format!(
-                                "ALTER TABLE \"{}\".\"{}\" RENAME TO \"{}\"",
-                                schema_name, old_name, new_name
-                            );
-                            let tab_id = Uuid::new_v4();
-                            let _ = self.cmd_tx.try_send(DbCommand::Execute {
-                                conn_id,
-                                tab_id,
-                                sql,
-                            });
-                            // Refresh schema to reflect rename
-                            let _ = self.cmd_tx.try_send(DbCommand::LoadSchemaDetail {
-                                conn_id,
-                                database,
-                                schema_name,
-                            });
-                        }
-                    }
+                    let sidebar = &self.sidebar;
+                    let mut ctx = SidebarContext {
+                        cmd_tx: &self.cmd_tx,
+                        tab_manager: &mut self.tab_manager,
+                        config: &mut self.config,
+                        connection_dialog: &mut self.connection_dialog,
+                        conn_name: Box::new(|id| sidebar.conn_name(id)),
+                    };
+                    handle_sidebar_action(act, &mut ctx);
                 }
             });
 

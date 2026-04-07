@@ -1,4 +1,5 @@
 mod app;
+mod sidebar_action_handler;
 mod ui;
 
 use eframe::egui;

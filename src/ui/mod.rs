@@ -1,9 +1,12 @@
+mod clipboard_formatters;
 mod connection_dialog;
+mod connection_dialog_config;
 mod editor_themes;
 mod result_grid;
 mod sidebar;
 mod sql_editor_tab;
 mod statusbar;
+mod tab_bar;
 mod tab_manager;
 mod table_editor_tab;
 mod table_viewer_tab;

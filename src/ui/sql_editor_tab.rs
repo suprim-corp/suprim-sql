@@ -5,6 +5,7 @@ use suprim_sql::db::types::QueryResult;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
+use super::clipboard_formatters;
 use super::result_grid::{render_result_grid, CellAction};
 
 pub struct SqlEditorTab {
@@ -47,54 +48,16 @@ impl SqlEditorTab {
             None => return,
         };
         match action {
-            CellAction::Copy => {
-                ui.ctx().copy_text(db_val.display());
-            }
-            CellAction::CopyAsJson => {
-                let json = match db_val {
-                    suprim_sql::db::types::DbValue::Json(v) => {
-                        serde_json::to_string_pretty(v).unwrap_or_else(|_| v.to_string())
-                    }
-                    suprim_sql::db::types::DbValue::Null => "null".to_string(),
-                    other => serde_json::to_string(&other.display()).unwrap_or_default(),
-                };
-                ui.ctx().copy_text(json);
-            }
-            CellAction::CopyAsCsv => {
-                let raw = db_val.display();
-                // Escape for CSV: quote if contains comma, quote, or newline
-                let csv_val = if raw.contains(',') || raw.contains('"') || raw.contains('\n') {
-                    format!("\"{}\"", raw.replace('"', "\"\""))
-                } else {
-                    raw
-                };
-                ui.ctx().copy_text(csv_val);
-            }
-            CellAction::CopyAsSql => {
-                let sql = match db_val {
-                    suprim_sql::db::types::DbValue::Null => "NULL".to_string(),
-                    suprim_sql::db::types::DbValue::Bool(b) => {
-                        if *b { "TRUE" } else { "FALSE" }.to_string()
-                    }
-                    suprim_sql::db::types::DbValue::Int(i) => i.to_string(),
-                    suprim_sql::db::types::DbValue::Float(f) => f.to_string(),
-                    suprim_sql::db::types::DbValue::Text(s) => {
-                        format!("'{}'", s.replace('\'', "''"))
-                    }
-                    suprim_sql::db::types::DbValue::Json(v) => {
-                        format!("'{}'::jsonb", v.to_string().replace('\'', "''"))
-                    }
-                    suprim_sql::db::types::DbValue::Bytes(b) => {
-                        let hex_str: String =
-                            b.iter().map(|byte| format!("{:02x}", byte)).collect();
-                        format!("'\\x{}'", hex_str)
-                    }
-                    suprim_sql::db::types::DbValue::Timestamp(t) => {
-                        format!("'{}'", t.format("%Y-%m-%d %H:%M:%S"))
-                    }
-                };
-                ui.ctx().copy_text(sql);
-            }
+            CellAction::Copy => ui.ctx().copy_text(db_val.display()),
+            CellAction::CopyAsJson => ui
+                .ctx()
+                .copy_text(clipboard_formatters::format_as_json(db_val)),
+            CellAction::CopyAsCsv => ui
+                .ctx()
+                .copy_text(clipboard_formatters::format_as_csv(db_val)),
+            CellAction::CopyAsSql => ui
+                .ctx()
+                .copy_text(clipboard_formatters::format_as_sql(db_val)),
             // Other actions are not supported in the SQL editor (read-only results)
             _ => {}
         }
