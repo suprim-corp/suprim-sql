@@ -2,6 +2,7 @@ use eframe::egui;
 use suprim_sql::db::driver::{DbCommand, DbEvent};
 use suprim_sql::storage::AppConfig;
 use tokio::sync::mpsc;
+use uuid::Uuid;
 
 use crate::ui::{ConnectionDialog, Sidebar, StatusBar, TabManager};
 
@@ -251,6 +252,21 @@ impl eframe::App for App {
                                 table_name,
                             );
                         }
+                        SidebarAction::EditTable {
+                            conn_id,
+                            database,
+                            schema_name,
+                            table,
+                        } => {
+                            let name = self.sidebar.conn_name(conn_id);
+                            self.tab_manager.open_table_editor(
+                                conn_id,
+                                name,
+                                database,
+                                schema_name,
+                                &table,
+                            );
+                        }
                         SidebarAction::Disconnect { conn_id } => {
                             let _ = self.cmd_tx.try_send(DbCommand::Disconnect { conn_id });
                         }
@@ -280,6 +296,105 @@ impl eframe::App for App {
                             }
                             // Reload databases so the worker can re-apply the filter.
                             let _ = self.cmd_tx.try_send(DbCommand::ListDatabases { conn_id });
+                        }
+                        SidebarAction::RefreshSchema {
+                            conn_id,
+                            database,
+                            schema_name,
+                        } => {
+                            let _ = self.cmd_tx.try_send(DbCommand::LoadSchemaDetail {
+                                conn_id,
+                                database,
+                                schema_name,
+                            });
+                        }
+                        SidebarAction::TruncateTable {
+                            conn_id,
+                            database,
+                            schema_name,
+                            table_name,
+                        } => {
+                            let sql =
+                                format!("TRUNCATE TABLE \"{}\".\"{}\"", schema_name, table_name);
+                            let tab_id = Uuid::new_v4();
+                            let _ = self.cmd_tx.try_send(DbCommand::Execute {
+                                conn_id,
+                                tab_id,
+                                sql,
+                            });
+                            // Refresh schema to reflect changes
+                            let _ = self.cmd_tx.try_send(DbCommand::LoadSchemaDetail {
+                                conn_id,
+                                database,
+                                schema_name,
+                            });
+                        }
+                        SidebarAction::DropTable {
+                            conn_id,
+                            database,
+                            schema_name,
+                            table_name,
+                        } => {
+                            let sql = format!("DROP TABLE \"{}\".\"{}\"", schema_name, table_name);
+                            let tab_id = Uuid::new_v4();
+                            let _ = self.cmd_tx.try_send(DbCommand::Execute {
+                                conn_id,
+                                tab_id,
+                                sql,
+                            });
+                            // Refresh schema to reflect deletion
+                            let _ = self.cmd_tx.try_send(DbCommand::LoadSchemaDetail {
+                                conn_id,
+                                database,
+                                schema_name,
+                            });
+                        }
+                        SidebarAction::DropView {
+                            conn_id,
+                            database,
+                            schema_name,
+                            view_name,
+                        } => {
+                            let sql = format!(
+                                "DROP VIEW IF EXISTS \"{}\".\"{}\"",
+                                schema_name, view_name
+                            );
+                            let tab_id = Uuid::new_v4();
+                            let _ = self.cmd_tx.try_send(DbCommand::Execute {
+                                conn_id,
+                                tab_id,
+                                sql,
+                            });
+                            // Refresh schema to reflect deletion
+                            let _ = self.cmd_tx.try_send(DbCommand::LoadSchemaDetail {
+                                conn_id,
+                                database,
+                                schema_name,
+                            });
+                        }
+                        SidebarAction::RenameTable {
+                            conn_id,
+                            database,
+                            schema_name,
+                            old_name,
+                            new_name,
+                        } => {
+                            let sql = format!(
+                                "ALTER TABLE \"{}\".\"{}\" RENAME TO \"{}\"",
+                                schema_name, old_name, new_name
+                            );
+                            let tab_id = Uuid::new_v4();
+                            let _ = self.cmd_tx.try_send(DbCommand::Execute {
+                                conn_id,
+                                tab_id,
+                                sql,
+                            });
+                            // Refresh schema to reflect rename
+                            let _ = self.cmd_tx.try_send(DbCommand::LoadSchemaDetail {
+                                conn_id,
+                                database,
+                                schema_name,
+                            });
                         }
                     }
                 }

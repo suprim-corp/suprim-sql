@@ -1,5 +1,7 @@
 /// Shared result-grid renderer — used by both SqlEditorTab and TableViewerTab.
+/// Uses egui_extras::TableBuilder for responsive column widths and built-in virtual scrolling.
 use eframe::egui;
+use egui_extras::{Column, TableBuilder};
 use suprim_sql::db::types::QueryResult;
 
 /// Pre-compute display strings for all cells once (avoids per-frame allocations).
@@ -20,27 +22,12 @@ pub fn build_display_cache(result: &QueryResult) -> Vec<Vec<String>> {
         .collect()
 }
 
-/// Render a fixed-width, left-aligned, clipped cell inside a `horizontal` row.
-/// Returns the allocated `Rect` so callers can detect clicks on it.
-pub fn fixed_cell(
-    ui: &mut egui::Ui,
-    width: f32,
-    height: f32,
-    add_content: impl FnOnce(&mut egui::Ui),
-) -> egui::Rect {
-    let parent_clip = ui.clip_rect();
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
-    let clip = rect.intersect(parent_clip);
-    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect));
-    child.set_clip_rect(clip);
-    child.with_layout(
-        egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
-        |ui| {
-            add_content(ui);
-        },
-    );
-    rect
-}
+/// Minimum column width for data columns (px).
+const MIN_COL_WIDTH: f32 = 80.0;
+/// Row-number column width (px).
+const ROW_NUM_WIDTH: f32 = 44.0;
+/// Height of each row (px).
+const ROW_HEIGHT: f32 = 22.0;
 
 /// Returns `Some((row, col))` when a cell is double-clicked (for opening an editor).
 pub fn render_result_grid(
@@ -52,16 +39,8 @@ pub fn render_result_grid(
     let mut double_clicked_cell: Option<(usize, usize)> = None;
     let num_rows = result.rows.len();
     let num_cols = result.columns.len();
-    let col_width: f32 = 160.0;
-    let row_num_width: f32 = 40.0;
-    let row_height: f32 = 22.0;
-
-    let available = ui.available_height() - 28.0;
     let weak = ui.visuals().weak_text_color();
-    let border = ui.visuals().widgets.noninteractive.bg_stroke.color;
     let selection_fill = ui.visuals().selection.bg_fill;
-
-    let total_width = row_num_width + (num_cols as f32 * col_width);
 
     // Handle Cmd+C / Ctrl+C to copy selected cell raw value
     if let Some((row, col)) = *selected_cell {
@@ -74,100 +53,76 @@ pub fn render_result_grid(
         }
     }
 
-    egui::ScrollArea::horizontal()
-        .id_salt("result_hscroll")
-        .show(ui, |ui| {
-            ui.set_min_width(total_width);
+    let available_height = ui.available_height() - 28.0;
 
-            // ── Header row ──
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 0.0;
-                fixed_cell(ui, row_num_width, row_height, |ui| {
-                    ui.add_space(4.0);
-                    ui.label(egui::RichText::new("#").strong().color(weak));
-                });
-                for col in &result.columns {
-                    fixed_cell(ui, col_width, row_height, |ui| {
-                        let rect = ui.max_rect();
-                        ui.painter().vline(
-                            rect.left(),
-                            rect.y_range(),
-                            egui::Stroke::new(1.0, border),
-                        );
-                        ui.add_space(6.0);
-                        ui.add(
-                            egui::Label::new(egui::RichText::new(&col.name).strong()).truncate(),
-                        );
-                    });
-                }
+    // Build columns: row-number + one per data column
+    let mut builder = TableBuilder::new(ui)
+        .striped(true)
+        .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+        .column(Column::exact(ROW_NUM_WIDTH))
+        .max_scroll_height(available_height)
+        .sense(egui::Sense::click());
+
+    for _ in 0..num_cols {
+        builder = builder.column(
+            Column::initial(160.0)
+                .at_least(MIN_COL_WIDTH)
+                .resizable(true)
+                .clip(true),
+        );
+    }
+
+    // Header
+    let table = builder.header(ROW_HEIGHT, |mut header| {
+        header.col(|ui| {
+            ui.label(egui::RichText::new("#").strong().color(weak));
+        });
+        for col_meta in &result.columns {
+            header.col(|ui| {
+                ui.add(egui::Label::new(egui::RichText::new(&col_meta.name).strong()).truncate());
+            });
+        }
+    });
+
+    // Body — virtual scrolling via show_rows
+    table.body(|body| {
+        body.rows(ROW_HEIGHT, num_rows, |mut row| {
+            let row_idx = row.index();
+            let cached_row = match display_cache.get(row_idx) {
+                Some(r) => r,
+                None => return,
+            };
+
+            // Row number column
+            row.col(|ui| {
+                let row_num = cached_row.first().map(|s| s.as_str()).unwrap_or("");
+                ui.label(egui::RichText::new(row_num).color(weak));
             });
 
-            // ── Separator ──
-            let sep_rect = ui.available_rect_before_wrap();
-            ui.painter().hline(
-                sep_rect.left()..=sep_rect.left() + total_width,
-                sep_rect.top(),
-                egui::Stroke::new(1.0, border),
-            );
-            ui.add_space(1.0);
-
-            // ── Data rows (virtual) ──
-            egui::ScrollArea::vertical()
-                .id_salt("result_vscroll")
-                .max_height(available)
-                .show_rows(ui, row_height, num_rows, |ui, row_range| {
-                    for row_idx in row_range {
-                        if let Some(cached_row) = display_cache.get(row_idx) {
-                            ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing.x = 0.0;
-                                let row_num = cached_row.first().map(|s| s.as_str()).unwrap_or("");
-                                fixed_cell(ui, row_num_width, row_height, |ui| {
-                                    ui.add_space(4.0);
-                                    ui.label(egui::RichText::new(row_num).color(weak));
-                                });
-                                for col_idx in 0..num_cols {
-                                    let val = cached_row
-                                        .get(col_idx + 1)
-                                        .map(|s| s.as_str())
-                                        .unwrap_or("");
-                                    let is_selected = *selected_cell == Some((row_idx, col_idx));
-                                    let cell_rect = fixed_cell(ui, col_width, row_height, |ui| {
-                                        let rect = ui.max_rect();
-                                        // Draw selection bg BEFORE text
-                                        if is_selected {
-                                            ui.painter().rect_filled(rect, 0.0, selection_fill);
-                                        }
-                                        ui.painter().vline(
-                                            rect.left(),
-                                            rect.y_range(),
-                                            egui::Stroke::new(1.0, border),
-                                        );
-                                        ui.add_space(6.0);
-                                        ui.add(egui::Label::new(val).selectable(false).truncate());
-                                    });
-                                    // Click detection + pointer cursor
-                                    let pointer_pos = ui.input(|i| i.pointer.interact_pos());
-                                    if let Some(pos) = pointer_pos {
-                                        if cell_rect.contains(pos) {
-                                            ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
-                                            if ui.input(|i| i.pointer.any_click()) {
-                                                *selected_cell = Some((row_idx, col_idx));
-                                            }
-                                            if ui.input(|i| {
-                                                i.pointer.button_double_clicked(
-                                                    egui::PointerButton::Primary,
-                                                )
-                                            }) {
-                                                double_clicked_cell = Some((row_idx, col_idx));
-                                            }
-                                        }
-                                    }
-                                }
-                            });
-                        }
+            // Data columns
+            for col_idx in 0..num_cols {
+                let (_, response) = row.col(|ui| {
+                    let is_selected = *selected_cell == Some((row_idx, col_idx));
+                    if is_selected {
+                        let rect = ui.max_rect();
+                        ui.painter().rect_filled(rect, 0.0, selection_fill);
                     }
+                    let val = cached_row
+                        .get(col_idx + 1)
+                        .map(|s| s.as_str())
+                        .unwrap_or("");
+                    ui.add(egui::Label::new(val).selectable(false).truncate());
                 });
+
+                if response.clicked() {
+                    *selected_cell = Some((row_idx, col_idx));
+                }
+                if response.double_clicked() {
+                    double_clicked_cell = Some((row_idx, col_idx));
+                }
+            }
         });
+    });
 
     ui.add_space(4.0);
     ui.label(

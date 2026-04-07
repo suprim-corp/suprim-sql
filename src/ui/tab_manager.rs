@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use super::result_grid::build_display_cache;
 use super::sql_editor_tab::SqlEditorTab;
+use super::table_editor_tab::TableEditorTab;
 use super::table_viewer_tab::TableViewerTab;
 
 // ── Tab kinds ────────────────────────────────────────────────────────────────
@@ -15,6 +16,7 @@ use super::table_viewer_tab::TableViewerTab;
 enum TabKind {
     SqlEditor(SqlEditorTab),
     TableViewer(TableViewerTab),
+    TableEditor(TableEditorTab),
 }
 
 // ── Tab entry ────────────────────────────────────────────────────────────────
@@ -30,10 +32,12 @@ impl TabEntry {
         let icon = match &self.kind {
             TabKind::SqlEditor(_) => egui_phosphor::regular::TERMINAL_WINDOW,
             TabKind::TableViewer(_) => egui_phosphor::regular::TABLE,
+            TabKind::TableEditor(_) => egui_phosphor::regular::PENCIL_SIMPLE,
         };
         let name = match &self.kind {
             TabKind::SqlEditor(_) => "Query".to_string(),
             TabKind::TableViewer(t) => truncate_str(&t.table_name, 18),
+            TabKind::TableEditor(t) => format!("Edit: {}", truncate_str(&t.table_name, 14)),
         };
         let conn = truncate_str(&self.conn_name, 20);
         format!("{icon} {name} [{conn}]")
@@ -105,6 +109,23 @@ impl TabManager {
         self.active_tab = Some(tab_id);
     }
 
+    pub fn open_table_editor(
+        &mut self,
+        conn_id: Uuid,
+        conn_name: String,
+        database: String,
+        schema_name: String,
+        table: &suprim_sql::db::types::TableNode,
+    ) {
+        let tab_id = Uuid::new_v4();
+        self.tabs.push(TabEntry {
+            tab_id,
+            kind: TabKind::TableEditor(TableEditorTab::new(conn_id, database, schema_name, table)),
+            conn_name,
+        });
+        self.active_tab = Some(tab_id);
+    }
+
     pub fn on_query_result(&mut self, tab_id: Uuid, result: QueryResult) {
         for entry in &mut self.tabs {
             if entry.tab_id == tab_id {
@@ -112,6 +133,7 @@ impl TabManager {
                 match &mut entry.kind {
                     TabKind::SqlEditor(t) => t.set_result(result, cache),
                     TabKind::TableViewer(t) => t.set_result(result, cache),
+                    TabKind::TableEditor(_) => {} // editor doesn't receive query results
                 }
                 return;
             }
@@ -127,6 +149,7 @@ impl TabManager {
         self.tabs.iter().any(|entry| match &entry.kind {
             TabKind::SqlEditor(t) => t.is_running,
             TabKind::TableViewer(t) => t.is_loading,
+            TabKind::TableEditor(_) => false,
         })
     }
 
@@ -264,6 +287,7 @@ impl TabManager {
                     match &mut entry.kind {
                         TabKind::SqlEditor(t) => t.show(ui, tab_id, cmd_tx),
                         TabKind::TableViewer(t) => t.show(ui, tab_id, cmd_tx),
+                        TabKind::TableEditor(t) => t.show(ui, tab_id, cmd_tx),
                     }
                     break;
                 }

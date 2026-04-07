@@ -1,0 +1,70 @@
+/// SQL generation and execution for table editor changes.
+use suprim_sql::db::driver::DbCommand;
+use tokio::sync::mpsc;
+use uuid::Uuid;
+
+use super::EditableColumn;
+
+/// Generates ALTER TABLE ADD COLUMN statements for newly added columns.
+pub fn generate_alter_sql(
+    schema_name: &str,
+    table_name: &str,
+    columns: &[EditableColumn],
+) -> String {
+    let full_table = format!("\"{}\".\"{}\"", schema_name, table_name);
+    let mut statements: Vec<String> = Vec::new();
+
+    for col in columns {
+        if !col.original && !col.name.is_empty() {
+            let mut stmt = format!(
+                "ALTER TABLE {} ADD COLUMN \"{}\" {}",
+                full_table, col.name, col.db_type
+            );
+            if !col.nullable {
+                stmt.push_str(" NOT NULL");
+            }
+            if !col.default_value.is_empty() {
+                stmt.push_str(&format!(" DEFAULT {}", col.default_value));
+            }
+            stmt.push(';');
+            statements.push(stmt);
+        }
+    }
+
+    if statements.is_empty() {
+        "-- No changes detected".to_string()
+    } else {
+        statements.join("\n")
+    }
+}
+
+/// Sends generated SQL via the DbCommand channel.
+/// Returns a status message string.
+pub fn execute_changes(
+    conn_id: Uuid,
+    tab_id: Uuid,
+    sql: &str,
+    columns: &mut Vec<EditableColumn>,
+    cmd_tx: &mpsc::Sender<DbCommand>,
+) -> String {
+    if sql.starts_with("-- No") {
+        return "No changes to apply.".to_string();
+    }
+
+    let result = cmd_tx.try_send(DbCommand::Execute {
+        conn_id,
+        tab_id,
+        sql: sql.to_string(),
+    });
+
+    match result {
+        Ok(_) => {
+            // Mark new columns as original after submit
+            for col in columns.iter_mut() {
+                col.original = true;
+            }
+            "Changes submitted.".to_string()
+        }
+        Err(e) => format!("Failed to send: {}", e),
+    }
+}
