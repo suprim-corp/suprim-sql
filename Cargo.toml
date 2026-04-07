@@ -75,6 +75,7 @@ reqwest = { version = "0.13", features = ["json", "rustls"], default-features = 
 tracing            = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 egui-phosphor = { version = "0.12.0", features = ["regular"] }
+egui_code_editor = "0.2"
 
 # ---------------------------------------------------------
 # Dev / Test dependencies

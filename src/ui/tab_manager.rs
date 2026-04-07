@@ -413,11 +413,16 @@ impl TableViewerTab {
             };
             let col_name = editor.column_name.clone();
             let is_json = editor.is_json;
+            let default_w = if is_json { 520.0 } else { 420.0 };
+            let default_h = if is_json { 380.0 } else { 260.0 };
+            let min_h = 180.0;
+
             egui::Window::new(title)
                 .open(&mut open)
                 .resizable([true, true])
-                .default_width(if is_json { 520.0 } else { 420.0 })
-                .default_height(if is_json { 380.0 } else { 260.0 })
+                .default_width(default_w)
+                .default_height(default_h)
+                .min_height(min_h)
                 .pivot(egui::Align2::CENTER_CENTER)
                 .default_pos(ui.ctx().screen_rect().center())
                 .show(ui.ctx(), |ui| {
@@ -443,33 +448,40 @@ impl TableViewerTab {
                     });
                     ui.add_space(4.0);
 
-                    // Fill all available height minus buttons area
+                    // Editor area fills all available height minus buttons row (~38px)
                     let text_height = (ui.available_height() - 38.0).max(80.0);
 
                     if is_json {
-                        // JSON editor with syntax highlighting
-                        let mut layouter =
-                            |ui: &egui::Ui, text: &dyn egui::TextBuffer, wrap_width: f32| {
-                                let layout_job =
-                                    json_syntax_highlight(ui, text.as_str(), wrap_width);
-                                ui.ctx().fonts_mut(|f| f.layout_job(layout_job))
-                            };
+                        // JSON editor with syntax highlighting via egui_code_editor
+                        use egui_code_editor::{CodeEditor, ColorTheme, Syntax};
+                        let theme = if ui.visuals().dark_mode {
+                            ColorTheme::GRUVBOX_DARK
+                        } else {
+                            ColorTheme::GRUVBOX
+                        };
+                        let json_syntax = Syntax::new("json")
+                            .with_case_sensitive(true)
+                            .with_keywords(["true", "false", "null"])
+                            .with_quotes(['"']);
                         egui::ScrollArea::vertical()
                             .max_height(text_height)
-                            .min_scrolled_height(text_height)
+                            .auto_shrink(false)
                             .show(ui, |ui| {
-                                ui.add_sized(
-                                    [ui.available_width(), text_height],
-                                    egui::TextEdit::multiline(&mut editor.edit_value)
-                                        .font(egui::TextStyle::Monospace)
-                                        .layouter(&mut layouter),
-                                );
+                                CodeEditor::default()
+                                    .id_source("json_cell_editor")
+                                    .with_rows(12)
+                                    .with_fontsize(13.0)
+                                    .with_theme(theme)
+                                    .with_syntax(json_syntax)
+                                    .with_numlines(true)
+                                    .vscroll(false)
+                                    .show(ui, &mut editor.edit_value);
                             });
                     } else {
                         // Plain text editor
                         egui::ScrollArea::vertical()
                             .max_height(text_height)
-                            .min_scrolled_height(text_height)
+                            .auto_shrink(false)
                             .show(ui, |ui| {
                                 ui.add_sized(
                                     [ui.available_width(), text_height],
@@ -767,206 +779,6 @@ fn render_result_grid(
     );
 
     double_clicked_cell
-}
-
-// ── JSON syntax highlighter ─────────────────────────────────────────────────
-
-fn json_syntax_highlight(ui: &egui::Ui, text: &str, wrap_width: f32) -> egui::text::LayoutJob {
-    use egui::text::{LayoutJob, LayoutSection, TextFormat};
-    use egui::{Color32, FontId, TextStyle};
-
-    let font_id = ui
-        .style()
-        .text_styles
-        .get(&TextStyle::Monospace)
-        .cloned()
-        .unwrap_or_else(|| FontId::monospace(13.0));
-    let bg = ui.visuals().extreme_bg_color;
-    let is_dark = ui.visuals().dark_mode;
-
-    let col_key = if is_dark {
-        Color32::from_rgb(156, 220, 254)
-    } else {
-        Color32::from_rgb(0, 51, 179)
-    };
-    let col_string = if is_dark {
-        Color32::from_rgb(206, 145, 120)
-    } else {
-        Color32::from_rgb(163, 21, 21)
-    };
-    let col_number = if is_dark {
-        Color32::from_rgb(181, 206, 168)
-    } else {
-        Color32::from_rgb(9, 134, 88)
-    };
-    let col_bool = if is_dark {
-        Color32::from_rgb(86, 156, 214)
-    } else {
-        Color32::from_rgb(0, 0, 255)
-    };
-    let col_null = if is_dark {
-        Color32::from_rgb(86, 156, 214)
-    } else {
-        Color32::from_rgb(0, 0, 255)
-    };
-    let col_punct = if is_dark {
-        Color32::from_rgb(150, 150, 150)
-    } else {
-        Color32::from_rgb(100, 100, 100)
-    };
-    let col_default = ui.visuals().text_color();
-
-    let fmt = |color: Color32| -> TextFormat {
-        TextFormat {
-            font_id: font_id.clone(),
-            color,
-            background: bg,
-            ..Default::default()
-        }
-    };
-
-    let mut job = LayoutJob {
-        text: text.into(),
-        wrap: egui::text::TextWrapping {
-            max_width: wrap_width,
-            ..Default::default()
-        },
-        ..Default::default()
-    };
-
-    let bytes = text.as_bytes();
-    let len = bytes.len();
-    let mut i = 0;
-    let mut expect_key = true;
-
-    while i < len {
-        let ch = bytes[i];
-        match ch {
-            b'"' => {
-                let start = i;
-                i += 1;
-                while i < len {
-                    if bytes[i] == b'\\' {
-                        i += 2;
-                    } else if bytes[i] == b'"' {
-                        i += 1;
-                        break;
-                    } else {
-                        i += 1;
-                    }
-                }
-                let color = if expect_key { col_key } else { col_string };
-                job.sections.push(LayoutSection {
-                    leading_space: 0.0,
-                    byte_range: start..i,
-                    format: fmt(color),
-                });
-            }
-            b':' => {
-                job.sections.push(LayoutSection {
-                    leading_space: 0.0,
-                    byte_range: i..i + 1,
-                    format: fmt(col_punct),
-                });
-                expect_key = false;
-                i += 1;
-            }
-            b',' => {
-                job.sections.push(LayoutSection {
-                    leading_space: 0.0,
-                    byte_range: i..i + 1,
-                    format: fmt(col_punct),
-                });
-                expect_key = true;
-                i += 1;
-            }
-            b'{' | b'}' | b'[' | b']' => {
-                job.sections.push(LayoutSection {
-                    leading_space: 0.0,
-                    byte_range: i..i + 1,
-                    format: fmt(col_punct),
-                });
-                expect_key = ch == b'{' || ch == b'[';
-                i += 1;
-            }
-            b't' if text[i..].starts_with("true") => {
-                job.sections.push(LayoutSection {
-                    leading_space: 0.0,
-                    byte_range: i..i + 4,
-                    format: fmt(col_bool),
-                });
-                i += 4;
-                expect_key = false;
-            }
-            b'f' if text[i..].starts_with("false") => {
-                job.sections.push(LayoutSection {
-                    leading_space: 0.0,
-                    byte_range: i..i + 5,
-                    format: fmt(col_bool),
-                });
-                i += 5;
-                expect_key = false;
-            }
-            b'n' if text[i..].starts_with("null") => {
-                job.sections.push(LayoutSection {
-                    leading_space: 0.0,
-                    byte_range: i..i + 4,
-                    format: fmt(col_null),
-                });
-                i += 4;
-                expect_key = false;
-            }
-            b'0'..=b'9' | b'-' => {
-                let start = i;
-                if bytes[i] == b'-' {
-                    i += 1;
-                }
-                while i < len
-                    && (bytes[i].is_ascii_digit()
-                        || bytes[i] == b'.'
-                        || bytes[i] == b'e'
-                        || bytes[i] == b'E'
-                        || bytes[i] == b'+'
-                        || bytes[i] == b'-')
-                {
-                    if (bytes[i] == b'+' || bytes[i] == b'-')
-                        && i > start + 1
-                        && bytes[i - 1] != b'e'
-                        && bytes[i - 1] != b'E'
-                    {
-                        break;
-                    }
-                    i += 1;
-                }
-                job.sections.push(LayoutSection {
-                    leading_space: 0.0,
-                    byte_range: start..i,
-                    format: fmt(col_number),
-                });
-                expect_key = false;
-            }
-            b' ' | b'\n' | b'\r' | b'\t' => {
-                let start = i;
-                while i < len && matches!(bytes[i], b' ' | b'\n' | b'\r' | b'\t') {
-                    i += 1;
-                }
-                job.sections.push(LayoutSection {
-                    leading_space: 0.0,
-                    byte_range: start..i,
-                    format: fmt(col_default),
-                });
-            }
-            _ => {
-                job.sections.push(LayoutSection {
-                    leading_space: 0.0,
-                    byte_range: i..i + 1,
-                    format: fmt(col_default),
-                });
-                i += 1;
-            }
-        }
-    }
-    job
 }
 
 // ── TabManager ────────────────────────────────────────────────────────────────
