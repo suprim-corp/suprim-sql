@@ -48,7 +48,8 @@ pub async fn execute_with_params(
     Ok(rows_to_query_result(rows, start.elapsed()))
 }
 
-/// Fetch a page of rows from a table.
+/// Fetch a page of rows from a table inside a READ ONLY transaction
+/// to prevent mutations via injected WHERE/ORDER BY clauses.
 pub async fn table_data(
     pool: &PgPool,
     schema: Option<&str>,
@@ -85,8 +86,23 @@ pub async fn table_data(
 
     sql.push_str(&format!("\nLIMIT {} OFFSET {}", page_size, offset));
 
+    // Run inside a READ ONLY transaction to block any mutation via SQL injection.
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| AppError::query(&sql, e.to_string()))?;
+
+    sqlx::query("SET TRANSACTION READ ONLY")
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| AppError::query(&sql, e.to_string()))?;
+
     let rows = sqlx::query(AssertSqlSafe(sql.clone()))
-        .fetch_all(pool)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|e| AppError::query(&sql, e.to_string()))?;
+
+    tx.commit()
         .await
         .map_err(|e| AppError::query(&sql, e.to_string()))?;
 
