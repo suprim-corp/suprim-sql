@@ -50,6 +50,7 @@ pub async fn execute_with_params(
 
 /// Fetch a page of rows from a table inside a READ ONLY transaction
 /// to prevent mutations via injected WHERE/ORDER BY clauses.
+/// Also runs a COUNT(*) query to provide total row count for pagination.
 pub async fn table_data(
     pool: &PgPool,
     schema: Option<&str>,
@@ -65,48 +66,58 @@ pub async fn table_data(
         .map(|s| format!("\"{}\".", s))
         .unwrap_or_default();
 
-    let mut sql = format!(
-        "SELECT * FROM {}\"{}\"",
-        schema_prefix, table
-    );
+    let table_ref = format!("{}\"{}\"", schema_prefix, table);
 
-    if let Some(w) = where_clause {
-        let w = w.trim();
-        if !w.is_empty() {
-            sql.push_str(&format!("\nWHERE {}", w));
-        }
-    }
+    // Build WHERE fragment (shared by both COUNT and SELECT)
+    let where_fragment = match where_clause {
+        Some(w) if !w.trim().is_empty() => format!("\nWHERE {}", w.trim()),
+        _ => String::new(),
+    };
 
+    // 1) COUNT query — total rows matching WHERE
+    let count_sql = format!("SELECT COUNT(*) AS cnt FROM {}{}", table_ref, where_fragment);
+
+    // 2) Data query — paginated
+    let mut data_sql = format!("SELECT * FROM {}{}", table_ref, where_fragment);
     if let Some(o) = order_clause {
         let o = o.trim();
         if !o.is_empty() {
-            sql.push_str(&format!("\nORDER BY {}", o));
+            data_sql.push_str(&format!("\nORDER BY {}", o));
         }
     }
-
-    sql.push_str(&format!("\nLIMIT {} OFFSET {}", page_size, offset));
+    data_sql.push_str(&format!("\nLIMIT {} OFFSET {}", page_size, offset));
 
     // Run inside a READ ONLY transaction to block any mutation via SQL injection.
     let mut tx = pool
         .begin()
         .await
-        .map_err(|e| AppError::query(&sql, e.to_string()))?;
+        .map_err(|e| AppError::query(&data_sql, e.to_string()))?;
 
     sqlx::query("SET TRANSACTION READ ONLY")
         .execute(&mut *tx)
         .await
-        .map_err(|e| AppError::query(&sql, e.to_string()))?;
+        .map_err(|e| AppError::query(&data_sql, e.to_string()))?;
 
-    let rows = sqlx::query(AssertSqlSafe(sql.clone()))
+    // Run count
+    let count_row: (i64,) = sqlx::query_as(AssertSqlSafe(count_sql.clone()))
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| AppError::query(&count_sql, e.to_string()))?;
+    let total_count = count_row.0 as u64;
+
+    // Run data
+    let rows = sqlx::query(AssertSqlSafe(data_sql.clone()))
         .fetch_all(&mut *tx)
         .await
-        .map_err(|e| AppError::query(&sql, e.to_string()))?;
+        .map_err(|e| AppError::query(&data_sql, e.to_string()))?;
 
     tx.commit()
         .await
-        .map_err(|e| AppError::query(&sql, e.to_string()))?;
+        .map_err(|e| AppError::query(&data_sql, e.to_string()))?;
 
-    Ok(rows_to_query_result(rows, start.elapsed()))
+    let mut result = rows_to_query_result(rows, start.elapsed());
+    result.total_count = Some(total_count);
+    Ok(result)
 }
 
 /// Insert a new row. Returns rows affected.

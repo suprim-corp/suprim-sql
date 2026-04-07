@@ -86,6 +86,7 @@ pub fn rows_to_query_result(rows: Vec<PgRow>, elapsed: Duration) -> QueryResult 
             rows: vec![],
             rows_affected: 0,
             execution_time: elapsed,
+            total_count: None,
         };
     }
 
@@ -118,6 +119,7 @@ pub fn rows_to_query_result(rows: Vec<PgRow>, elapsed: Duration) -> QueryResult 
         rows: data_rows,
         rows_affected: row_count,
         execution_time: elapsed,
+        total_count: None,
     }
 }
 

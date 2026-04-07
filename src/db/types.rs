@@ -59,6 +59,9 @@ pub struct QueryResult {
     /// Rows affected — relevant for INSERT/UPDATE/DELETE
     pub rows_affected: u64,
     pub execution_time: Duration,
+    /// Total row count (before LIMIT) — used for pagination display.
+    /// Only set by `table_data` queries, `None` for raw SQL execution.
+    pub total_count: Option<u64>,
 }
 
 impl QueryResult {
@@ -68,6 +71,7 @@ impl QueryResult {
             rows: vec![],
             rows_affected: 0,
             execution_time: Duration::ZERO,
+            total_count: None,
         }
     }
 
