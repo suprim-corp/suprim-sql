@@ -168,6 +168,22 @@ impl TableViewerTab {
     }
 
     fn load(&mut self, tab_id: Uuid, cmd_tx: &mpsc::Sender<DbCommand>) {
+        let where_opt = {
+            let w = self.where_clause.trim().to_string();
+            if w.is_empty() {
+                None
+            } else {
+                Some(w)
+            }
+        };
+        let order_opt = {
+            let o = self.order_clause.trim().to_string();
+            if o.is_empty() {
+                None
+            } else {
+                Some(o)
+            }
+        };
         let _ = cmd_tx.try_send(DbCommand::LoadTableData {
             conn_id: self.conn_id,
             tab_id,
@@ -176,6 +192,8 @@ impl TableViewerTab {
             table: self.table_name.clone(),
             page: self.page as u32,
             page_size: self.page_size as u32,
+            where_clause: where_opt,
+            order_clause: order_opt,
         });
         self.is_loading = true;
     }

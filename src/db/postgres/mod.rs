@@ -191,12 +191,14 @@ impl DatabaseDriver for PostgresDriver {
         table: &str,
         page: u32,
         page_size: u32,
+        where_clause: Option<&str>,
+        order_clause: Option<&str>,
     ) -> Result<QueryResult> {
         let pool = match database {
             Some(db) => self.pool_for_db(db).await?,
             None => self.pool()?.clone(),
         };
-        queries::table_data(&pool, schema, table, page, page_size).await
+        queries::table_data(&pool, schema, table, page, page_size, where_clause, order_clause).await
     }
 
     async fn insert_row(&self, table: &str, values: HashMap<String, DbValue>) -> Result<u64> {

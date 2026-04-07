@@ -287,6 +287,8 @@ impl DbWorker {
                 table,
                 page,
                 page_size,
+                where_clause,
+                order_clause,
             } => {
                 match self.connections.get(&conn_id) {
                     None => {
@@ -301,7 +303,15 @@ impl DbWorker {
                     }
                     Some(driver) => {
                         match driver
-                            .table_data(database.as_deref(), schema.as_deref(), &table, page, page_size)
+                            .table_data(
+                                database.as_deref(),
+                                schema.as_deref(),
+                                &table,
+                                page,
+                                page_size,
+                                where_clause.as_deref(),
+                                order_clause.as_deref(),
+                            )
                             .await
                         {
                             Ok(result) => {
@@ -623,6 +633,8 @@ mod tests {
                 table: "users".to_string(),
                 page: 0,
                 page_size: 50,
+                where_clause: None,
+                order_clause: None,
             })
             .await
             .unwrap();

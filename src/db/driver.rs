@@ -45,7 +45,7 @@ pub trait DatabaseDriver: Send + Sync + std::fmt::Debug {
     /// Load full detail for a single named schema: tables, views, columns, indexes, FKs.
     async fn load_schema_detail(&self, database: &str, schema_name: &str) -> Result<SchemaNode>;
 
-    /// Fetch a page of rows from a table.
+    /// Fetch a page of rows from a table, with optional WHERE/ORDER BY clauses.
     async fn table_data(
         &self,
         database: Option<&str>,
@@ -53,6 +53,8 @@ pub trait DatabaseDriver: Send + Sync + std::fmt::Debug {
         table: &str,
         page: u32,
         page_size: u32,
+        where_clause: Option<&str>,
+        order_clause: Option<&str>,
     ) -> Result<QueryResult>;
 
     // ── Mutations (inline table editor) ──────────────────────────────────────
@@ -125,6 +127,8 @@ pub enum DbCommand {
         table: String,
         page: u32,
         page_size: u32,
+        where_clause: Option<String>,
+        order_clause: Option<String>,
     },
     InsertRow {
         conn_id: Uuid,

@@ -55,6 +55,8 @@ pub async fn table_data(
     table: &str,
     page: u32,
     page_size: u32,
+    where_clause: Option<&str>,
+    order_clause: Option<&str>,
 ) -> Result<QueryResult> {
     let start = Instant::now();
     let offset = page * page_size;
@@ -62,10 +64,27 @@ pub async fn table_data(
         .map(|s| format!("\"{}\".", s))
         .unwrap_or_default();
 
-    let sql = format!(
-        "SELECT * FROM {}\"{}\"\nLIMIT {} OFFSET {}",
-        schema_prefix, table, page_size, offset
+    let mut sql = format!(
+        "SELECT * FROM {}\"{}\"",
+        schema_prefix, table
     );
+
+    if let Some(w) = where_clause {
+        let w = w.trim();
+        if !w.is_empty() {
+            sql.push_str(&format!("\nWHERE {}", w));
+        }
+    }
+
+    if let Some(o) = order_clause {
+        let o = o.trim();
+        if !o.is_empty() {
+            sql.push_str(&format!("\nORDER BY {}", o));
+        }
+    }
+
+    sql.push_str(&format!("\nLIMIT {} OFFSET {}", page_size, offset));
+
     let rows = sqlx::query(AssertSqlSafe(sql.clone()))
         .fetch_all(pool)
         .await
