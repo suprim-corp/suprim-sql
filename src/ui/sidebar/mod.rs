@@ -1,94 +1,20 @@
 mod connection_entry;
 mod database_picker;
-mod folder_renderers;
 mod schema_renderer;
+mod sequences_folder_renderer;
+mod sidebar_action;
 mod table_context_menu;
 mod table_detail_renderer;
+mod tables_folder_renderer;
 mod view_detail_renderer;
+mod views_folder_renderer;
 
 use connection_entry::ConnectionEntry;
-use eframe::egui;
-use suprim_sql::db::types::{SchemaNode, SchemaTree, TableNode};
+use eframe::egui::{self, CursorIcon};
+use suprim_sql::db::types::{SchemaNode, SchemaTree};
 use uuid::Uuid;
 
-/// Action the sidebar wants the app to perform.
-pub enum SidebarAction {
-    NewConnection,
-    EditConnection {
-        conn_id: Uuid,
-    },
-    OpenSqlTab {
-        conn_id: Uuid,
-        /// Active database context for the SQL tab.
-        database: Option<String>,
-        /// All databases available on this connection.
-        databases: Vec<String>,
-    },
-    OpenTableViewer {
-        conn_id: Uuid,
-        database: String,
-        schema_name: String,
-        table_name: String,
-    },
-    /// Open the table structure editor tab.
-    EditTable {
-        conn_id: Uuid,
-        database: String,
-        schema_name: String,
-        table: TableNode,
-    },
-    Disconnect {
-        conn_id: Uuid,
-    },
-    LoadSchemaDetail {
-        conn_id: Uuid,
-        database: String,
-        schema_name: String,
-    },
-    ListSchemas {
-        conn_id: Uuid,
-        database: String,
-    },
-    UpdateVisibleDatabases {
-        conn_id: Uuid,
-        visible: Option<Vec<String>>,
-    },
-    /// Reload the schema detail for a specific schema (Refresh).
-    RefreshSchema {
-        conn_id: Uuid,
-        database: String,
-        schema_name: String,
-    },
-    /// Execute TRUNCATE TABLE on the given table.
-    TruncateTable {
-        conn_id: Uuid,
-        database: String,
-        schema_name: String,
-        table_name: String,
-    },
-    /// Execute DROP TABLE on the given table.
-    DropTable {
-        conn_id: Uuid,
-        database: String,
-        schema_name: String,
-        table_name: String,
-    },
-    /// Execute DROP VIEW on the given view.
-    DropView {
-        conn_id: Uuid,
-        database: String,
-        schema_name: String,
-        view_name: String,
-    },
-    /// Rename a table.
-    RenameTable {
-        conn_id: Uuid,
-        database: String,
-        schema_name: String,
-        old_name: String,
-        new_name: String,
-    },
-}
+pub use sidebar_action::SidebarAction;
 
 /// The left-hand schema / connection browser panel.
 pub struct Sidebar {
@@ -210,6 +136,8 @@ impl Sidebar {
                         &mut action,
                         &mut disconnect_id,
                     );
+                    resp.header_response
+                        .on_hover_cursor(CursorIcon::PointingHand);
                     render_database_picker(ui, conn_id, entry, &mut action);
                 }
             });

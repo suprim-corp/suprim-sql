@@ -1,4 +1,4 @@
-use eframe::egui;
+use eframe::egui::{self, CursorIcon};
 use suprim_sql::db::types::{ColumnNode, ForeignKeyNode, IndexNode, TableNode};
 use uuid::Uuid;
 
@@ -63,7 +63,9 @@ fn render_columns_folder(
             for col in columns {
                 render_column_row(ui, col);
             }
-        });
+        })
+        .header_response
+        .on_hover_cursor(CursorIcon::PointingHand);
 }
 
 fn render_column_row(ui: &mut egui::Ui, col: &ColumnNode) {
@@ -120,7 +122,9 @@ fn render_indexes_folder(
                 let display = format!("{}{} ({})", idx.name, unique_tag, cols);
                 ui.label(display);
             }
-        });
+        })
+        .header_response
+        .on_hover_cursor(CursorIcon::PointingHand);
 }
 
 // ─── Foreign Keys ───────────────────────────────────────────────────────────
@@ -154,5 +158,7 @@ fn render_foreign_keys_folder(
                 );
                 ui.label(display);
             }
-        });
+        })
+        .header_response
+        .on_hover_cursor(CursorIcon::PointingHand);
 }

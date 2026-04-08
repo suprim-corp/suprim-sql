@@ -1,10 +1,12 @@
 use std::collections::HashSet;
 
-use eframe::egui;
+use eframe::egui::{self, CursorIcon};
 use suprim_sql::db::types::SchemaTree;
 use uuid::Uuid;
 
-use super::folder_renderers;
+use super::sequences_folder_renderer;
+use super::tables_folder_renderer;
+use super::views_folder_renderer;
 use super::SidebarAction;
 
 /// Render the full schema tree for one connection.
@@ -46,6 +48,9 @@ pub(super) fn render_schema_tree(
                     ui.weak("loading schemas...");
                 }
             });
+        db_response
+            .header_response
+            .on_hover_cursor(CursorIcon::PointingHand);
 
         // Trigger ListSchemas when database expanded but has no schemas yet.
         if db_response.openness > 0.0
@@ -106,7 +111,7 @@ fn render_schema_node(
             }
 
             if has_tables {
-                folder_renderers::render_tables_folder(
+                tables_folder_renderer::render_tables_folder(
                     ui,
                     conn_id,
                     db_name,
@@ -116,7 +121,7 @@ fn render_schema_node(
                 );
             }
             if has_views {
-                folder_renderers::render_views_folder(
+                views_folder_renderer::render_views_folder(
                     ui,
                     conn_id,
                     db_name,
@@ -126,7 +131,7 @@ fn render_schema_node(
                 );
             }
             if has_matviews {
-                folder_renderers::render_materialized_views_folder(
+                views_folder_renderer::render_materialized_views_folder(
                     ui,
                     conn_id,
                     db_name,
@@ -136,7 +141,7 @@ fn render_schema_node(
                 );
             }
             if has_sequences {
-                folder_renderers::render_sequences_folder(
+                sequences_folder_renderer::render_sequences_folder(
                     ui,
                     conn_id,
                     db_name,
@@ -145,6 +150,8 @@ fn render_schema_node(
                 );
             }
         });
+    resp.header_response
+        .on_hover_cursor(CursorIcon::PointingHand);
 
     // Trigger lazy-load when expanded but not yet loaded.
     let detail_key = format!("{db_name}:{schema_name}");

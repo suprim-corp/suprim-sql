@@ -1,4 +1,4 @@
-use eframe::egui;
+use eframe::egui::{self, CursorIcon};
 use suprim_sql::db::types::ViewNode;
 use uuid::Uuid;
 
@@ -31,5 +31,7 @@ pub(super) fn render_view_detail(
                 let display = format!("{} ({}){}", col.name, col.db_type, null_marker);
                 ui.label(display);
             }
-        });
+        })
+        .header_response
+        .on_hover_cursor(CursorIcon::PointingHand);
 }
