@@ -69,7 +69,7 @@ impl TableViewerTab {
                                 mono.clone(),
                                 dark_mode,
                             );
-                            ui.fonts(|f| f.layout_job(job))
+                            ui.fonts_mut(|f| f.layout_job(job))
                         };
                     let where_out = egui::TextEdit::singleline(&mut self.where_clause)
                         .id(where_id)
@@ -105,7 +105,7 @@ impl TableViewerTab {
                                 mono.clone(),
                                 dark_mode,
                             );
-                            ui.fonts(|f| f.layout_job(job))
+                            ui.fonts_mut(|f| f.layout_job(job))
                         };
                     let order_out = egui::TextEdit::singleline(&mut self.order_clause)
                         .id(order_id)
