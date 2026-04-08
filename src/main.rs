@@ -39,7 +39,19 @@ fn main() {
     eframe::run_native(
         "SuprimSQL",
         native_options,
-        Box::new(move |cc| Ok(Box::new(app::App::with_channels(cc, cmd_tx, event_rx)))),
+        Box::new(move |cc| {
+            // Install native macOS menu bar (replaces winit default).
+            #[cfg(target_os = "macos")]
+            let native_menu = ui::macos_menu::install_native_menu();
+
+            Ok(Box::new(app::App::with_channels(
+                cc,
+                cmd_tx,
+                event_rx,
+                #[cfg(target_os = "macos")]
+                native_menu,
+            )))
+        }),
     )
     .unwrap_or_else(|e| eprintln!("Failed to start: {e}"));
 }

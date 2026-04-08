@@ -2,6 +2,8 @@ mod clipboard_formatters;
 mod connection_dialog;
 mod connection_dialog_config;
 mod editor_themes;
+#[cfg(target_os = "macos")]
+pub mod macos_menu;
 mod result_grid;
 mod sidebar;
 mod sql_autocomplete;

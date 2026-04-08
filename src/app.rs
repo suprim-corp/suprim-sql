@@ -25,6 +25,10 @@ pub struct App {
 
     /// Persisted app configuration (connections list).
     config: AppConfig,
+
+    /// Native macOS menu bar channel + retained handler objects.
+    #[cfg(target_os = "macos")]
+    native_menu: crate::ui::macos_menu::NativeMenu,
 }
 
 impl App {
@@ -32,6 +36,7 @@ impl App {
         cc: &eframe::CreationContext<'_>,
         cmd_tx: mpsc::Sender<DbCommand>,
         event_rx: mpsc::Receiver<DbEvent>,
+        #[cfg(target_os = "macos")] native_menu: crate::ui::macos_menu::NativeMenu,
     ) -> Self {
         // Register Phosphor icon font so all UI components can use it.
         let mut fonts = egui::FontDefinitions::default();
@@ -59,11 +64,13 @@ impl App {
                 "Ready".to_string()
             } else {
                 format!(
-                    "Reconnecting {} saved connection(s)…",
+                    "Reconnecting {} saved connection(s)\u{2026}",
                     config.connections.len()
                 )
             },
             config,
+            #[cfg(target_os = "macos")]
+            native_menu,
         }
     }
 
@@ -106,7 +113,8 @@ impl App {
                     let row_count = result.rows.len();
                     let millis = result.execution_time.as_millis();
                     self.tab_manager.on_query_result(tab_id, result);
-                    self.status = format!("Query complete — {row_count} rows  ({millis} ms)");
+                    self.status =
+                        format!("Query complete \u{2014} {row_count} rows  ({millis} ms)");
                 }
                 DbEvent::DatabasesListed { conn_id, databases } => {
                     // Rebuild schema tree from listed databases for sidebar.
@@ -174,6 +182,40 @@ impl App {
         }
         had_events
     }
+
+    /// Process native macOS menu actions each frame.
+    #[cfg(target_os = "macos")]
+    fn process_menu_actions(&mut self, ctx: &egui::Context) {
+        use crate::ui::macos_menu::MenuAction;
+
+        while let Ok(action) = self.native_menu.rx.try_recv() {
+            match action {
+                MenuAction::NewConnection => {
+                    self.connection_dialog = Some(ConnectionDialog::new());
+                }
+                MenuAction::Quit => {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+                MenuAction::NewSqlTab => {
+                    if let Some((conn_id, name, database, databases)) =
+                        self.sidebar.first_connection_info()
+                    {
+                        self.tab_manager
+                            .open_sql_tab(Some(conn_id), name, database, databases);
+                    } else {
+                        self.tab_manager
+                            .open_sql_tab(None, String::new(), None, Vec::new());
+                    }
+                }
+                MenuAction::ReloadDatabases => {
+                    for conn_id in self.sidebar.active_connection_ids() {
+                        let _ = self.cmd_tx.try_send(DbCommand::ListDatabases { conn_id });
+                    }
+                }
+            }
+            ctx.request_repaint();
+        }
+    }
 }
 
 impl eframe::App for App {
@@ -184,6 +226,11 @@ impl eframe::App for App {
             // More events may arrive — repaint immediately.
             ctx.request_repaint();
         }
+
+        // Poll native macOS menu actions.
+        #[cfg(target_os = "macos")]
+        self.process_menu_actions(ctx);
+
         // Poll for DB responses at 30fps while any tab is loading.
         // Otherwise, egui only repaints on user interaction (fully reactive).
         let any_loading = self.tab_manager.any_tab_loading();
@@ -195,12 +242,13 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
 
-        // ── Top menu bar ────────────────────────────────────────────────
+        // ── Top menu bar (non-macOS only; macOS uses native system menu) ──
+        #[cfg(not(target_os = "macos"))]
         egui::Panel::top("menu_bar").show_inside(ui, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("Connection", |ui| {
                     if ui
-                        .button("New Connection…")
+                        .button("New Connection\u{2026}")
                         .on_hover_cursor(egui::CursorIcon::PointingHand)
                         .clicked()
                     {
@@ -297,9 +345,9 @@ impl eframe::App for App {
                     self.config.add_connection(config.clone());
                     let _ = self.cmd_tx.try_send(DbCommand::Connect { config });
                     self.status = if is_edit {
-                        "Reconnecting with updated settings…".to_string()
+                        "Reconnecting with updated settings\u{2026}".to_string()
                     } else {
-                        "Connecting…".to_string()
+                        "Connecting\u{2026}".to_string()
                     };
                     close_dialog = true;
                 }
