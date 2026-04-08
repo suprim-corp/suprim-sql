@@ -43,6 +43,7 @@ pub fn generate_alter_sql(
 pub fn execute_changes(
     conn_id: Uuid,
     tab_id: Uuid,
+    database: &str,
     sql: &str,
     columns: &mut Vec<EditableColumn>,
     cmd_tx: &mpsc::Sender<DbCommand>,
@@ -55,6 +56,7 @@ pub fn execute_changes(
         conn_id,
         tab_id,
         sql: sql.to_string(),
+        database: Some(database.to_string()),
     });
 
     match result {

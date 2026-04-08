@@ -118,12 +118,15 @@ impl ConnectionDialog {
                         ui.end_row();
 
                         ui.label("Type:");
-                        egui::ComboBox::from_id_salt("db_type")
+                        let type_combo = egui::ComboBox::from_id_salt("db_type")
                             .selected_text(self.db_type.label())
                             .show_ui(ui, |ui| {
                                 for db_type in DbType::all() {
                                     let selected = &self.db_type == db_type;
-                                    if ui.selectable_label(selected, db_type.label()).clicked()
+                                    if ui
+                                        .selectable_label(selected, db_type.label())
+                                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                        .clicked()
                                         && !selected
                                     {
                                         self.db_type = db_type.clone();
@@ -131,6 +134,9 @@ impl ConnectionDialog {
                                     }
                                 }
                             });
+                        type_combo
+                            .response
+                            .on_hover_cursor(egui::CursorIcon::PointingHand);
                         ui.end_row();
                     });
 
@@ -145,7 +151,11 @@ impl ConnectionDialog {
                             ui.label("File path:");
                             ui.horizontal(|ui| {
                                 ui.text_edit_singleline(&mut self.sqlite_path);
-                                if ui.small_button("Browse\u{2026}").clicked() {
+                                if ui
+                                    .small_button("Browse\u{2026}")
+                                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                    .clicked()
+                                {
                                     if let Some(path) = rfd::FileDialog::new()
                                         .add_filter("SQLite", &["db", "sqlite", "sqlite3"])
                                         .pick_file()
@@ -195,7 +205,11 @@ impl ConnectionDialog {
 
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    if ui.button(confirm_label).clicked() {
+                    if ui
+                        .button(confirm_label)
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .clicked()
+                    {
                         match build_config(&self.fields()) {
                             Ok(config) => {
                                 result = DialogResult::Confirmed(config);
@@ -204,7 +218,11 @@ impl ConnectionDialog {
                             Err(e) => self.error = Some(e),
                         }
                     }
-                    if ui.button("Cancel").clicked() {
+                    if ui
+                        .button("Cancel")
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .clicked()
+                    {
                         result = DialogResult::Cancelled;
                     }
                 });

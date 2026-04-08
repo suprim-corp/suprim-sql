@@ -166,6 +166,11 @@ impl DatabaseDriver for PostgresDriver {
         queries::execute(self.pool()?, sql).await
     }
 
+    async fn execute_on_database(&self, sql: &str, database: &str) -> Result<QueryResult> {
+        let pool = self.pool_for_db(database).await?;
+        queries::execute(&pool, sql).await
+    }
+
     async fn execute_with_params(&self, sql: &str, params: Vec<DbValue>) -> Result<QueryResult> {
         queries::execute_with_params(self.pool()?, sql, params).await
     }

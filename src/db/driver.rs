@@ -29,6 +29,13 @@ pub trait DatabaseDriver: Send + Sync + std::fmt::Debug {
     /// Execute a raw SQL string and return results.
     async fn execute(&self, sql: &str) -> Result<QueryResult>;
 
+    /// Execute SQL on a specific database (cross-database query support).
+    /// Default implementation ignores the database parameter and delegates to `execute()`.
+    /// Drivers that support cross-database pools (e.g. PostgreSQL) should override this.
+    async fn execute_on_database(&self, sql: &str, _database: &str) -> Result<QueryResult> {
+        self.execute(sql).await
+    }
+
     /// Execute SQL with positional parameters.
     async fn execute_with_params(&self, sql: &str, params: Vec<DbValue>) -> Result<QueryResult>;
 
@@ -138,6 +145,10 @@ pub enum DbCommand {
         conn_id: Uuid,
         tab_id: Uuid,
         sql: String,
+        /// Target database for query execution.
+        /// When `Some`, the worker uses a database-specific pool.
+        /// When `None`, the primary (default) pool is used.
+        database: Option<String>,
     },
     /// List all databases on a connection.
     ListDatabases {

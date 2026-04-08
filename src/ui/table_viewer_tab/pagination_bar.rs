@@ -30,10 +30,12 @@ impl TableViewerTab {
         ui.horizontal(|ui| {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // Next
-                let next = ui.add_enabled(
-                    !is_last,
-                    egui::Button::new(egui_phosphor::regular::CARET_RIGHT).small(),
-                );
+                let next = ui
+                    .add_enabled(
+                        !is_last,
+                        egui::Button::new(egui_phosphor::regular::CARET_RIGHT).small(),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if next.clicked() {
                     self.page += 1;
                     self.load(tab_id, cmd_tx);
@@ -48,10 +50,12 @@ impl TableViewerTab {
                 ui.label(egui::RichText::new(page_label).color(hint_color).small());
 
                 // Prev
-                let prev = ui.add_enabled(
-                    self.page > 0,
-                    egui::Button::new(egui_phosphor::regular::CARET_LEFT).small(),
-                );
+                let prev = ui
+                    .add_enabled(
+                        self.page > 0,
+                        egui::Button::new(egui_phosphor::regular::CARET_LEFT).small(),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
                 if prev.clicked() {
                     self.page -= 1;
                     self.load(tab_id, cmd_tx);

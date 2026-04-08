@@ -194,23 +194,47 @@ impl eframe::App for App {
         egui::Panel::top("menu_bar").show_inside(ui, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("Connection", |ui| {
-                    if ui.button("New Connection…").clicked() {
+                    if ui
+                        .button("New Connection…")
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .clicked()
+                    {
                         self.connection_dialog = Some(ConnectionDialog::new());
                         ui.close();
                     }
                     ui.separator();
-                    if ui.button("Quit").clicked() {
+                    if ui
+                        .button("Quit")
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .clicked()
+                    {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
                 ui.menu_button("Query", |ui| {
-                    if ui.button("New SQL Tab").clicked() {
-                        self.tab_manager.open_sql_tab(None, String::new());
+                    if ui
+                        .button("New SQL Tab")
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .clicked()
+                    {
+                        if let Some((conn_id, name, database, databases)) =
+                            self.sidebar.first_connection_info()
+                        {
+                            self.tab_manager
+                                .open_sql_tab(Some(conn_id), name, database, databases);
+                        } else {
+                            self.tab_manager
+                                .open_sql_tab(None, String::new(), None, Vec::new());
+                        }
                         ui.close();
                     }
                 });
                 ui.menu_button("View", |ui| {
-                    if ui.button("Reload Databases").clicked() {
+                    if ui
+                        .button("Reload Databases")
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .clicked()
+                    {
                         for conn_id in self.sidebar.active_connection_ids() {
                             let _ = self.cmd_tx.try_send(DbCommand::ListDatabases { conn_id });
                         }

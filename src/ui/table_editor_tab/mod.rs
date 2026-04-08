@@ -78,7 +78,11 @@ impl TableEditorTab {
                     self.table_name,
                 ));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button("Save Changes").clicked() {
+                    if ui
+                        .button("Save Changes")
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .clicked()
+                    {
                         let sql = sql_generator::generate_alter_sql(
                             &self.schema_name,
                             &self.table_name,
@@ -87,12 +91,17 @@ impl TableEditorTab {
                         self.status_message = Some(sql_generator::execute_changes(
                             self.conn_id,
                             tab_id,
+                            &self.database,
                             &sql,
                             &mut self.columns,
                             cmd_tx,
                         ));
                     }
-                    if ui.button("Preview SQL").clicked() {
+                    if ui
+                        .button("Preview SQL")
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .clicked()
+                    {
                         self.sql_preview = sql_generator::generate_alter_sql(
                             &self.schema_name,
                             &self.table_name,
@@ -100,7 +109,11 @@ impl TableEditorTab {
                         );
                         self.show_sql_preview = true;
                     }
-                    if ui.button("Add Column").clicked() {
+                    if ui
+                        .button("Add Column")
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .clicked()
+                    {
                         self.columns.push(EditableColumn {
                             name: String::new(),
                             db_type: "text".to_string(),

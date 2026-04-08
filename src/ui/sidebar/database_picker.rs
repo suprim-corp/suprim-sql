@@ -60,7 +60,11 @@ pub(super) fn render_database_picker(
             }
 
             ui.add_space(6.0);
-            if ui.button("Close").clicked() {
+            if ui
+                .button("Close")
+                .on_hover_cursor(egui::CursorIcon::PointingHand)
+                .clicked()
+            {
                 close_picker = true;
             }
         });

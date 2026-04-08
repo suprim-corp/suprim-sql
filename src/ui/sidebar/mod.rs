@@ -19,6 +19,10 @@ pub enum SidebarAction {
     },
     OpenSqlTab {
         conn_id: Uuid,
+        /// Active database context for the SQL tab.
+        database: Option<String>,
+        /// All databases available on this connection.
+        databases: Vec<String>,
     },
     OpenTableViewer {
         conn_id: Uuid,
@@ -100,6 +104,19 @@ impl Sidebar {
 
     pub fn active_connection_ids(&self) -> Vec<Uuid> {
         self.connections.iter().map(|c| c.conn_id).collect()
+    }
+
+    /// Returns (conn_id, conn_name, first_database, all_databases) for the
+    /// first active connection, if any. Used by menu bar "New SQL Tab".
+    pub fn first_connection_info(&self) -> Option<(Uuid, String, Option<String>, Vec<String>)> {
+        let entry = self.connections.first()?;
+        let databases: Vec<String> = entry.all_databases.iter().map(|d| d.name.clone()).collect();
+        Some((
+            entry.conn_id,
+            entry.label.clone(),
+            databases.first().cloned(),
+            databases,
+        ))
     }
 
     pub fn conn_name(&self, conn_id: Uuid) -> String {
@@ -224,20 +241,42 @@ fn render_context_menu(
     disconnect_id: &mut Option<Uuid>,
 ) {
     header.context_menu(|ui| {
-        if ui.button("New SQL Tab").clicked() {
-            *action = Some(SidebarAction::OpenSqlTab { conn_id });
+        if ui
+            .button("New SQL Tab")
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
+            .clicked()
+        {
+            let databases: Vec<String> =
+                entry.all_databases.iter().map(|d| d.name.clone()).collect();
+            *action = Some(SidebarAction::OpenSqlTab {
+                conn_id,
+                database: databases.first().cloned(),
+                databases,
+            });
             ui.close();
         }
         ui.separator();
-        if ui.button("Filter Databases...").clicked() {
+        if ui
+            .button("Filter Databases...")
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
+            .clicked()
+        {
             entry.picker_open = !entry.picker_open;
             ui.close();
         }
-        if ui.button("Edit Connection...").clicked() {
+        if ui
+            .button("Edit Connection...")
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
+            .clicked()
+        {
             *action = Some(SidebarAction::EditConnection { conn_id });
             ui.close();
         }
-        if ui.button("Disconnect").clicked() {
+        if ui
+            .button("Disconnect")
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
+            .clicked()
+        {
             *disconnect_id = Some(conn_id);
             ui.close();
         }

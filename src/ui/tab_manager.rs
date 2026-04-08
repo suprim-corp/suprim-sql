@@ -79,11 +79,17 @@ impl TabManager {
         }
     }
 
-    pub fn open_sql_tab(&mut self, conn_id: Option<Uuid>, conn_name: String) {
+    pub fn open_sql_tab(
+        &mut self,
+        conn_id: Option<Uuid>,
+        conn_name: String,
+        database: Option<String>,
+        databases: Vec<String>,
+    ) {
         let tab_id = Uuid::new_v4();
         self.tabs.push(TabEntry {
             tab_id,
-            kind: TabKind::SqlEditor(SqlEditorTab::new(conn_id)),
+            kind: TabKind::SqlEditor(SqlEditorTab::new(conn_id, database, databases)),
             conn_name,
         });
         self.active_tab = Some(tab_id);

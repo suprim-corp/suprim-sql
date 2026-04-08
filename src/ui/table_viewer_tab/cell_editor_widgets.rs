@@ -75,7 +75,11 @@ impl TableViewerTab {
         ui.horizontal(|ui| {
             let changed = editor.edit_value != editor.original_value;
             if is_json {
-                if ui.button("Format").clicked() {
+                if ui
+                    .button("Format")
+                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                    .clicked()
+                {
                     if let Ok(parsed) =
                         serde_json::from_str::<serde_json::Value>(&editor.edit_value)
                     {
@@ -87,7 +91,11 @@ impl TableViewerTab {
                     }
                 }
             }
-            if ui.add_enabled(changed, egui::Button::new("Save")).clicked() {
+            if ui
+                .add_enabled(changed, egui::Button::new("Save"))
+                .on_hover_cursor(egui::CursorIcon::PointingHand)
+                .clicked()
+            {
                 if is_json {
                     match serde_json::from_str::<serde_json::Value>(&editor.edit_value) {
                         Ok(_) => {
@@ -102,7 +110,12 @@ impl TableViewerTab {
                     *action = CellEditorAction::Save;
                 }
             }
-            if ui.button("Cancel").clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            if ui
+                .button("Cancel")
+                .on_hover_cursor(egui::CursorIcon::PointingHand)
+                .clicked()
+                || ui.input(|i| i.key_pressed(egui::Key::Escape))
+            {
                 *action = CellEditorAction::Close;
             }
         });

@@ -6,9 +6,19 @@ use crate::db::driver::DbEvent;
 use super::DbWorker;
 
 impl DbWorker {
-    pub(super) async fn handle_execute(&self, conn_id: Uuid, tab_id: Uuid, sql: &str) {
+    pub(super) async fn handle_execute(
+        &self,
+        conn_id: Uuid,
+        tab_id: Uuid,
+        sql: &str,
+        database: Option<&str>,
+    ) {
         if let Some(driver) = self.get_driver(conn_id, Some(tab_id)).await {
-            match driver.execute(sql).await {
+            let result = match database {
+                Some(db) => driver.execute_on_database(sql, db).await,
+                None => driver.execute(sql).await,
+            };
+            match result {
                 Ok(result) => {
                     let _ = self
                         .event_tx

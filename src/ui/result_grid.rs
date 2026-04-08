@@ -213,6 +213,22 @@ pub fn render_result_grid(
     output
 }
 
+/// Shorthand: button with pointer cursor on hover.
+fn btn(ui: &mut egui::Ui, label: impl Into<egui::WidgetText>) -> egui::Response {
+    ui.button(label)
+        .on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+/// Shorthand: button with shortcut text and pointer cursor.
+fn btn_shortcut(
+    ui: &mut egui::Ui,
+    label: impl Into<egui::WidgetText>,
+    shortcut: &str,
+) -> egui::Response {
+    ui.add(egui::Button::new(label).shortcut_text(shortcut))
+        .on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
 /// Render the context-menu items for a cell.
 fn render_cell_context_menu(
     ui: &mut egui::Ui,
@@ -222,34 +238,28 @@ fn render_cell_context_menu(
     action_ref: &Rc<RefCell<Option<(CellAction, usize, usize)>>>,
 ) {
     // ── Copy ──
-    if ui
-        .add(egui::Button::new("Copy").shortcut_text("⌘C"))
-        .clicked()
-    {
+    if btn_shortcut(ui, "Copy", "⌘C").clicked() {
         *action_ref.borrow_mut() = Some((CellAction::Copy, row, col));
         ui.close();
     }
 
     ui.menu_button("Copy as", |ui| {
-        if ui.button("JSON").clicked() {
+        if btn(ui, "JSON").clicked() {
             *action_ref.borrow_mut() = Some((CellAction::CopyAsJson, row, col));
             ui.close();
         }
-        if ui.button("CSV").clicked() {
+        if btn(ui, "CSV").clicked() {
             *action_ref.borrow_mut() = Some((CellAction::CopyAsCsv, row, col));
             ui.close();
         }
-        if ui.button("SQL").clicked() {
+        if btn(ui, "SQL").clicked() {
             *action_ref.borrow_mut() = Some((CellAction::CopyAsSql, row, col));
             ui.close();
         }
     });
 
     // ── Paste ──
-    if ui
-        .add(egui::Button::new("Paste").shortcut_text("⌘V"))
-        .clicked()
-    {
+    if btn_shortcut(ui, "Paste", "⌘V").clicked() {
         *action_ref.borrow_mut() = Some((CellAction::Paste, row, col));
         ui.close();
     }
@@ -263,22 +273,22 @@ fn render_cell_context_menu(
         } else {
             egui::RichText::new("NULL")
         };
-        if ui.button(null_label).clicked() {
+        if btn(ui, null_label).clicked() {
             *action_ref.borrow_mut() = Some((CellAction::SetNull, row, col));
             ui.close();
         }
-        if ui.button("Empty String").clicked() {
+        if btn(ui, "Empty String").clicked() {
             *action_ref.borrow_mut() = Some((CellAction::SetEmpty, row, col));
             ui.close();
         }
-        if ui.button("Default").clicked() {
+        if btn(ui, "Default").clicked() {
             *action_ref.borrow_mut() = Some((CellAction::SetDefault, row, col));
             ui.close();
         }
     });
 
     // ── Edit Value ──
-    if ui.button("Edit Value...").clicked() {
+    if btn(ui, "Edit Value...").clicked() {
         *action_ref.borrow_mut() = Some((CellAction::EditValue, row, col));
         ui.close();
     }
@@ -286,26 +296,20 @@ fn render_cell_context_menu(
     ui.separator();
 
     // ── Export Results ──
-    if ui.button("Export Results...").clicked() {
+    if btn(ui, "Export Results...").clicked() {
         *action_ref.borrow_mut() = Some((CellAction::ExportResults, row, col));
         ui.close();
     }
 
     // ── Duplicate Row ──
-    if ui
-        .add(egui::Button::new("Duplicate").shortcut_text("⌘D"))
-        .clicked()
-    {
+    if btn_shortcut(ui, "Duplicate", "⌘D").clicked() {
         *action_ref.borrow_mut() = Some((CellAction::DuplicateRow, row, col));
         ui.close();
     }
 
     // ── Delete Row ──
     let delete_label = egui::RichText::new("Delete").color(egui::Color32::from_rgb(220, 60, 60));
-    if ui
-        .add(egui::Button::new(delete_label).shortcut_text("⌫"))
-        .clicked()
-    {
+    if btn_shortcut(ui, delete_label, "⌫").clicked() {
         *action_ref.borrow_mut() = Some((CellAction::DeleteRow, row, col));
         ui.close();
     }

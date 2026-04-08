@@ -30,9 +30,14 @@ pub fn handle_sidebar_action(action: SidebarAction, ctx: &mut SidebarContext<'_>
                 *ctx.connection_dialog = Some(ConnectionDialog::from_config(cfg));
             }
         }
-        SidebarAction::OpenSqlTab { conn_id } => {
+        SidebarAction::OpenSqlTab {
+            conn_id,
+            database,
+            databases,
+        } => {
             let name = (ctx.conn_name)(conn_id);
-            ctx.tab_manager.open_sql_tab(Some(conn_id), name);
+            ctx.tab_manager
+                .open_sql_tab(Some(conn_id), name, database, databases);
         }
         SidebarAction::OpenTableViewer {
             conn_id,

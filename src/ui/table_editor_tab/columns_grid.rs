@@ -111,7 +111,11 @@ pub fn render_columns_grid(columns: &mut Vec<EditableColumn>, ui: &mut egui::Ui)
                 row.col(|ui| {
                     let delete_label = egui::RichText::new(egui_phosphor::regular::TRASH)
                         .color(egui::Color32::from_rgb(220, 60, 60));
-                    if ui.button(delete_label).clicked() {
+                    if ui
+                        .button(delete_label)
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .clicked()
+                    {
                         remove_idx = Some(idx);
                     }
                 });

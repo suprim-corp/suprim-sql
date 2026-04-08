@@ -33,6 +33,7 @@ use uuid::Uuid;
                 conn_id,
                 tab_id,
                 sql: "SELECT 1".to_string(),
+                database: None,
             })
             .await
             .unwrap();

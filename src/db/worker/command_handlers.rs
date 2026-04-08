@@ -17,7 +17,11 @@ impl DbWorker {
                 conn_id,
                 tab_id,
                 sql,
-            } => self.handle_execute(conn_id, tab_id, &sql).await,
+                database,
+            } => {
+                self.handle_execute(conn_id, tab_id, &sql, database.as_deref())
+                    .await
+            }
             DbCommand::ListDatabases { conn_id } => self.handle_list_databases(conn_id).await,
             DbCommand::ListSchemas { conn_id, database } => {
                 self.handle_list_schemas(conn_id, &database).await
