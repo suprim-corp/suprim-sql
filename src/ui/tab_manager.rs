@@ -103,6 +103,20 @@ impl TabManager {
         schema_name: String,
         table_name: String,
     ) {
+        // If a viewer for this exact table is already open, just activate it.
+        for entry in &self.tabs {
+            if let TabKind::TableViewer(t) = &entry.kind {
+                if t.conn_id == conn_id
+                    && t.database == database
+                    && t.schema_name == schema_name
+                    && t.table_name == table_name
+                {
+                    self.active_tab = Some(entry.tab_id);
+                    return;
+                }
+            }
+        }
+
         let tab_id = Uuid::new_v4();
         self.tabs.push(TabEntry {
             tab_id,

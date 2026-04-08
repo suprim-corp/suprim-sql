@@ -19,8 +19,8 @@ use cell_editor::{build_cell_editor, CellEditor};
 
 pub struct TableViewerTab {
     pub conn_id: Uuid,
-    database: String,
-    schema_name: String,
+    pub database: String,
+    pub schema_name: String,
     pub table_name: String,
     result: Option<QueryResult>,
     /// Pre-computed display strings for each cell — avoids per-frame allocations.

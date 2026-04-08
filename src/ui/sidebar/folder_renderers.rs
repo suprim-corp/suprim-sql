@@ -1,4 +1,4 @@
-use eframe::egui;
+use eframe::egui::{self, CursorIcon};
 use suprim_sql::db::types::{SchemaNode, ViewNode};
 use uuid::Uuid;
 
@@ -37,9 +37,23 @@ pub(super) fn render_tables_folder(
                     None => format!("{} {}", egui_phosphor::regular::TABLE, tbl_name),
                 };
 
-                let header_resp = egui::CollapsingHeader::new(&tbl_label)
-                    .id_salt(format!("{conn_id}:{db_name}:{schema_name}:tbl:{tbl_name}"))
-                    .show(ui, |ui| {
+                let state_id = ui.make_persistent_id(format!(
+                    "{conn_id}:{db_name}:{schema_name}:tbl:{tbl_name}"
+                ));
+                let state = egui::collapsing_header::CollapsingState::load_with_default_open(
+                    ui.ctx(),
+                    state_id,
+                    false,
+                );
+
+                let (toggle_resp, header_resp, _body_resp) = state
+                    .show_header(ui, |ui| {
+                        let resp = ui
+                            .selectable_label(false, &tbl_label)
+                            .on_hover_cursor(CursorIcon::PointingHand);
+                        resp
+                    })
+                    .body(|ui| {
                         table_detail_renderer::render_table_detail(
                             ui,
                             conn_id,
@@ -47,17 +61,30 @@ pub(super) fn render_tables_folder(
                             schema_name,
                             table,
                         );
-                    })
-                    .header_response;
+                    });
 
+                toggle_resp.on_hover_cursor(CursorIcon::PointingHand);
+                let label_resp = &header_resp.inner;
+
+                // Right-click context menu on the label
                 table_context_menu::render_table_context_menu(
-                    &header_resp,
+                    label_resp,
                     conn_id,
                     db_name,
                     schema_name,
                     table,
                     action,
                 );
+
+                // Click table name → open data viewer tab
+                if label_resp.clicked() || label_resp.double_clicked() {
+                    *action = Some(SidebarAction::OpenTableViewer {
+                        conn_id,
+                        database: db_name.to_owned(),
+                        schema_name: schema_name.to_owned(),
+                        table_name: tbl_name.clone(),
+                    });
+                }
             }
         });
 }
