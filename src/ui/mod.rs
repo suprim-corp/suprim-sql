@@ -6,6 +6,7 @@ mod result_grid;
 mod sidebar;
 mod sql_autocomplete;
 mod sql_editor_tab;
+mod sql_highlighter;
 mod statusbar;
 mod tab_bar;
 mod tab_manager;

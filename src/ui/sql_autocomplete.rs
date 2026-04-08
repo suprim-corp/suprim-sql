@@ -167,8 +167,8 @@ pub struct AcceptedSuggestion {
 pub struct AutocompleteState {
     /// Whether the popup is open.
     pub open: bool,
-    /// Filtered suggestions.
-    pub suggestions: Vec<&'static str>,
+    /// Filtered suggestions (owned strings — mix of column names + keywords).
+    pub suggestions_owned: Vec<String>,
     /// Currently highlighted index in the suggestions list.
     pub selected_idx: usize,
     /// The word prefix that triggered the suggestions.
@@ -185,7 +185,7 @@ impl AutocompleteState {
     pub fn new() -> Self {
         Self {
             open: false,
-            suggestions: Vec::new(),
+            suggestions_owned: Vec::new(),
             selected_idx: 0,
             prefix: String::new(),
             prefix_char_start: 0,
@@ -197,7 +197,7 @@ impl AutocompleteState {
     /// Close the popup and reset state.
     pub fn close(&mut self) {
         self.open = false;
-        self.suggestions.clear();
+        self.suggestions_owned.clear();
         self.selected_idx = 0;
         self.prefix.clear();
         self.accepted = false;
@@ -212,7 +212,7 @@ impl AutocompleteState {
 /// This prevents Enter/Tab from being processed by TextEdit (which would
 /// insert a newline or lose focus). Must be called before `TextEdit::show()`.
 pub fn consume_autocomplete_keys(ui: &mut egui::Ui, state: &mut AutocompleteState) {
-    if !state.open || state.suggestions.is_empty() {
+    if !state.open || state.suggestions_owned.is_empty() {
         return;
     }
 
@@ -221,7 +221,7 @@ pub fn consume_autocomplete_keys(ui: &mut egui::Ui, state: &mut AutocompleteStat
             state.dismissed = true;
         }
         if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) {
-            state.selected_idx = (state.selected_idx + 1).min(state.suggestions.len() - 1);
+            state.selected_idx = (state.selected_idx + 1).min(state.suggestions_owned.len() - 1);
         }
         if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp) {
             state.selected_idx = state.selected_idx.saturating_sub(1);
@@ -335,24 +335,43 @@ fn extract_word_at_cursor(text: &str, cursor_char_pos: usize) -> Option<(String,
 /// Update autocomplete state based on current cursor position and text.
 ///
 /// `cursor_char_pos` is a **character** offset (from `CCursor.index`).
-pub fn update_autocomplete(state: &mut AutocompleteState, text: &str, cursor_char_pos: usize) {
+/// `extra_words` provides additional suggestions (e.g. column names) — shown before keywords.
+pub fn update_autocomplete(
+    state: &mut AutocompleteState,
+    text: &str,
+    cursor_char_pos: usize,
+    extra_words: &[String],
+) {
     match extract_word_at_cursor(text, cursor_char_pos) {
         Some((prefix, char_start)) => {
             let upper = prefix.to_uppercase();
-            let filtered: Vec<&'static str> = SQL_KEYWORDS
+            let lower = prefix.to_lowercase();
+
+            // Collect matching extra words (column names etc.) — case-insensitive.
+            let mut results: Vec<String> = extra_words
                 .iter()
-                .filter(|kw| kw.starts_with(&upper) && **kw != upper)
-                .copied()
+                .filter(|w| {
+                    let wl = w.to_lowercase();
+                    wl.starts_with(&lower) && wl != lower
+                })
+                .cloned()
                 .collect();
 
-            if filtered.is_empty() {
+            // Append matching SQL keywords (lowercased for display).
+            for kw in SQL_KEYWORDS {
+                if kw.starts_with(&upper) && *kw != upper {
+                    results.push(kw.to_lowercase());
+                }
+            }
+
+            if results.is_empty() {
                 state.close();
             } else {
                 state.open = true;
-                state.suggestions = filtered;
+                state.suggestions_owned = results;
                 state.prefix = prefix;
                 state.prefix_char_start = char_start;
-                if state.selected_idx >= state.suggestions.len() {
+                if state.selected_idx >= state.suggestions_owned.len() {
                     state.selected_idx = 0;
                 }
             }
@@ -374,7 +393,7 @@ pub fn show_autocomplete_popup(
     text_edit_id: egui::Id,
     cursor_screen_pos: Option<egui::Pos2>,
 ) -> Option<AcceptedSuggestion> {
-    if !state.open || state.suggestions.is_empty() {
+    if !state.open || state.suggestions_owned.is_empty() {
         return None;
     }
 
@@ -384,9 +403,9 @@ pub fn show_autocomplete_popup(
     }
 
     if state.accepted {
-        let keyword = state.suggestions[state.selected_idx];
+        let keyword = state.suggestions_owned[state.selected_idx].clone();
         let result = AcceptedSuggestion {
-            replacement: keyword.to_lowercase(),
+            replacement: keyword,
             prefix_char_start: state.prefix_char_start,
             prefix_char_len: state.prefix.chars().count(),
         };
@@ -397,6 +416,16 @@ pub fn show_autocomplete_popup(
     // Anchor popup below the text cursor, or fall back to editor top-left.
     let anchor = cursor_screen_pos.unwrap_or_else(|| ui.min_rect().left_top());
 
+    // Compute min width from the longest suggestion.
+    let longest = state
+        .suggestions_owned
+        .iter()
+        .map(|kw| kw.len())
+        .max()
+        .unwrap_or(0);
+    // Approximate: ~8px per char (monospace) + padding.
+    let min_w = (longest as f32 * 8.0 + 24.0).max(60.0);
+
     let popup_id = text_edit_id.with("autocomplete");
 
     egui::Area::new(popup_id)
@@ -404,14 +433,13 @@ pub fn show_autocomplete_popup(
         .fixed_pos(egui::pos2(anchor.x, anchor.y))
         .show(ui.ctx(), |ui| {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
-                ui.set_min_width(60.0);
+                ui.set_min_width(min_w);
                 egui::ScrollArea::vertical()
                     .max_height(200.0)
                     .show(ui, |ui| {
-                        for (i, kw) in state.suggestions.iter().enumerate() {
+                        for (i, kw) in state.suggestions_owned.iter().enumerate() {
                             let is_selected = i == state.selected_idx;
-                            let label = kw.to_lowercase();
-                            let resp = ui.selectable_label(is_selected, &label);
+                            let resp = ui.selectable_label(is_selected, kw);
                             if resp.clicked() {
                                 state.selected_idx = i;
                             }

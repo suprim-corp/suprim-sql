@@ -12,6 +12,7 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use super::result_grid::{render_result_grid, CellAction};
+use super::sql_autocomplete::AutocompleteState;
 use cell_editor::{build_cell_editor, CellEditor};
 
 // ── TableViewerTab ────────────────────────────────────────────────────────────
@@ -37,6 +38,10 @@ pub struct TableViewerTab {
     selected_cell: Option<(usize, usize)>,
     /// Popup cell editor opened by double-click.
     cell_editor: Option<CellEditor>,
+    /// Autocomplete state for WHERE filter input.
+    where_autocomplete: AutocompleteState,
+    /// Autocomplete state for ORDER BY filter input.
+    order_autocomplete: AutocompleteState,
 }
 
 impl TableViewerTab {
@@ -57,6 +62,8 @@ impl TableViewerTab {
             order_clause: String::new(),
             selected_cell: None,
             cell_editor: None,
+            where_autocomplete: AutocompleteState::new(),
+            order_autocomplete: AutocompleteState::new(),
         }
     }
 

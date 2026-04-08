@@ -197,6 +197,16 @@ impl SqlEditorTab {
             sql_autocomplete::consume_autocomplete_keys(ui, &mut self.autocomplete);
 
             let text_edit_id = egui::Id::new("sql_editor_textedit");
+            let dark_mode = ui.visuals().dark_mode;
+            let mono_font = egui::FontId::monospace(14.0);
+            let mut layouter = |ui: &egui::Ui, text: &dyn egui::TextBuffer, _wrap_width: f32| {
+                let job = super::sql_highlighter::sql_layout_job(
+                    text.as_str(),
+                    mono_font.clone(),
+                    dark_mode,
+                );
+                ui.fonts_mut(|f| f.layout_job(job))
+            };
             let scroll_out = egui::ScrollArea::vertical()
                 .id_salt("sql_editor_scroll")
                 .max_height(editor_height)
@@ -207,6 +217,7 @@ impl SqlEditorTab {
                         .desired_rows(10)
                         .desired_width(f32::INFINITY)
                         .hint_text("SELECT …")
+                        .layouter(&mut layouter)
                         .show(ui)
                 });
 
@@ -245,6 +256,7 @@ impl SqlEditorTab {
                         &mut self.autocomplete,
                         &self.sql_text,
                         pos,
+                        &[], // SQL editor: no extra column suggestions
                     );
                 }
 
