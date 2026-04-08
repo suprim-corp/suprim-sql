@@ -4,6 +4,7 @@ mod connection_dialog_config;
 mod editor_themes;
 mod result_grid;
 mod sidebar;
+mod sql_autocomplete;
 mod sql_editor_tab;
 mod statusbar;
 mod tab_bar;

@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use super::clipboard_formatters;
 use super::result_grid::{render_result_grid, CellAction};
+use super::sql_autocomplete::{self, AutocompleteState};
 
 pub struct SqlEditorTab {
     pub conn_id: Option<Uuid>,
@@ -23,6 +24,8 @@ pub struct SqlEditorTab {
     last_run_failed: bool,
     /// Currently selected data cell (row_idx, col_idx) for highlight + copy.
     selected_cell: Option<(usize, usize)>,
+    /// SQL keyword autocomplete state.
+    autocomplete: AutocompleteState,
 }
 
 impl SqlEditorTab {
@@ -37,6 +40,7 @@ impl SqlEditorTab {
             is_running: false,
             last_run_failed: false,
             selected_cell: None,
+            autocomplete: AutocompleteState::new(),
         }
     }
 
@@ -184,18 +188,112 @@ impl SqlEditorTab {
             // SQL text editor (top half)
             let available = ui.available_height();
             let editor_height = (available * 0.4).max(80.0);
-            egui::ScrollArea::vertical()
+
+            // Collect input events BEFORE rendering the editor (needed for auto-pair).
+            let input_events: Vec<egui::Event> = ui.input(|i| i.events.clone());
+
+            // Phase 0: Consume autocomplete navigation keys BEFORE TextEdit
+            // so Enter/Tab/Arrow don't reach the editor.
+            sql_autocomplete::consume_autocomplete_keys(ui, &mut self.autocomplete);
+
+            let text_edit_id = egui::Id::new("sql_editor_textedit");
+            let scroll_out = egui::ScrollArea::vertical()
                 .id_salt("sql_editor_scroll")
                 .max_height(editor_height)
                 .show(ui, |ui| {
-                    ui.add(
-                        egui::TextEdit::multiline(&mut self.sql_text)
-                            .font(egui::TextStyle::Monospace)
-                            .desired_rows(10)
-                            .desired_width(f32::INFINITY)
-                            .hint_text("SELECT …"),
-                    );
+                    egui::TextEdit::multiline(&mut self.sql_text)
+                        .id(text_edit_id)
+                        .font(egui::TextStyle::Monospace)
+                        .desired_rows(10)
+                        .desired_width(f32::INFINITY)
+                        .hint_text("SELECT …")
+                        .show(ui)
                 });
+
+            let te_output = scroll_out.inner;
+
+            // --- Auto-pair: insert matching close bracket ---
+            // CCursor.index is a *character* offset (not byte offset).
+            let cursor_char_pos = te_output.cursor_range.map(|cr| cr.primary.index);
+
+            if te_output.response.changed() {
+                if let Some(pos) = cursor_char_pos {
+                    if sql_autocomplete::handle_auto_pair(
+                        &mut self.sql_text,
+                        Some(pos),
+                        &input_events,
+                    ) {
+                        // Move cursor back between the pair (re-set cursor position).
+                        if let Some(mut state) =
+                            egui::TextEdit::load_state(ui.ctx(), te_output.response.id)
+                        {
+                            let cc = egui::text::CCursor::new(pos);
+                            state
+                                .cursor
+                                .set_char_range(Some(egui::text::CCursorRange::one(cc)));
+                            state.store(ui.ctx(), te_output.response.id);
+                        }
+                    }
+                }
+            }
+
+            // --- Keyword autocomplete ---
+            let has_focus = te_output.response.has_focus();
+            if has_focus {
+                if let Some(pos) = cursor_char_pos {
+                    sql_autocomplete::update_autocomplete(
+                        &mut self.autocomplete,
+                        &self.sql_text,
+                        pos,
+                    );
+                }
+
+                // Compute cursor screen position from galley for popup anchoring.
+                let cursor_screen_pos = cursor_char_pos.map(|char_pos| {
+                    let ccursor = egui::text::CCursor::new(char_pos);
+                    let galley_offset = te_output.galley.pos_from_cursor(ccursor);
+                    // galley_offset is relative to galley_pos; shift to screen coords.
+                    // Place popup one line below the cursor.
+                    let line_height = te_output
+                        .galley
+                        .rows
+                        .first()
+                        .map(|r| r.rect().height())
+                        .unwrap_or(16.0);
+                    egui::pos2(
+                        te_output.galley_pos.x + galley_offset.min.x,
+                        te_output.galley_pos.y + galley_offset.min.y + line_height,
+                    )
+                });
+
+                if let Some(accepted) = sql_autocomplete::show_autocomplete_popup(
+                    ui,
+                    &mut self.autocomplete,
+                    text_edit_id,
+                    cursor_screen_pos,
+                ) {
+                    let new_cursor = sql_autocomplete::apply_suggestion(
+                        &mut self.sql_text,
+                        accepted.prefix_char_start,
+                        accepted.prefix_char_len,
+                        &accepted.replacement,
+                    );
+                    // Update cursor position after replacement.
+                    if let Some(mut state) =
+                        egui::TextEdit::load_state(ui.ctx(), te_output.response.id)
+                    {
+                        let cc = egui::text::CCursor::new(new_cursor);
+                        state
+                            .cursor
+                            .set_char_range(Some(egui::text::CCursorRange::one(cc)));
+                        state.store(ui.ctx(), te_output.response.id);
+                    }
+                    // Re-focus the editor.
+                    te_output.response.request_focus();
+                }
+            } else {
+                self.autocomplete.close();
+            }
 
             ui.separator();
 
