@@ -26,6 +26,9 @@ pub struct App {
     /// Persisted app configuration (connections list).
     config: AppConfig,
 
+    /// Whether the About dialog is open.
+    show_about: bool,
+
     /// Native macOS menu bar channel + retained handler objects.
     #[cfg(target_os = "macos")]
     native_menu: crate::ui::macos_menu::NativeMenu,
@@ -69,6 +72,7 @@ impl App {
                 )
             },
             config,
+            show_about: false,
             #[cfg(target_os = "macos")]
             native_menu,
         }
@@ -242,6 +246,16 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
 
+        // ── Custom title bar (macOS only) ───────────────────────────────
+        #[cfg(target_os = "macos")]
+        {
+            use crate::ui::custom_title_bar::{self, TitleBarAction};
+            let title_action = custom_title_bar::show_title_bar(ui);
+            if title_action == TitleBarAction::AboutClicked {
+                self.show_about = true;
+            }
+        }
+
         // ── Top menu bar (non-macOS only; macOS uses native system menu) ──
         #[cfg(not(target_os = "macos"))]
         egui::Panel::top("menu_bar").show_inside(ui, |ui| {
@@ -355,6 +369,11 @@ impl eframe::App for App {
         }
         if close_dialog {
             self.connection_dialog = None;
+        }
+
+        // ── About dialog (modal) ────────────────────────────────────────
+        if self.show_about {
+            self.show_about = crate::ui::about_dialog::show_about_dialog(&ctx);
         }
     }
 }
