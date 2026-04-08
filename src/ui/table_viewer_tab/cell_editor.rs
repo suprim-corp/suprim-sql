@@ -100,7 +100,7 @@ impl TableViewerTab {
                 .default_height(default_h)
                 .min_height(min_h)
                 .pivot(egui::Align2::CENTER_CENTER)
-                .default_pos(ui.ctx().screen_rect().center())
+                .default_pos(ui.ctx().content_rect().center())
                 .show(ui.ctx(), |ui| {
                     Self::render_editor_header(ui, &col_name, is_json);
                     ui.add_space(4.0);

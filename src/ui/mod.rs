@@ -1,9 +1,7 @@
-pub(crate) mod about_dialog;
 mod clipboard_formatters;
-mod connection_dialog;
-mod connection_dialog_config;
 #[cfg(target_os = "macos")]
 pub(crate) mod custom_title_bar;
+pub(crate) mod dialog;
 mod editor_themes;
 #[cfg(target_os = "macos")]
 pub mod macos_menu;
@@ -18,7 +16,8 @@ mod tab_manager;
 mod table_editor_tab;
 mod table_viewer_tab;
 
-pub use connection_dialog::{ConnectionDialog, DialogResult};
+pub(crate) use dialog::about_dialog;
+pub use dialog::{ConnectionDialog, DialogResult};
 pub use sidebar::{Sidebar, SidebarAction};
 pub use statusbar::StatusBar;
 pub use tab_manager::TabManager;

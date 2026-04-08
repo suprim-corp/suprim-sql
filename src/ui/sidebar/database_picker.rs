@@ -20,6 +20,7 @@ pub(super) fn render_database_picker(
         .collapsible(false)
         .resizable(false)
         .min_width(260.0)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
             ui.label("Select databases to show:");
             ui.add_space(4.0);

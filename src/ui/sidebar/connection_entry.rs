@@ -13,7 +13,9 @@ pub(super) struct ConnectionEntry {
     pub all_databases: Vec<DatabaseNode>,
     /// Which database names are visible. None = all.
     pub visible_databases: Option<Vec<String>>,
-    pub expanded: bool,
+    /// When true, the next render will force-collapse this entry
+    /// (resets egui's cached CollapsingState). Cleared after first render.
+    pub needs_collapse: bool,
     /// Whether the db-picker popup is open.
     pub picker_open: bool,
     /// Schema names that have already had a LoadSchemaDetail request sent.
@@ -36,7 +38,7 @@ impl ConnectionEntry {
             schema: Some(schema),
             all_databases,
             visible_databases,
-            expanded: true,
+            needs_collapse: true,
             picker_open: false,
             schema_detail_requested: HashSet::new(),
             schemas_requested: HashSet::new(),
