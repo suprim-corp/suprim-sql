@@ -19,6 +19,8 @@ pub struct SqlEditorTab {
     /// Pre-computed display strings for each cell — avoids per-frame allocations.
     display_cache: Vec<Vec<String>>,
     pub is_running: bool,
+    /// Set when the last query execution failed (shows error icon).
+    last_run_failed: bool,
     /// Currently selected data cell (row_idx, col_idx) for highlight + copy.
     selected_cell: Option<(usize, usize)>,
 }
@@ -33,6 +35,7 @@ impl SqlEditorTab {
             result: None,
             display_cache: Vec::new(),
             is_running: false,
+            last_run_failed: false,
             selected_cell: None,
         }
     }
@@ -41,6 +44,13 @@ impl SqlEditorTab {
         self.result = Some(result);
         self.display_cache = cache;
         self.is_running = false;
+        self.last_run_failed = false;
+    }
+
+    /// Called when the query execution failed.
+    pub fn on_error(&mut self) {
+        self.is_running = false;
+        self.last_run_failed = true;
     }
 
     /// Handle a cell action from the context menu (SQL editor only supports copy actions).
@@ -70,6 +80,22 @@ impl SqlEditorTab {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, tab_id: Uuid, cmd_tx: &mpsc::Sender<DbCommand>) {
+        // ⌘+Enter (or Ctrl+Enter) keyboard shortcut to run query.
+        let can_run = self.conn_id.is_some() && !self.is_running;
+        let cmd_enter = ui.input(|i| i.key_pressed(egui::Key::Enter) && i.modifiers.command);
+        if can_run && cmd_enter {
+            if let Some(conn_id) = self.conn_id {
+                let _ = cmd_tx.try_send(DbCommand::Execute {
+                    conn_id,
+                    tab_id,
+                    sql: self.sql_text.clone(),
+                    database: self.database.clone(),
+                });
+                self.is_running = true;
+                self.last_run_failed = false;
+            }
+        }
+
         ui.vertical(|ui| {
             // Toolbar row
             ui.horizontal(|ui| {
@@ -81,6 +107,22 @@ impl SqlEditorTab {
                 let run_resp = ui
                     .add_enabled(can_run, run_btn)
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
+
+                // Shortcut hint rendered with Phosphor icons.
+                let weak = ui.visuals().weak_text_color();
+                if cfg!(target_os = "macos") {
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "{}{}",
+                            egui_phosphor::regular::COMMAND,
+                            egui_phosphor::regular::KEY_RETURN,
+                        ))
+                        .color(weak),
+                    );
+                } else {
+                    ui.label(egui::RichText::new("Ctrl").color(weak).small());
+                    ui.label(egui::RichText::new(egui_phosphor::regular::KEY_RETURN).color(weak));
+                }
                 if run_resp.clicked() {
                     if let Some(conn_id) = self.conn_id {
                         let _ = cmd_tx.try_send(DbCommand::Execute {
@@ -90,11 +132,18 @@ impl SqlEditorTab {
                             database: self.database.clone(),
                         });
                         self.is_running = true;
+                        self.last_run_failed = false;
                     }
                 }
 
                 if self.is_running {
                     ui.spinner();
+                } else if self.last_run_failed {
+                    ui.label(
+                        egui::RichText::new(egui_phosphor::regular::X_CIRCLE)
+                            .color(egui::Color32::from_rgb(220, 60, 60))
+                            .size(18.0),
+                    );
                 }
 
                 // Database picker — lets user choose which database to execute against.

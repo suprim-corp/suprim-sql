@@ -152,6 +152,18 @@ impl TabManager {
         // Could refresh the table viewer here.
     }
 
+    /// Notify a tab that its query failed.
+    pub fn on_tab_error(&mut self, tab_id: Uuid) {
+        for entry in &mut self.tabs {
+            if entry.tab_id == tab_id {
+                if let TabKind::SqlEditor(t) = &mut entry.kind {
+                    t.on_error();
+                }
+                return;
+            }
+        }
+    }
+
     /// Returns true if any tab is currently waiting for a DB response.
     pub fn any_tab_loading(&self) -> bool {
         self.tabs.iter().any(|entry| match &entry.kind {

@@ -162,7 +162,12 @@ impl App {
                     });
                     self.status = "Operation completed".to_string();
                 }
-                DbEvent::Error { message, .. } => {
+                DbEvent::Error {
+                    tab_id, message, ..
+                } => {
+                    if let Some(tid) = tab_id {
+                        self.tab_manager.on_tab_error(tid);
+                    }
                     self.status = format!("Error: {message}");
                 }
             }

@@ -229,6 +229,15 @@ fn btn_shortcut(
         .on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
+/// OS-aware modifier key label: "⌘" on macOS, "Ctrl+" on others.
+fn mod_key() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "⌘"
+    } else {
+        "Ctrl+"
+    }
+}
+
 /// Render the context-menu items for a cell.
 fn render_cell_context_menu(
     ui: &mut egui::Ui,
@@ -237,8 +246,10 @@ fn render_cell_context_menu(
     is_null: bool,
     action_ref: &Rc<RefCell<Option<(CellAction, usize, usize)>>>,
 ) {
+    let m = mod_key();
+
     // ── Copy ──
-    if btn_shortcut(ui, "Copy", "⌘C").clicked() {
+    if btn_shortcut(ui, "Copy", &format!("{m}C")).clicked() {
         *action_ref.borrow_mut() = Some((CellAction::Copy, row, col));
         ui.close();
     }
@@ -259,7 +270,7 @@ fn render_cell_context_menu(
     });
 
     // ── Paste ──
-    if btn_shortcut(ui, "Paste", "⌘V").clicked() {
+    if btn_shortcut(ui, "Paste", &format!("{m}V")).clicked() {
         *action_ref.borrow_mut() = Some((CellAction::Paste, row, col));
         ui.close();
     }
@@ -302,7 +313,7 @@ fn render_cell_context_menu(
     }
 
     // ── Duplicate Row ──
-    if btn_shortcut(ui, "Duplicate", "⌘D").clicked() {
+    if btn_shortcut(ui, "Duplicate", &format!("{m}D")).clicked() {
         *action_ref.borrow_mut() = Some((CellAction::DuplicateRow, row, col));
         ui.close();
     }
