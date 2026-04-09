@@ -21,7 +21,7 @@ pub fn show_title_bar(ui: &mut egui::Ui) -> TitleBarAction {
     egui::Panel::top("custom_title_bar")
         .exact_size(TITLE_BAR_HEIGHT)
         .show_separator_line(false)
-        .frame(egui::Frame::NONE)
+        .frame(egui::Frame::NONE.fill(ui.visuals().panel_fill))
         .show_inside(ui, |ui| {
             // Remove inner margin so the panel height is exact.
             ui.spacing_mut().item_spacing.y = 0.0;
