@@ -121,7 +121,7 @@ impl ObjectType {
         match self {
             Self::Table => egui_phosphor::regular::TABLE,
             Self::Column => egui_phosphor::regular::COLUMNS,
-            Self::Index => egui_phosphor::regular::SORT_ASCENDING,
+            Self::Index => egui_phosphor::regular::LIST_NUMBERS,
             Self::ForeignKey => egui_phosphor::regular::LINK,
             Self::View => egui_phosphor::regular::EYE,
             Self::MaterializedView => egui_phosphor::regular::DATABASE,
@@ -143,8 +143,10 @@ pub(crate) struct DiffEntry {
     pub kind: DiffKind,
     /// Whether the user wants to include this in the DDL script.
     pub checked: bool,
-    /// Child entries (e.g. columns/indexes/FKs under a table).
+    /// Child entries (e.g. columns under a modified table).
     pub children: Vec<DiffEntry>,
+    /// Parent table name (for indexes, FKs, columns shown as top-level entries).
+    pub parent_table: Option<String>,
 }
 
 /// A top-level group in the diff results UI (Modified / Created / Deleted).
@@ -158,7 +160,7 @@ impl DiffGroup {
         match self.kind {
             DiffKind::Modified => "Objects to be modified",
             DiffKind::Added => "Objects to be created",
-            DiffKind::Removed => "Objects to be deleted",
+            DiffKind::Removed => "Objects to be dropped",
         }
     }
 

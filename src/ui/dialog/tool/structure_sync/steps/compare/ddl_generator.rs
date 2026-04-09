@@ -16,7 +16,7 @@ pub(crate) fn generate_ddl(
 ) -> String {
     let mut lines: Vec<String> = Vec::new();
     lines.push(format!(
-        "-- Structure synchronization: {} → {}",
+        "-- Structure synchronization: {} -> {}",
         source.name, target_schema
     ));
     lines.push(format!(
@@ -62,12 +62,6 @@ fn generate_entry_ddl(
             if let Some(tbl) = src_tables.get(name.as_str()) {
                 lines.push(create_table_ddl(schema, tbl));
                 lines.push(String::new());
-                for idx in &tbl.indexes {
-                    lines.push(create_index_ddl(schema, name, idx));
-                }
-                for fk in &tbl.foreign_keys {
-                    lines.push(add_foreign_key_ddl(schema, name, fk));
-                }
             }
         }
         (ObjectType::Table, DiffKind::Removed) => {
@@ -77,7 +71,7 @@ fn generate_entry_ddl(
             lines.push(String::new());
         }
         (ObjectType::Table, DiffKind::Modified) => {
-            // Process children (columns, indexes, FKs)
+            // Process children (columns only — indexes/FKs are top-level now)
             for child in &entry.children {
                 if !child.checked {
                     continue;
@@ -87,6 +81,55 @@ fn generate_entry_ddl(
                 {
                     lines.push(ddl);
                 }
+            }
+            lines.push(String::new());
+        }
+
+        // ── Indexes (top-level) ─────────────────────────────────────────
+        (ObjectType::Index, DiffKind::Added) => {
+            if let Some((tbl_name, idx)) = find_index_in_tables(name, src_tables) {
+                lines.push(create_index_ddl(schema, tbl_name, idx));
+                lines.push(String::new());
+            }
+        }
+        (ObjectType::Index, DiffKind::Removed) => {
+            lines.push(format!("DROP INDEX IF EXISTS \"{schema}\".\"{name}\";"));
+            lines.push(String::new());
+        }
+        (ObjectType::Index, DiffKind::Modified) => {
+            lines.push(format!("DROP INDEX IF EXISTS \"{schema}\".\"{name}\";"));
+            if let Some((tbl_name, idx)) = find_index_in_tables(name, src_tables) {
+                lines.push(create_index_ddl(schema, tbl_name, idx));
+            }
+            lines.push(String::new());
+        }
+
+        // ── Foreign Keys (top-level) ────────────────────────────────────
+        (ObjectType::ForeignKey, DiffKind::Added) => {
+            if let Some((tbl_name, fk)) = find_fk_in_tables(name, src_tables) {
+                lines.push(add_foreign_key_ddl(schema, tbl_name, fk));
+                lines.push(String::new());
+            }
+        }
+        (ObjectType::ForeignKey, DiffKind::Removed) => {
+            if let Some((tbl_name, _)) = find_fk_in_tables(name, tgt_tables) {
+                lines.push(format!(
+                    "ALTER TABLE \"{schema}\".\"{tbl_name}\" DROP CONSTRAINT \"{name}\";"
+                ));
+            } else {
+                lines.push(format!("-- Cannot find table for FK \"{name}\" to drop"));
+            }
+            lines.push(String::new());
+        }
+        (ObjectType::ForeignKey, DiffKind::Modified) => {
+            // Drop from target, re-create from source
+            if let Some((tbl_name, _)) = find_fk_in_tables(name, tgt_tables) {
+                lines.push(format!(
+                    "ALTER TABLE \"{schema}\".\"{tbl_name}\" DROP CONSTRAINT \"{name}\";"
+                ));
+            }
+            if let Some((tbl_name, fk)) = find_fk_in_tables(name, src_tables) {
+                lines.push(add_foreign_key_ddl(schema, tbl_name, fk));
             }
             lines.push(String::new());
         }
@@ -153,6 +196,30 @@ fn table_map(tables: &[TableNode]) -> std::collections::HashMap<&str, &TableNode
     tables.iter().map(|t| (t.name.as_str(), t)).collect()
 }
 
+fn find_index_in_tables<'a>(
+    idx_name: &str,
+    tables: &'a std::collections::HashMap<&str, &TableNode>,
+) -> Option<(&'a str, &'a IndexNode)> {
+    for (&tbl_name, tbl) in tables {
+        if let Some(idx) = tbl.indexes.iter().find(|i| i.name == idx_name) {
+            return Some((tbl_name, idx));
+        }
+    }
+    None
+}
+
+fn find_fk_in_tables<'a>(
+    fk_name: &str,
+    tables: &'a std::collections::HashMap<&str, &TableNode>,
+) -> Option<(&'a str, &'a ForeignKeyNode)> {
+    for (&tbl_name, tbl) in tables {
+        if let Some(fk) = tbl.foreign_keys.iter().find(|f| f.name == fk_name) {
+            return Some((tbl_name, fk));
+        }
+    }
+    None
+}
+
 fn alter_table_child_ddl(
     schema: &str,
     table: &str,
@@ -183,50 +250,6 @@ fn alter_table_child_ddl(
             }
             None
         }
-
-        (ObjectType::Index, DiffKind::Added) => {
-            if let Some(tbl) = src_tables.get(table) {
-                if let Some(idx) = tbl.indexes.iter().find(|i| i.name == *child_name) {
-                    return Some(create_index_ddl(schema, table, idx));
-                }
-            }
-            None
-        }
-        (ObjectType::Index, DiffKind::Removed) => Some(format!(
-            "DROP INDEX IF EXISTS \"{schema}\".\"{child_name}\";"
-        )),
-        (ObjectType::Index, DiffKind::Modified) => {
-            let mut ddl = format!("DROP INDEX IF EXISTS \"{schema}\".\"{child_name}\";\n");
-            if let Some(tbl) = src_tables.get(table) {
-                if let Some(idx) = tbl.indexes.iter().find(|i| i.name == *child_name) {
-                    ddl.push_str(&create_index_ddl(schema, table, idx));
-                }
-            }
-            Some(ddl)
-        }
-
-        (ObjectType::ForeignKey, DiffKind::Added) => {
-            if let Some(tbl) = src_tables.get(table) {
-                if let Some(fk) = tbl.foreign_keys.iter().find(|f| f.name == *child_name) {
-                    return Some(add_foreign_key_ddl(schema, table, fk));
-                }
-            }
-            None
-        }
-        (ObjectType::ForeignKey, DiffKind::Removed) => Some(format!(
-            "ALTER TABLE \"{schema}\".\"{table}\" DROP CONSTRAINT \"{child_name}\";"
-        )),
-        (ObjectType::ForeignKey, DiffKind::Modified) => {
-            let mut ddl =
-                format!("ALTER TABLE \"{schema}\".\"{table}\" DROP CONSTRAINT \"{child_name}\";\n");
-            if let Some(tbl) = src_tables.get(table) {
-                if let Some(fk) = tbl.foreign_keys.iter().find(|f| f.name == *child_name) {
-                    ddl.push_str(&add_foreign_key_ddl(schema, table, fk));
-                }
-            }
-            Some(ddl)
-        }
-
         _ => None,
     }
 }

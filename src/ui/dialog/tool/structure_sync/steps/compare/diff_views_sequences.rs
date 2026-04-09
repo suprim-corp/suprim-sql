@@ -33,6 +33,7 @@ pub(super) fn diff_views(
                 kind: DiffKind::Added,
                 checked: true,
                 children: Vec::new(),
+                parent_table: None,
             });
         }
     }
@@ -46,6 +47,7 @@ pub(super) fn diff_views(
                 kind: DiffKind::Removed,
                 checked: true,
                 children: Vec::new(),
+                parent_table: None,
             });
         }
     }
@@ -54,7 +56,7 @@ pub(super) fn diff_views(
     for name in sorted_keys(&src_map) {
         if let (Some(src), Some(tgt)) = (src_map.get(name), tgt_map.get(name)) {
             let mut children = Vec::new();
-            diff_columns(&src.columns, &tgt.columns, &mut children);
+            diff_columns(&src.columns, &tgt.columns, &mut children, Some(name));
             if !children.is_empty() {
                 out.push(DiffEntry {
                     object_type: obj_type,
@@ -63,6 +65,7 @@ pub(super) fn diff_views(
                     kind: DiffKind::Modified,
                     checked: true,
                     children,
+                    parent_table: None,
                 });
             }
         }
@@ -90,6 +93,7 @@ pub(super) fn diff_sequences(
                 kind: DiffKind::Added,
                 checked: true,
                 children: Vec::new(),
+                parent_table: None,
             });
         }
     }
@@ -103,6 +107,7 @@ pub(super) fn diff_sequences(
                 kind: DiffKind::Removed,
                 checked: true,
                 children: Vec::new(),
+                parent_table: None,
             });
         }
     }
@@ -118,12 +123,17 @@ pub(super) fn diff_sequences(
                     object_type: ObjectType::Sequence,
                     name: name.to_string(),
                     detail: format!(
-                        "{} inc={} → {} inc={}",
-                        tgt.data_type, tgt.increment, src.data_type, src.increment
+                        "{} inc={} {} {} inc={}",
+                        tgt.data_type,
+                        tgt.increment,
+                        egui_phosphor::regular::ARROW_RIGHT,
+                        src.data_type,
+                        src.increment
                     ),
                     kind: DiffKind::Modified,
                     checked: true,
                     children: Vec::new(),
+                    parent_table: None,
                 });
             }
         }
