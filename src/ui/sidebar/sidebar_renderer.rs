@@ -1,7 +1,7 @@
 use eframe::egui::{self, CursorIcon};
 use uuid::Uuid;
 
-use super::connection_entry::ConnectionEntry;
+use super::connection_entry::{ConnectionEntry, ConnectionStatus};
 use super::sidebar_action::SidebarAction;
 use super::{database_picker, schema_renderer};
 
@@ -36,10 +36,69 @@ fn render_single_connection(
 ) {
     let conn_id = entry.conn_id;
     let label = truncate_label(&entry.label, 24);
-    let header = build_header_label(&label, entry.all_databases.len(), &entry.visible_databases);
 
-    // Use CollapsingState directly so we can force-collapse
-    // on the first render after a connection is created.
+    let header = match entry.status {
+        ConnectionStatus::Connected => {
+            build_header_label(&label, entry.all_databases.len(), &entry.visible_databases)
+        }
+        ConnectionStatus::Connecting => format!("{} \u{23F3}", label), // ⏳
+        ConnectionStatus::Failed => format!("{} \u{26A0}", label),     // ⚠
+        ConnectionStatus::Disconnected => label.clone(),
+    };
+
+    // For disconnected/failed/connecting — show header with arrow but no expandable body.
+    if entry.status != ConnectionStatus::Connected {
+        let header_id = ui.make_persistent_id(format!("conn:{conn_id}"));
+        // Always force collapsed
+        let mut cs = egui::collapsing_header::CollapsingState::load_with_default_open(
+            ui.ctx(),
+            header_id,
+            false,
+        );
+        cs.set_open(false);
+
+        let text = match entry.status {
+            ConnectionStatus::Failed => {
+                egui::RichText::new(&header).color(egui::Color32::from_rgb(200, 80, 80))
+            }
+            ConnectionStatus::Connecting => egui::RichText::new(&header).weak(),
+            _ => egui::RichText::new(&header),
+        };
+
+        let resp = cs
+            .show_header(ui, |ui| {
+                ui.label(text).on_hover_cursor(CursorIcon::PointingHand)
+            })
+            .body(|_| {}); // empty body — always collapsed
+
+        let (toggle_resp, header_resp, _body) = resp;
+
+        // Click on label → connect (if disconnected/failed)
+        if header_resp.inner.clicked()
+            && (entry.status == ConnectionStatus::Disconnected
+                || entry.status == ConnectionStatus::Failed)
+        {
+            *action = Some(SidebarAction::Connect { conn_id });
+        }
+
+        // Tooltip for failed
+        if entry.status == ConnectionStatus::Failed {
+            if let Some(err) = &entry.error_message {
+                header_resp.inner.clone().on_hover_text(err.as_str());
+            }
+        }
+
+        // Context menu on both toggle arrow and label
+        render_disconnected_context_menu(&header_resp.inner, conn_id, entry, action, disconnect_id);
+        render_disconnected_context_menu(&toggle_resp, conn_id, entry, action, disconnect_id);
+        toggle_resp.on_hover_cursor(CursorIcon::PointingHand);
+        header_resp
+            .response
+            .on_hover_cursor(CursorIcon::PointingHand);
+        return;
+    }
+
+    // ── Connected: full collapsing header with schema tree ──
     let header_id = ui.make_persistent_id(format!("conn:{conn_id}"));
     let default_open = !entry.needs_collapse;
     if entry.needs_collapse {
@@ -88,6 +147,42 @@ fn render_single_connection(
         .response
         .on_hover_cursor(CursorIcon::PointingHand);
     render_database_picker(ui, conn_id, entry, action);
+}
+
+fn render_disconnected_context_menu(
+    header: &egui::Response,
+    conn_id: Uuid,
+    _entry: &mut ConnectionEntry,
+    action: &mut Option<SidebarAction>,
+    disconnect_id: &mut Option<Uuid>,
+) {
+    header.context_menu(|ui| {
+        if ui
+            .button("Connect")
+            .on_hover_cursor(CursorIcon::PointingHand)
+            .clicked()
+        {
+            *action = Some(SidebarAction::Connect { conn_id });
+            ui.close();
+        }
+        if ui
+            .button("Edit Connection...")
+            .on_hover_cursor(CursorIcon::PointingHand)
+            .clicked()
+        {
+            *action = Some(SidebarAction::EditConnection { conn_id });
+            ui.close();
+        }
+        ui.separator();
+        if ui
+            .button("Delete Connection")
+            .on_hover_cursor(CursorIcon::PointingHand)
+            .clicked()
+        {
+            *disconnect_id = Some(conn_id);
+            ui.close();
+        }
+    });
 }
 
 fn render_context_menu(

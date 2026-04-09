@@ -53,7 +53,6 @@ impl App {
                 }
                 DbEvent::Disconnected { conn_id } => {
                     self.sidebar.on_disconnected(conn_id);
-                    self.config.remove_connection(conn_id);
                     self.status = "Disconnected".to_string();
                 }
                 DbEvent::QueryResult { tab_id, result } => {
@@ -125,10 +124,19 @@ impl App {
                     self.status = "Operation completed".to_string();
                 }
                 DbEvent::Error {
-                    tab_id, message, ..
+                    tab_id,
+                    conn_id,
+                    message,
                 } => {
                     if let Some(tid) = tab_id {
                         self.tab_manager.on_tab_error(tid);
+                    }
+                    // If error has conn_id but no tab_id, it's a connection-level error
+                    // (e.g. connect failed). Mark the sidebar entry as failed.
+                    if tab_id.is_none() {
+                        if let Some(cid) = conn_id {
+                            self.sidebar.on_connect_failed(cid, message.clone());
+                        }
                     }
                     self.status = format!("Error: {message}");
                 }

@@ -6,6 +6,7 @@ use suprim_sql::db::driver::DbCommand;
 
 use crate::app::App;
 use crate::sidebar_action_handler::{handle_sidebar_action, SidebarContext};
+use crate::ui::SidebarAction;
 
 impl App {
     /// Renders the entire application UI for one frame.
@@ -40,15 +41,29 @@ impl App {
             .show_inside(ui, |ui| {
                 let action = self.sidebar.show(ui);
                 if let Some(act) = action {
-                    let sidebar = &self.sidebar;
-                    let mut ctx = SidebarContext {
-                        cmd_tx: &self.cmd_tx,
-                        tab_manager: &mut self.tab_manager,
-                        config: &mut self.config,
-                        connection_dialog: &mut self.connection_dialog,
-                        conn_name: Box::new(|id| sidebar.conn_name(id)),
-                    };
-                    handle_sidebar_action(act, &mut ctx);
+                    // Handle Connect specially — needs sidebar mutation.
+                    if let SidebarAction::Connect { conn_id } = &act {
+                        let conn_id = *conn_id;
+                        if let Some(cfg) = self.config.connections.iter().find(|c| c.id == conn_id)
+                        {
+                            self.sidebar.on_connecting(conn_id);
+                            let _ =
+                                self.cmd_tx
+                                    .try_send(suprim_sql::db::driver::DbCommand::Connect {
+                                        config: cfg.clone(),
+                                    });
+                        }
+                    } else {
+                        let sidebar = &self.sidebar;
+                        let mut ctx = SidebarContext {
+                            cmd_tx: &self.cmd_tx,
+                            tab_manager: &mut self.tab_manager,
+                            config: &mut self.config,
+                            connection_dialog: &mut self.connection_dialog,
+                            conn_name: Box::new(|id| sidebar.conn_name(id)),
+                        };
+                        handle_sidebar_action(act, &mut ctx);
+                    }
                 }
             });
 

@@ -3,10 +3,20 @@ use std::collections::HashSet;
 use suprim_sql::db::types::{DatabaseNode, SchemaNode, SchemaTree};
 use uuid::Uuid;
 
+/// Connection lifecycle status.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ConnectionStatus {
+    Disconnected,
+    Connecting,
+    Connected,
+    Failed,
+}
+
 /// A single connection entry shown in the sidebar.
 pub(super) struct ConnectionEntry {
     pub conn_id: Uuid,
     pub label: String,
+    pub status: ConnectionStatus,
     /// Currently displayed schema tree (already filtered).
     pub schema: Option<SchemaTree>,
     /// ALL databases returned from the server (unfiltered) -- for the picker.
@@ -24,9 +34,12 @@ pub(super) struct ConnectionEntry {
     pub schemas_requested: HashSet<String>,
     /// Server version string (e.g. "PostgreSQL 16.2 on ...").
     pub server_version: Option<String>,
+    /// Error message if connection failed.
+    pub error_message: Option<String>,
 }
 
 impl ConnectionEntry {
+    /// Create a fully-connected entry (existing behavior).
     pub fn new(
         conn_id: Uuid,
         label: String,
@@ -37,6 +50,7 @@ impl ConnectionEntry {
         Self {
             conn_id,
             label,
+            status: ConnectionStatus::Connected,
             schema: Some(schema),
             all_databases,
             visible_databases,
@@ -45,6 +59,25 @@ impl ConnectionEntry {
             schema_detail_requested: HashSet::new(),
             schemas_requested: HashSet::new(),
             server_version: None,
+            error_message: None,
+        }
+    }
+
+    /// Create a placeholder entry for a saved connection (not yet connected).
+    pub fn new_disconnected(conn_id: Uuid, label: String) -> Self {
+        Self {
+            conn_id,
+            label,
+            status: ConnectionStatus::Disconnected,
+            schema: None,
+            all_databases: Vec::new(),
+            visible_databases: None,
+            needs_collapse: true,
+            picker_open: false,
+            schema_detail_requested: HashSet::new(),
+            schemas_requested: HashSet::new(),
+            server_version: None,
+            error_message: None,
         }
     }
 

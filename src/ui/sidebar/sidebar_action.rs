@@ -4,6 +4,10 @@ use uuid::Uuid;
 /// Action the sidebar wants the app to perform.
 #[allow(dead_code)]
 pub enum SidebarAction {
+    /// User clicked a disconnected connection — initiate connect.
+    Connect {
+        conn_id: Uuid,
+    },
     NewConnection,
     EditConnection {
         conn_id: Uuid,

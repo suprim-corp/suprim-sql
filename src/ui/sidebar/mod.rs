@@ -10,8 +10,9 @@ mod tables_folder_renderer;
 mod view_detail_renderer;
 mod views_folder_renderer;
 
-use connection_entry::ConnectionEntry;
+use connection_entry::{ConnectionEntry, ConnectionStatus};
 use eframe::egui;
+use suprim_sql::db::connection::ConnectionConfig;
 use suprim_sql::db::types::{SchemaNode, SchemaTree};
 use uuid::Uuid;
 
@@ -26,6 +27,16 @@ impl Sidebar {
     pub fn new() -> Self {
         Self {
             connections: Vec::new(),
+        }
+    }
+
+    /// Pre-populate sidebar with all saved connections in "Disconnected" state.
+    pub fn init_from_config(&mut self, configs: &[ConnectionConfig]) {
+        for cfg in configs {
+            if !self.connections.iter().any(|c| c.conn_id == cfg.id) {
+                self.connections
+                    .push(ConnectionEntry::new_disconnected(cfg.id, cfg.name.clone()));
+            }
         }
     }
 
@@ -84,13 +95,56 @@ impl Sidebar {
         visible: Option<Vec<String>>,
         server_version: Option<String>,
     ) {
-        self.connections.retain(|c| c.conn_id != conn_id);
-        let mut entry = ConnectionEntry::new(conn_id, name, schema, visible);
-        entry.server_version = server_version;
-        self.connections.push(entry);
+        if let Some(entry) = self.find_mut(conn_id) {
+            // Update existing entry in place
+            entry.label = name;
+            entry.status = ConnectionStatus::Connected;
+            entry.all_databases = schema.databases.clone();
+            entry.visible_databases = visible;
+            entry.schema = Some(schema);
+            entry.server_version = server_version;
+            entry.error_message = None;
+            entry.schema_detail_requested.clear();
+            entry.schemas_requested.clear();
+        } else {
+            // New connection (not from config)
+            let mut entry = ConnectionEntry::new(conn_id, name, schema, visible);
+            entry.server_version = server_version;
+            self.connections.push(entry);
+        }
+    }
+
+    /// Mark a connection as failed (e.g. connect error).
+    pub fn on_connect_failed(&mut self, conn_id: Uuid, error: String) {
+        if let Some(entry) = self.find_mut(conn_id) {
+            entry.status = ConnectionStatus::Failed;
+            entry.error_message = Some(error);
+        }
+    }
+
+    /// Mark a connection as "connecting" (connect attempt started).
+    pub fn on_connecting(&mut self, conn_id: Uuid) {
+        if let Some(entry) = self.find_mut(conn_id) {
+            entry.status = ConnectionStatus::Connecting;
+            entry.error_message = None;
+        }
     }
 
     pub fn on_disconnected(&mut self, conn_id: Uuid) {
+        if let Some(entry) = self.find_mut(conn_id) {
+            entry.status = ConnectionStatus::Disconnected;
+            entry.schema = None;
+            entry.all_databases.clear();
+            entry.server_version = None;
+            entry.error_message = None;
+            entry.schema_detail_requested.clear();
+            entry.schemas_requested.clear();
+        }
+    }
+
+    /// Remove a connection entry entirely (e.g. user deletes from config).
+    #[allow(dead_code)]
+    pub fn remove_connection(&mut self, conn_id: Uuid) {
         self.connections.retain(|c| c.conn_id != conn_id);
     }
 

@@ -52,28 +52,17 @@ impl App {
         // Load saved connections from disk.
         let config = AppConfig::load();
 
-        // Auto-reconnect all saved connections.
-        for conn in &config.connections {
-            let _ = cmd_tx.try_send(DbCommand::Connect {
-                config: conn.clone(),
-            });
-        }
+        let mut sidebar = Sidebar::new();
+        sidebar.init_from_config(&config.connections);
 
         Self {
             cmd_tx,
             event_rx,
-            sidebar: Sidebar::new(),
+            sidebar,
             tab_manager: TabManager::new(),
             statusbar: StatusBar::new(),
             connection_dialog: None,
-            status: if config.connections.is_empty() {
-                "Ready".to_string()
-            } else {
-                format!(
-                    "Reconnecting {} saved connection(s)\u{2026}",
-                    config.connections.len()
-                )
-            },
+            status: "Ready".to_string(),
             config,
             show_about: false,
             structure_sync_dialog: None,

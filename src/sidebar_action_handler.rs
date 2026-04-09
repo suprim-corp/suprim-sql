@@ -22,6 +22,8 @@ pub struct SidebarContext<'a> {
 /// DbCommand send or state mutation.
 pub fn handle_sidebar_action(action: SidebarAction, ctx: &mut SidebarContext<'_>) {
     match action {
+        // Connect is handled directly in app_ui.rs (needs sidebar mutation).
+        SidebarAction::Connect { .. } => {}
         SidebarAction::NewConnection => {
             *ctx.connection_dialog = Some(ConnectionDialog::new());
         }
