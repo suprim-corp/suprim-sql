@@ -150,10 +150,6 @@ impl StructureSyncDialog {
                                 }
                                 CompareState::Done => {
                                     render_diff_results(ui, &mut self.diff_groups);
-                                    if let Some(status) = &self.status {
-                                        ui.add_space(4.0);
-                                        ui.label(egui::RichText::new(status).weak().size(11.0));
-                                    }
                                 }
                             },
                         );

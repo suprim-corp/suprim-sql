@@ -43,7 +43,6 @@ pub(crate) fn render_diff_results(ui: &mut egui::Ui, groups: &mut [DiffGroup]) {
 
     egui::ScrollArea::vertical()
         .id_salt("diff_results")
-        .min_scrolled_height(height)
         .max_height(height)
         .show(ui, |ui| {
             ui.set_min_width(ui.available_width());
