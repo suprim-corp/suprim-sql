@@ -290,10 +290,11 @@ impl StructureSyncDialog {
 
         // TODO: Real comparison via async schema fetching.
         self.status = Some(format!(
-            "Comparison {}/{}/{} \u{2192} {}/{}/{} \u{2014} coming soon.",
+            "Comparison {}/{}/{} {} {}/{}/{} — coming soon.",
             src.label,
             self.source.database,
             self.source.schema,
+            egui_phosphor::regular::ARROW_RIGHT,
             tgt.label,
             self.target.database,
             self.target.schema,
