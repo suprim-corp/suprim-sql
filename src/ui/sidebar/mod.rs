@@ -156,7 +156,6 @@ impl Sidebar {
     }
 
     /// Remove a connection entry entirely (e.g. user deletes from config).
-    #[allow(dead_code)]
     pub fn remove_connection(&mut self, conn_id: Uuid) {
         self.connections.retain(|c| c.conn_id != conn_id);
     }

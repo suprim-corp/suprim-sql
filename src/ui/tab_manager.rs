@@ -187,6 +187,24 @@ impl TabManager {
         })
     }
 
+    /// Close all tabs associated with a specific connection.
+    pub fn close_tabs_for_connection(&mut self, conn_id: Uuid) {
+        self.tabs.retain(|entry| {
+            let tab_conn = match &entry.kind {
+                TabKind::SqlEditor(t) => t.conn_id,
+                TabKind::TableViewer(t) => Some(t.conn_id),
+                TabKind::TableEditor(t) => Some(t.conn_id),
+            };
+            tab_conn != Some(conn_id)
+        });
+        // If active tab was closed, switch to the last remaining tab.
+        if let Some(active) = self.active_tab {
+            if !self.tabs.iter().any(|t| t.tab_id == active) {
+                self.active_tab = self.tabs.last().map(|t| t.tab_id);
+            }
+        }
+    }
+
     pub fn show(&mut self, ui: &mut egui::Ui, cmd_tx: &mpsc::Sender<DbCommand>) {
         if self.tabs.is_empty() {
             ui.centered_and_justified(|ui| {

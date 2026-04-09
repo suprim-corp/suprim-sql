@@ -60,6 +60,8 @@ impl App {
                             tab_manager: &mut self.tab_manager,
                             config: &mut self.config,
                             connection_dialog: &mut self.connection_dialog,
+                            delete_connection_dialog: &mut self.delete_connection_dialog,
+                            pending_delete_conn: &mut self.pending_delete_conn,
                             conn_name: Box::new(|id| sidebar.conn_name(id)),
                         };
                         handle_sidebar_action(act, &mut ctx);
@@ -79,6 +81,9 @@ impl App {
         if self.show_about {
             self.show_about = crate::ui::about_dialog::show_about_dialog(&ctx);
         }
+
+        // ── Delete connection dialog (modal) ─────────────────────────────
+        self.render_delete_connection_dialog(&ctx);
 
         // ── Structure Sync dialog (modal) ───────────────────────────────
         if let Some(dialog) = &mut self.structure_sync_dialog {
@@ -218,6 +223,35 @@ impl App {
         }
         if close_dialog {
             self.connection_dialog = None;
+        }
+    }
+
+    /// Shows the delete connection dialog and handles its result.
+    fn render_delete_connection_dialog(&mut self, ctx: &egui::Context) {
+        let Some(dialog) = &self.delete_connection_dialog else {
+            return;
+        };
+        match dialog.show(ctx) {
+            crate::ui::DeleteConnectionResult::Pending => {}
+            crate::ui::DeleteConnectionResult::Confirmed => {
+                // Execute the pending delete
+                if let Some(conn_id) = self.pending_delete_conn.take() {
+                    // Disconnect first (if connected, this is a no-op if already disconnected)
+                    let _ = self.cmd_tx.try_send(DbCommand::Disconnect { conn_id });
+                    // Remove from persistent config
+                    self.config.remove_connection(conn_id);
+                    // Remove from sidebar
+                    self.sidebar.remove_connection(conn_id);
+                    // Close any tabs associated with this connection
+                    self.tab_manager.close_tabs_for_connection(conn_id);
+                    self.status = "Connection deleted".to_string();
+                }
+                self.delete_connection_dialog = None;
+            }
+            crate::ui::DeleteConnectionResult::Cancelled => {
+                self.pending_delete_conn = None;
+                self.delete_connection_dialog = None;
+            }
         }
     }
 }

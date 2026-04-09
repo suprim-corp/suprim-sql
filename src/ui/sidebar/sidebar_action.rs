@@ -35,6 +35,11 @@ pub enum SidebarAction {
     Disconnect {
         conn_id: Uuid,
     },
+    /// User wants to delete a connection from config entirely.
+    DeleteConnection {
+        conn_id: Uuid,
+        conn_name: String,
+    },
     LoadSchemaDetail {
         conn_id: Uuid,
         database: String,

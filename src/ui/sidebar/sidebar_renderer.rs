@@ -152,9 +152,9 @@ fn render_single_connection(
 fn render_disconnected_context_menu(
     header: &egui::Response,
     conn_id: Uuid,
-    _entry: &mut ConnectionEntry,
+    entry: &mut ConnectionEntry,
     action: &mut Option<SidebarAction>,
-    disconnect_id: &mut Option<Uuid>,
+    _disconnect_id: &mut Option<Uuid>,
 ) {
     header.context_menu(|ui| {
         if ui
@@ -179,7 +179,10 @@ fn render_disconnected_context_menu(
             .on_hover_cursor(CursorIcon::PointingHand)
             .clicked()
         {
-            *disconnect_id = Some(conn_id);
+            *action = Some(SidebarAction::DeleteConnection {
+                conn_id,
+                conn_name: entry.label.clone(),
+            });
             ui.close();
         }
     });
@@ -230,6 +233,18 @@ fn render_context_menu(
             .clicked()
         {
             *disconnect_id = Some(conn_id);
+            ui.close();
+        }
+        ui.separator();
+        if ui
+            .button("Delete Connection")
+            .on_hover_cursor(CursorIcon::PointingHand)
+            .clicked()
+        {
+            *action = Some(SidebarAction::DeleteConnection {
+                conn_id,
+                conn_name: entry.label.clone(),
+            });
             ui.close();
         }
     });

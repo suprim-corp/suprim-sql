@@ -3,7 +3,7 @@ use suprim_sql::db::driver::{DbCommand, DbEvent};
 use suprim_sql::storage::AppConfig;
 use tokio::sync::mpsc;
 
-use crate::ui::{ConnectionDialog, Sidebar, StatusBar, TabManager};
+use crate::ui::{ConnectionDialog, DeleteConnectionDialog, Sidebar, StatusBar, TabManager};
 
 /// Main application state — owned by the eframe runtime on the UI thread.
 pub struct App {
@@ -31,6 +31,11 @@ pub struct App {
     /// Structure Synchronization dialog (None = closed).
     pub(crate) structure_sync_dialog:
         Option<crate::ui::dialog::tool::structure_sync::StructureSyncDialog>,
+
+    /// Delete connection confirmation dialog (None = closed).
+    pub(crate) delete_connection_dialog: Option<DeleteConnectionDialog>,
+    /// Connection id pending deletion (set when confirm dialog is shown).
+    pub(crate) pending_delete_conn: Option<uuid::Uuid>,
 
     /// Native macOS menu bar channel + retained handler objects.
     #[cfg(target_os = "macos")]
@@ -66,6 +71,8 @@ impl App {
             config,
             show_about: false,
             structure_sync_dialog: None,
+            delete_connection_dialog: None,
+            pending_delete_conn: None,
             #[cfg(target_os = "macos")]
             native_menu,
         }
