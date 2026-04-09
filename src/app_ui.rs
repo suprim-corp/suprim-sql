@@ -167,7 +167,7 @@ impl App {
     fn render_connection_dialog(&mut self, ctx: &egui::Context) {
         let mut close_dialog = false;
         if let Some(dialog) = &mut self.connection_dialog {
-            let result = dialog.show(ctx);
+            let result = dialog.show(ctx, &self.cmd_tx);
             match result {
                 crate::ui::DialogResult::Pending => {}
                 crate::ui::DialogResult::Cancelled => close_dialog = true,
@@ -179,6 +179,9 @@ impl App {
                             .try_send(DbCommand::Disconnect { conn_id: config.id });
                     }
                     self.config.add_connection(config.clone());
+                    // Ensure sidebar has an entry for this connection
+                    self.sidebar.init_from_config(&self.config.connections);
+                    self.sidebar.on_connecting(config.id);
                     let _ = self.cmd_tx.try_send(DbCommand::Connect { config });
                     self.status = if is_edit {
                         "Reconnecting with updated settings\u{2026}".to_string()

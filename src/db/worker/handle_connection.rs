@@ -1,4 +1,4 @@
-/// Connection lifecycle handlers: connect and disconnect.
+/// Connection lifecycle handlers: connect, test connect, and disconnect.
 use uuid::Uuid;
 
 use crate::db::driver::DbEvent;
@@ -59,6 +59,45 @@ impl DbWorker {
                 .await;
             }
         }
+    }
+
+    /// Test a connection without persisting it — connect, then immediately disconnect.
+    pub(super) async fn handle_test_connection(
+        &mut self,
+        config: crate::db::connection::ConnectionConfig,
+    ) {
+        let mut driver = match DbFactory::create(&config) {
+            Ok(d) => d,
+            Err(e) => {
+                let _ = self
+                    .event_tx
+                    .send(DbEvent::TestConnectionResult {
+                        success: false,
+                        message: e.to_string(),
+                    })
+                    .await;
+                return;
+            }
+        };
+        if let Err(e) = driver.connect(&config).await {
+            let _ = self
+                .event_tx
+                .send(DbEvent::TestConnectionResult {
+                    success: false,
+                    message: e.to_string(),
+                })
+                .await;
+            return;
+        }
+        // Success — disconnect immediately
+        let _ = driver.disconnect().await;
+        let _ = self
+            .event_tx
+            .send(DbEvent::TestConnectionResult {
+                success: true,
+                message: "Connection successful!".to_string(),
+            })
+            .await;
     }
 
     pub(super) async fn handle_disconnect(&mut self, conn_id: Uuid) {

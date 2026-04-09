@@ -140,6 +140,11 @@ impl App {
                     }
                     self.status = format!("Error: {message}");
                 }
+                DbEvent::TestConnectionResult { success, message } => {
+                    if let Some(dialog) = &mut self.connection_dialog {
+                        dialog.on_test_result(success, message);
+                    }
+                }
             }
         }
         had_events

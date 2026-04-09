@@ -12,6 +12,7 @@ impl DbWorker {
     pub(super) async fn handle(&mut self, cmd: DbCommand) {
         match cmd {
             DbCommand::Connect { config } => self.handle_connect(config).await,
+            DbCommand::TestConnection { config } => self.handle_test_connection(config).await,
             DbCommand::Disconnect { conn_id } => self.handle_disconnect(conn_id).await,
             DbCommand::Execute {
                 conn_id,

@@ -2,6 +2,8 @@
 /// Config building and validation logic is in `connection_dialog_config.rs`.
 use eframe::egui;
 use suprim_sql::db::connection::ConnectionConfig;
+use suprim_sql::db::driver::DbCommand;
+use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use super::connection_dialog_config::{build_config, extract_fields, DbType, DialogFields};
@@ -11,6 +13,15 @@ pub enum DialogResult {
     Pending,
     Cancelled,
     Confirmed(ConnectionConfig),
+}
+
+/// Test connection state.
+#[derive(Clone)]
+enum TestStatus {
+    Idle,
+    Testing,
+    Success(String),
+    Failed(String),
 }
 
 /// Modal dialog for creating or editing a database connection.
@@ -35,6 +46,7 @@ pub struct ConnectionDialog {
     mongodb_uri: String,
 
     error: Option<String>,
+    test_status: TestStatus,
 }
 
 impl ConnectionDialog {
@@ -52,6 +64,7 @@ impl ConnectionDialog {
             sqlite_path: String::new(),
             mongodb_uri: "mongodb://localhost:27017".to_string(),
             error: None,
+            test_status: TestStatus::Idle,
         }
     }
 
@@ -70,6 +83,7 @@ impl ConnectionDialog {
             sqlite_path: f.sqlite_path,
             mongodb_uri: f.mongodb_uri,
             error: None,
+            test_status: TestStatus::Idle,
         }
     }
 
@@ -88,8 +102,17 @@ impl ConnectionDialog {
         }
     }
 
+    /// Called when a TestConnectionResult event arrives.
+    pub fn on_test_result(&mut self, success: bool, message: String) {
+        self.test_status = if success {
+            TestStatus::Success(message)
+        } else {
+            TestStatus::Failed(message)
+        };
+    }
+
     /// Render the dialog. Returns `DialogResult` each frame.
-    pub fn show(&mut self, ctx: &egui::Context) -> DialogResult {
+    pub fn show(&mut self, ctx: &egui::Context, cmd_tx: &mpsc::Sender<DbCommand>) -> DialogResult {
         let mut result = DialogResult::Pending;
 
         let title = if self.edit_id.is_some() {
@@ -203,8 +226,52 @@ impl ConnectionDialog {
                     ui.label(egui::RichText::new(err).color(egui::Color32::from_rgb(220, 80, 80)));
                 }
 
+                // Show test connection result
+                match &self.test_status {
+                    TestStatus::Testing => {
+                        ui.add_space(4.0);
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(egui::RichText::new("Testing connection...").weak());
+                        });
+                    }
+                    TestStatus::Success(msg) => {
+                        ui.add_space(4.0);
+                        ui.label(
+                            egui::RichText::new(format!("\u{2714} {msg}"))
+                                .color(egui::Color32::from_rgb(80, 180, 80)),
+                        );
+                    }
+                    TestStatus::Failed(msg) => {
+                        ui.add_space(4.0);
+                        ui.label(
+                            egui::RichText::new(format!("\u{2716} {msg}"))
+                                .color(egui::Color32::from_rgb(220, 80, 80)),
+                        );
+                    }
+                    TestStatus::Idle => {}
+                }
+
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
+                    let is_testing = matches!(self.test_status, TestStatus::Testing);
+                    if ui
+                        .add_enabled(!is_testing, egui::Button::new("Test Connection"))
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .clicked()
+                    {
+                        match build_config(&self.fields()) {
+                            Ok(config) => {
+                                self.error = None;
+                                self.test_status = TestStatus::Testing;
+                                let _ = cmd_tx.try_send(DbCommand::TestConnection { config });
+                            }
+                            Err(e) => self.error = Some(e),
+                        }
+                    }
+
+                    ui.add_space(8.0);
+
                     if ui
                         .button(confirm_label)
                         .on_hover_cursor(egui::CursorIcon::PointingHand)

@@ -138,6 +138,10 @@ pub enum DbCommand {
     Connect {
         config: ConnectionConfig,
     },
+    /// Test a connection without persisting it.
+    TestConnection {
+        config: ConnectionConfig,
+    },
     Disconnect {
         conn_id: Uuid,
     },
@@ -277,6 +281,11 @@ pub enum DbEvent {
         /// `None` for connection-level errors
         tab_id: Option<Uuid>,
         conn_id: Option<Uuid>,
+        message: String,
+    },
+    /// Result of a test connection attempt.
+    TestConnectionResult {
+        success: bool,
         message: String,
     },
 }
