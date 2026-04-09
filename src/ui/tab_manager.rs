@@ -7,8 +7,8 @@ use suprim_sql::db::types::QueryResult;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use super::result_grid::build_display_cache;
-use super::sql_editor_tab::SqlEditorTab;
+use super::shared::result_grid::build_display_cache;
+use super::sql_editor::SqlEditorTab;
 use super::tab_bar::render_tab_bar;
 use super::table_editor_tab::TableEditorTab;
 use super::table_viewer_tab::TableViewerTab;

@@ -5,9 +5,9 @@ use suprim_sql::db::types::QueryResult;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use super::clipboard_formatters;
-use super::result_grid::{render_result_grid, CellAction};
 use super::sql_autocomplete::{self, AutocompleteState};
+use crate::ui::shared::clipboard_formatters;
+use crate::ui::shared::result_grid::{render_result_grid, CellAction};
 
 pub struct SqlEditorTab {
     pub conn_id: Option<Uuid>,

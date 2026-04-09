@@ -5,7 +5,7 @@ use suprim_sql::db::types::DbValue;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::ui::clipboard_formatters;
+use crate::ui::shared::clipboard_formatters;
 
 use super::cell_editor::build_cell_editor;
 use super::CellAction;

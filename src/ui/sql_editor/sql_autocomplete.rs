@@ -7,133 +7,7 @@
 /// All cursor positions from egui are **character offsets** (not byte offsets).
 use eframe::egui;
 
-// ─── SQL keywords ────────────────────────────────────────────────────────────
-
-/// Common SQL keywords for autocomplete.
-const SQL_KEYWORDS: &[&str] = &[
-    "ADD",
-    "ALL",
-    "ALTER",
-    "AND",
-    "AS",
-    "ASC",
-    "AVG",
-    "BEGIN",
-    "BETWEEN",
-    "BIGINT",
-    "BOOLEAN",
-    "BY",
-    "CASCADE",
-    "CASE",
-    "CAST",
-    "CHECK",
-    "COALESCE",
-    "COLUMN",
-    "COMMIT",
-    "CONFLICT",
-    "CONSTRAINT",
-    "COUNT",
-    "CREATE",
-    "CROSS",
-    "DATABASE",
-    "DATE",
-    "DECIMAL",
-    "DEFAULT",
-    "DELETE",
-    "DESC",
-    "DISTINCT",
-    "DO",
-    "DROP",
-    "ELSE",
-    "END",
-    "EXCEPT",
-    "EXISTS",
-    "EXPLAIN",
-    "FALSE",
-    "FETCH",
-    "FIRST",
-    "FLOAT",
-    "FOR",
-    "FOREIGN",
-    "FROM",
-    "FULL",
-    "FUNCTION",
-    "GRANT",
-    "GROUP",
-    "HAVING",
-    "IF",
-    "ILIKE",
-    "IN",
-    "INDEX",
-    "INNER",
-    "INSERT",
-    "INT",
-    "INTEGER",
-    "INTERSECT",
-    "INTO",
-    "IS",
-    "JOIN",
-    "JSON",
-    "JSONB",
-    "KEY",
-    "LAST",
-    "LEFT",
-    "LIKE",
-    "LIMIT",
-    "MATERIALIZED",
-    "MAX",
-    "MIN",
-    "NOT",
-    "NULL",
-    "NULLS",
-    "NUMERIC",
-    "OFFSET",
-    "ON",
-    "OR",
-    "ORDER",
-    "OUTER",
-    "OVER",
-    "PARTITION",
-    "PRIMARY",
-    "REFERENCES",
-    "RETURNING",
-    "REVOKE",
-    "RIGHT",
-    "ROLLBACK",
-    "ROW",
-    "ROWS",
-    "SCHEMA",
-    "SELECT",
-    "SERIAL",
-    "SET",
-    "SHOW",
-    "SMALLINT",
-    "SUM",
-    "TABLE",
-    "TEXT",
-    "THEN",
-    "TIMESTAMP",
-    "TIMESTAMPTZ",
-    "TO",
-    "TRANSACTION",
-    "TRIGGER",
-    "TRUE",
-    "TRUNCATE",
-    "TYPE",
-    "UNION",
-    "UNIQUE",
-    "UPDATE",
-    "USING",
-    "UUID",
-    "VACUUM",
-    "VALUES",
-    "VARCHAR",
-    "VIEW",
-    "WHEN",
-    "WHERE",
-    "WINDOW",
-    "WITH",
-];
+use super::sql_keywords::{SQL_CONSTANTS, SQL_FUNCTIONS, SQL_KEYWORDS, SQL_TYPES};
 
 // ─── Char ↔ byte helpers ─────────────────────────────────────────────────────
 
@@ -357,10 +231,20 @@ pub fn update_autocomplete(
                 .cloned()
                 .collect();
 
-            // Append matching SQL keywords (lowercased for display).
-            for kw in SQL_KEYWORDS {
-                if kw.starts_with(&upper) && *kw != upper {
-                    results.push(kw.to_lowercase());
+            // Append matching SQL keywords, types, functions, constants (lowercased for display).
+            for set in [
+                &*SQL_KEYWORDS,
+                &*SQL_TYPES,
+                &*SQL_FUNCTIONS,
+                &*SQL_CONSTANTS,
+            ] {
+                for kw in set {
+                    if kw.starts_with(&upper) && *kw != upper {
+                        let lower_kw = kw.to_lowercase();
+                        if !results.contains(&lower_kw) {
+                            results.push(lower_kw);
+                        }
+                    }
                 }
             }
 

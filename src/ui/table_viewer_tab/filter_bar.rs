@@ -6,8 +6,8 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use super::TableViewerTab;
-use crate::ui::sql_autocomplete;
-use crate::ui::sql_highlighter;
+use crate::ui::sql_editor::sql_autocomplete;
+use crate::ui::sql_editor::sql_highlighter;
 
 impl TableViewerTab {
     pub(super) fn render_filter_bar(

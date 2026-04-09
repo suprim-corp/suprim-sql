@@ -11,8 +11,8 @@ use suprim_sql::db::types::QueryResult;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use super::result_grid::{render_result_grid, CellAction};
-use super::sql_autocomplete::AutocompleteState;
+use crate::ui::shared::result_grid::{render_result_grid, CellAction};
+use crate::ui::sql_editor::sql_autocomplete::AutocompleteState;
 use cell_editor::{build_cell_editor, CellEditor};
 
 // ── TableViewerTab ────────────────────────────────────────────────────────────

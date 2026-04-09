@@ -1,15 +1,11 @@
-mod clipboard_formatters;
 #[cfg(target_os = "macos")]
 pub(crate) mod custom_title_bar;
 pub(crate) mod dialog;
-mod editor_themes;
 #[cfg(target_os = "macos")]
 pub mod macos_menu;
-mod result_grid;
+pub(crate) mod shared;
 mod sidebar;
-mod sql_autocomplete;
-mod sql_editor_tab;
-mod sql_highlighter;
+pub(crate) mod sql_editor;
 mod statusbar;
 mod tab_bar;
 mod tab_manager;

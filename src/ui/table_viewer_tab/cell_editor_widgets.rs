@@ -3,7 +3,7 @@ use eframe::egui;
 
 use super::cell_editor::{CellEditor, CellEditorAction};
 use super::TableViewerTab;
-use crate::ui::editor_themes::adaptive_code_theme;
+use crate::ui::shared::editor_themes::adaptive_code_theme;
 
 impl TableViewerTab {
     pub(super) fn render_editor_header(ui: &mut egui::Ui, col_name: &str, is_json: bool) {

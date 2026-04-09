@@ -8,11 +8,11 @@ pub mod values;
 pub mod worker;
 
 // ── Drivers planned for future releases ──────────────────────────────────────
-// pub mod sqlite;
-// pub mod mysql;
-// pub mod redis_driver;
-// pub mod mongodb_driver;
-// pub mod mssql;
+// pub mod sqlite;   // src/db/sqlite/
+// pub mod mysql;    // src/db/mysql/
+// pub mod redis;    // src/db/redis/
+// pub mod mongodb;  // src/db/mongodb/
+// pub mod mssql;    // src/db/mssql/
 
 pub use connection::{ConnectionConfig, DriverParams, DriverType, SshConfig, TlsConfig};
 pub use driver::{DatabaseDriver, DbCommand, DbEvent};

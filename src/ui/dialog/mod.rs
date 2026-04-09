@@ -3,6 +3,7 @@ pub(crate) mod about_dialog;
 mod connection_dialog;
 mod connection_dialog_config;
 pub(crate) mod structure_sync_dialog;
+mod structure_sync_endpoint_picker;
 mod structure_sync_renderer;
 pub(crate) mod structure_sync_types;
 
