@@ -4,7 +4,7 @@
 
 use eframe::egui;
 
-use super::structure_sync_types::{ConnInfo, Endpoint};
+use super::types::{ConnInfo, Endpoint};
 
 /// Render source + target pickers side by side.
 pub(crate) fn render_endpoint_pickers(

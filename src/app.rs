@@ -30,7 +30,7 @@ pub struct App {
 
     /// Structure Synchronization dialog (None = closed).
     pub(crate) structure_sync_dialog:
-        Option<crate::ui::dialog::structure_sync_dialog::StructureSyncDialog>,
+        Option<crate::ui::dialog::tool::structure_sync::StructureSyncDialog>,
 
     /// Native macOS menu bar channel + retained handler objects.
     #[cfg(target_os = "macos")]

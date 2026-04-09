@@ -187,7 +187,7 @@ impl App {
                     self.status = format!("{action:?} — coming soon");
                 }
                 MenuAction::StructureSynchronization => {
-                    use crate::ui::dialog::structure_sync_dialog::{
+                    use crate::ui::dialog::tool::structure_sync::{
                         ConnInfo, ConnMeta, DbInfo, StructureSyncDialog,
                     };
                     use suprim_sql::db::connection::DriverParams;
