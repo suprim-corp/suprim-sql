@@ -160,6 +160,10 @@ impl DbWorker {
                 return;
             }
         };
+        let source_extensions = src_driver
+            .list_extensions(source_database)
+            .await
+            .unwrap_or_default();
 
         // Load target schema
         let tgt_driver = match self.connections.get(&target_conn_id) {
@@ -185,12 +189,18 @@ impl DbWorker {
                 return;
             }
         };
+        let target_extensions = tgt_driver
+            .list_extensions(target_database)
+            .await
+            .unwrap_or_default();
 
         let _ = self
             .event_tx
             .send(DbEvent::SchemasCompared {
                 source: source_node,
                 target: target_node,
+                source_extensions,
+                target_extensions,
             })
             .await;
     }

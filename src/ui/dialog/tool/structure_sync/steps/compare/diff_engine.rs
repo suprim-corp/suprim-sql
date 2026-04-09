@@ -4,8 +4,10 @@
 //! Sub-modules (siblings in compare/):
 //! - `diff_tables` — tables, columns, indexes, foreign keys
 //! - `diff_views_sequences` — views, materialized views, sequences
+//! - `diff_functions` — functions and procedures
+//! - `diff_extensions` — database-level extensions
 
-use suprim_sql::db::schema::SchemaNode;
+use suprim_sql::db::schema::{ExtensionInfo, SchemaNode};
 
 use crate::ui::dialog::tool::structure_sync::types::DiffEntry;
 
@@ -25,4 +27,14 @@ pub(crate) fn diff_schemas(source: &SchemaNode, target: &SchemaNode) -> Vec<Diff
     super::diff_functions::diff_functions(&source.functions, &target.functions, &mut entries);
 
     entries
+}
+
+/// Compare extensions between source and target databases (database-level objects).
+/// This is separate from `diff_schemas` because extensions are not part of `SchemaNode`.
+pub(crate) fn diff_extensions(
+    source_extensions: &[ExtensionInfo],
+    target_extensions: &[ExtensionInfo],
+    entries: &mut Vec<DiffEntry>,
+) {
+    super::diff_extensions::diff_extensions(source_extensions, target_extensions, entries);
 }

@@ -1,6 +1,7 @@
 use crate::{
     db::{
         connection::ConnectionConfig,
+        schema::ExtensionInfo,
         types::{QueryResult, SchemaNode},
     },
     error::Result,
@@ -51,6 +52,12 @@ pub trait DatabaseDriver: Send + Sync + std::fmt::Debug {
 
     /// Load full detail for a single named schema: tables, views, columns, indexes, FKs.
     async fn load_schema_detail(&self, database: &str, schema_name: &str) -> Result<SchemaNode>;
+
+    /// List installed extensions for a database (database-level objects).
+    /// Default returns empty — override for drivers that support extensions.
+    async fn list_extensions(&self, _database: &str) -> Result<Vec<ExtensionInfo>> {
+        Ok(Vec::new())
+    }
 
     /// Fetch a page of rows from a table, with optional WHERE/ORDER BY clauses.
     async fn table_data(
@@ -301,5 +308,7 @@ pub enum DbEvent {
     SchemasCompared {
         source: SchemaNode,
         target: SchemaNode,
+        source_extensions: Vec<ExtensionInfo>,
+        target_extensions: Vec<ExtensionInfo>,
     },
 }

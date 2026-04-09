@@ -1,6 +1,6 @@
 //! StructureSyncDialog state, construction, and event-driven data updates.
 
-use suprim_sql::db::schema::SchemaNode;
+use suprim_sql::db::schema::{ExtensionInfo, SchemaNode};
 
 use super::steps::compare::{ddl_generator, diff_engine};
 use super::types::{CompareState, ConnInfo, DbInfo, DiffGroup, DiffKind, Endpoint, WizardStep};
@@ -25,6 +25,10 @@ pub struct StructureSyncDialog {
     pub(super) source_schema_node: Option<SchemaNode>,
     /// Cached target schema node (from last comparison).
     pub(super) target_schema_node: Option<SchemaNode>,
+    /// Extensions installed on source database.
+    pub(super) source_extensions: Vec<ExtensionInfo>,
+    /// Extensions installed on target database.
+    pub(super) target_extensions: Vec<ExtensionInfo>,
 }
 
 // ── Construction ────────────────────────────────────────────────────────
@@ -48,6 +52,8 @@ impl StructureSyncDialog {
             pending_db_requests: std::collections::HashSet::new(),
             source_schema_node: None,
             target_schema_node: None,
+            source_extensions: Vec::new(),
+            target_extensions: Vec::new(),
         }
     }
 
@@ -140,10 +146,18 @@ impl StructureSyncDialog {
         }
     }
 
-    /// Called when the DB worker returns both schema nodes.
+    /// Called when the DB worker returns both schema nodes + extensions.
     /// Runs diff + DDL generation on the UI thread (fast, pure Rust).
-    pub fn on_schemas_compared(&mut self, source: SchemaNode, target: SchemaNode) {
-        let all_entries = diff_engine::diff_schemas(&source, &target);
+    pub fn on_schemas_compared(
+        &mut self,
+        source: SchemaNode,
+        target: SchemaNode,
+        source_extensions: Vec<ExtensionInfo>,
+        target_extensions: Vec<ExtensionInfo>,
+    ) {
+        let mut all_entries = diff_engine::diff_schemas(&source, &target);
+        // Diff extensions (database-level objects)
+        diff_engine::diff_extensions(&source_extensions, &target_extensions, &mut all_entries);
 
         // Group entries by DiffKind into 3 groups (Modified, Created, Deleted).
         let modified: Vec<_> = all_entries
@@ -176,10 +190,18 @@ impl StructureSyncDialog {
             },
         ];
 
-        self.ddl_script =
-            ddl_generator::generate_ddl(&source, &target, &self.target.schema, &self.diff_groups);
+        self.ddl_script = ddl_generator::generate_ddl(
+            &source,
+            &target,
+            &self.target.schema,
+            &self.diff_groups,
+            &source_extensions,
+            &target_extensions,
+        );
         self.source_schema_node = Some(source);
         self.target_schema_node = Some(target);
+        self.source_extensions = source_extensions;
+        self.target_extensions = target_extensions;
         self.compare_state = CompareState::Done;
 
         let total: usize = self.diff_groups.iter().map(|g| g.total_count()).sum();
@@ -199,8 +221,14 @@ impl StructureSyncDialog {
     /// Regenerate DDL script from current (possibly toggled) diff entries.
     pub(super) fn regenerate_script(&mut self) {
         if let (Some(src), Some(tgt)) = (&self.source_schema_node, &self.target_schema_node) {
-            self.ddl_script =
-                ddl_generator::generate_ddl(src, tgt, &self.target.schema, &self.diff_groups);
+            self.ddl_script = ddl_generator::generate_ddl(
+                src,
+                tgt,
+                &self.target.schema,
+                &self.diff_groups,
+                &self.source_extensions,
+                &self.target_extensions,
+            );
         }
     }
 }

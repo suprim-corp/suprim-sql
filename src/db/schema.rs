@@ -105,6 +105,15 @@ pub struct FunctionNode {
     pub is_procedure: bool,
 }
 
+/// A database extension (database-level object, not schema-level).
+#[derive(Debug, Clone)]
+pub struct ExtensionInfo {
+    /// Extension name (e.g. "pgvector", "postgis").
+    pub name: String,
+    /// Installed version (e.g. "0.7.0").
+    pub version: String,
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]

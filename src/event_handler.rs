@@ -145,9 +145,19 @@ impl App {
                         dialog.on_test_result(success, message);
                     }
                 }
-                DbEvent::SchemasCompared { source, target } => {
+                DbEvent::SchemasCompared {
+                    source,
+                    target,
+                    source_extensions,
+                    target_extensions,
+                } => {
                     if let Some(dialog) = &mut self.structure_sync_dialog {
-                        dialog.on_schemas_compared(source, target);
+                        dialog.on_schemas_compared(
+                            source,
+                            target,
+                            source_extensions,
+                            target_extensions,
+                        );
                     }
                 }
             }

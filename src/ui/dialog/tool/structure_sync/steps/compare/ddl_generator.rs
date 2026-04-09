@@ -3,7 +3,7 @@
 //! Takes the source `SchemaNode` + checked `DiffEntry` list and produces
 //! PostgreSQL DDL statements to bring the target schema in sync with source.
 
-use suprim_sql::db::schema::SchemaNode;
+use suprim_sql::db::schema::{ExtensionInfo, SchemaNode};
 
 use crate::ui::dialog::tool::structure_sync::types::{DiffEntry, DiffGroup, DiffKind, ObjectType};
 
@@ -18,6 +18,8 @@ pub(crate) fn generate_ddl(
     target: &SchemaNode,
     target_schema: &str,
     groups: &[DiffGroup],
+    source_extensions: &[ExtensionInfo],
+    _target_extensions: &[ExtensionInfo],
 ) -> String {
     let mut lines: Vec<String> = Vec::new();
     lines.push(format!(
@@ -45,6 +47,7 @@ pub(crate) fn generate_ddl(
                 &tgt_tables,
                 source,
                 target,
+                source_extensions,
                 &mut lines,
             );
         }
@@ -60,6 +63,7 @@ fn generate_entry_ddl(
     tgt_tables: &std::collections::HashMap<&str, &suprim_sql::db::schema::TableNode>,
     source: &SchemaNode,
     target: &SchemaNode,
+    source_extensions: &[ExtensionInfo],
     lines: &mut Vec<String>,
 ) {
     let name = &entry.name;
@@ -295,6 +299,32 @@ fn generate_entry_ddl(
             lines.push(format!(
                 "DROP {kind} IF EXISTS \"{schema}\".{name} CASCADE;"
             ));
+            lines.push(String::new());
+        }
+
+        // ── Extensions (database-level) ─────────────────────────────────
+        (ObjectType::Extension, DiffKind::Added) => {
+            if let Some(ext) = source_extensions.iter().find(|e| e.name == *name) {
+                lines.push(format!(
+                    "CREATE EXTENSION IF NOT EXISTS \"{}\" VERSION '{}';",
+                    ext.name, ext.version
+                ));
+            } else {
+                lines.push(format!("CREATE EXTENSION IF NOT EXISTS \"{name}\";"));
+            }
+            lines.push(String::new());
+        }
+        (ObjectType::Extension, DiffKind::Removed) => {
+            lines.push(format!("DROP EXTENSION IF EXISTS \"{name}\" CASCADE;"));
+            lines.push(String::new());
+        }
+        (ObjectType::Extension, DiffKind::Modified) => {
+            if let Some(ext) = source_extensions.iter().find(|e| e.name == *name) {
+                lines.push(format!(
+                    "ALTER EXTENSION \"{}\" UPDATE TO '{}';",
+                    ext.name, ext.version
+                ));
+            }
             lines.push(String::new());
         }
 

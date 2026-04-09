@@ -12,6 +12,7 @@
 mod connection_url;
 mod driver_impl;
 mod driver_tests;
+mod extension_loader;
 mod function_loader;
 mod queries;
 mod schema_loader;

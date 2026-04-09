@@ -18,6 +18,7 @@ pub use connection::{ConnectionConfig, DriverParams, DriverType, SshConfig, TlsC
 pub use driver::{DatabaseDriver, DbCommand, DbEvent};
 pub use factory::DbFactory;
 pub use worker::DbWorker;
+pub use schema::ExtensionInfo;
 pub use types::{
     ColumnMeta, ColumnNode, DatabaseNode, DbValue, ForeignKeyNode, IndexNode, QueryResult,
     SchemaNode, SchemaTree, SequenceNode, TableNode, ViewNode,

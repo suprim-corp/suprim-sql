@@ -6,6 +6,7 @@ use async_trait::async_trait;
 
 use crate::db::connection::{ConnectionConfig, DriverParams, DriverType};
 use crate::db::driver::DatabaseDriver;
+use crate::db::schema::ExtensionInfo;
 use crate::db::types::{DbValue, QueryResult, SchemaNode};
 use crate::error::{AppError, Result};
 
@@ -114,6 +115,11 @@ impl DatabaseDriver for PostgresDriver {
     async fn load_schema_detail(&self, database: &str, schema_name: &str) -> Result<SchemaNode> {
         let pool = self.pool_for_db(database).await?;
         super::schema_loader::load_schema_detail(&pool, schema_name).await
+    }
+
+    async fn list_extensions(&self, database: &str) -> Result<Vec<ExtensionInfo>> {
+        let pool = self.pool_for_db(database).await?;
+        Ok(super::extension_loader::load_extensions(&pool).await)
     }
 
     async fn table_data(

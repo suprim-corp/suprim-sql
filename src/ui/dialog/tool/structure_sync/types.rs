@@ -116,6 +116,7 @@ pub(crate) enum ObjectType {
     MaterializedView,
     Sequence,
     Function,
+    Extension,
 }
 
 impl ObjectType {
@@ -130,6 +131,7 @@ impl ObjectType {
             Self::MaterializedView => egui_phosphor::regular::DATABASE,
             Self::Sequence => egui_phosphor::regular::HASH,
             Self::Function => egui_phosphor::regular::FUNCTION,
+            Self::Extension => egui_phosphor::regular::PUZZLE_PIECE,
         }
     }
 }
