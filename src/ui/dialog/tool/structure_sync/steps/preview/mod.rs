@@ -5,10 +5,12 @@
 
 use eframe::egui;
 
+use crate::ui::sql_editor::sql_highlighter;
+
 /// Render the DDL preview panel.
 ///
-/// Shows a read-only, scrollable text area with the full DDL script.
-/// When the script is empty, displays a "no changes" message.
+/// Shows a read-only, scrollable text area with the full DDL script
+/// and SQL syntax highlighting (keywords, types, strings, comments, etc.).
 pub(crate) fn render_ddl_preview(ui: &mut egui::Ui, ddl_script: &str, max_height: f32) {
     if ddl_script.is_empty() {
         ui.vertical_centered(|ui| {
@@ -47,8 +49,15 @@ pub(crate) fn render_ddl_preview(ui: &mut egui::Ui, ddl_script: &str, max_height
 
     ui.add_space(2.0);
 
-    // Scrollable read-only text area with monospace font
+    // Scrollable read-only text area with SQL syntax highlighting
     let available_h = (max_height - 22.0).max(40.0); // 22px for header + spacing
+    let dark_mode = ui.visuals().dark_mode;
+    let mono_font = egui::FontId::monospace(13.0);
+    let mut layouter = |ui: &egui::Ui, text: &dyn egui::TextBuffer, _wrap_width: f32| {
+        let job = sql_highlighter::sql_layout_job(text.as_str(), mono_font.clone(), dark_mode);
+        ui.fonts_mut(|f| f.layout_job(job))
+    };
+
     egui::ScrollArea::both()
         .id_salt("ddl_preview_scroll")
         .max_height(available_h)
@@ -59,7 +68,8 @@ pub(crate) fn render_ddl_preview(ui: &mut egui::Ui, ddl_script: &str, max_height
                     .font(egui::TextStyle::Monospace)
                     .desired_width(f32::INFINITY)
                     .interactive(false)
-                    .code_editor(),
+                    .code_editor()
+                    .layouter(&mut layouter),
             );
         });
 }
