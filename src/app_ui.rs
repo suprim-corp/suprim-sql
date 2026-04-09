@@ -64,6 +64,13 @@ impl App {
         if self.show_about {
             self.show_about = crate::ui::about_dialog::show_about_dialog(&ctx);
         }
+
+        // ── Structure Sync dialog (modal) ───────────────────────────────
+        if let Some(dialog) = &mut self.structure_sync_dialog {
+            if !dialog.show(&ctx) {
+                self.structure_sync_dialog = None;
+            }
+        }
     }
 
     /// Renders the in-app menu bar (used on non-macOS platforms).

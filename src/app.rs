@@ -28,6 +28,10 @@ pub struct App {
     /// Whether the About dialog is open.
     pub(crate) show_about: bool,
 
+    /// Structure Synchronization dialog (None = closed).
+    pub(crate) structure_sync_dialog:
+        Option<crate::ui::dialog::structure_sync_dialog::StructureSyncDialog>,
+
     /// Native macOS menu bar channel + retained handler objects.
     #[cfg(target_os = "macos")]
     pub(crate) native_menu: crate::ui::macos_menu::NativeMenu,
@@ -72,6 +76,7 @@ impl App {
             },
             config,
             show_about: false,
+            structure_sync_dialog: None,
             #[cfg(target_os = "macos")]
             native_menu,
         }

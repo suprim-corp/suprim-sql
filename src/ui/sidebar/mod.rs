@@ -33,6 +33,26 @@ impl Sidebar {
         self.connections.iter().map(|c| c.conn_id).collect()
     }
 
+    /// Returns a list of (conn_id, label, databases_with_schemas) for all active connections.
+    /// Each database entry is (db_name, vec_of_schema_names).
+    /// Used by dialogs that need connection/database/schema dropdowns.
+    pub fn connection_list(&self) -> Vec<(Uuid, String, Vec<(String, Vec<String>)>)> {
+        self.connections
+            .iter()
+            .map(|c| {
+                let dbs: Vec<(String, Vec<String>)> = c
+                    .all_databases
+                    .iter()
+                    .map(|d| {
+                        let schemas = d.schemas.iter().map(|s| s.name.clone()).collect();
+                        (d.name.clone(), schemas)
+                    })
+                    .collect();
+                (c.conn_id, c.label.clone(), dbs)
+            })
+            .collect()
+    }
+
     /// Returns (conn_id, conn_name, first_database, all_databases) for the
     /// first active connection, if any. Used by menu bar "New SQL Tab".
     pub fn first_connection_info(&self) -> Option<(Uuid, String, Option<String>, Vec<String>)> {

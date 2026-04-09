@@ -24,6 +24,11 @@ pub enum MenuAction {
     Quit,
     NewSqlTab,
     ReloadDatabases,
+    DataTransfer,
+    DataGeneration,
+    DataDictionary,
+    DataSynchronization,
+    StructureSynchronization,
 }
 
 // ── ObjC bridge ─────────────────────────────────────────────────────────
@@ -125,6 +130,30 @@ pub fn install_native_menu() -> NativeMenu {
         &[("Reload Databases", MenuAction::ReloadDatabases, "r")],
     );
     menubar.addItem(&view_menu);
+
+    // ── Tools menu ──
+    let tools_menu = build_submenu(
+        mtm,
+        "Tools",
+        &tx,
+        &mut handlers,
+        &[
+            ("Data Transfer\u{2026}", MenuAction::DataTransfer, "T"),
+            ("Data Generation\u{2026}", MenuAction::DataGeneration, ""),
+            ("Data Dictionary\u{2026}", MenuAction::DataDictionary, "D"),
+            (
+                "Data Synchronization\u{2026}",
+                MenuAction::DataSynchronization,
+                "",
+            ),
+            (
+                "Structure Synchronization\u{2026}",
+                MenuAction::StructureSynchronization,
+                "",
+            ),
+        ],
+    );
+    menubar.addItem(&tools_menu);
 
     app.setMainMenu(Some(&menubar));
 

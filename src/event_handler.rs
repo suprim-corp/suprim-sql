@@ -143,6 +143,70 @@ impl App {
                         let _ = self.cmd_tx.try_send(DbCommand::ListDatabases { conn_id });
                     }
                 }
+                MenuAction::DataTransfer
+                | MenuAction::DataGeneration
+                | MenuAction::DataDictionary
+                | MenuAction::DataSynchronization => {
+                    // TODO: implement Tools dialogs
+                    self.status = format!("{action:?} — coming soon");
+                }
+                MenuAction::StructureSynchronization => {
+                    use crate::ui::dialog::structure_sync_dialog::{
+                        ConnInfo, ConnMeta, DbInfo, StructureSyncDialog,
+                    };
+                    use suprim_sql::db::connection::DriverParams;
+
+                    let conns: Vec<ConnInfo> = self
+                        .sidebar
+                        .connection_list()
+                        .into_iter()
+                        .map(|(conn_id, label, dbs)| {
+                            // Look up config to extract host/port/driver_type
+                            let meta = self
+                                .config
+                                .connections
+                                .iter()
+                                .find(|c| c.id == conn_id)
+                                .map(|cfg| {
+                                    let (host, port) = match &cfg.params {
+                                        DriverParams::Postgres { host, port, .. }
+                                        | DriverParams::Mysql { host, port, .. }
+                                        | DriverParams::Mssql { host, port, .. } => {
+                                            (host.clone(), port.to_string())
+                                        }
+                                        DriverParams::Redis { host, port, .. } => {
+                                            (host.clone(), port.to_string())
+                                        }
+                                        DriverParams::Sqlite { path } => {
+                                            (path.display().to_string(), String::new())
+                                        }
+                                        DriverParams::MongoDB { uri, .. } => {
+                                            (uri.clone(), String::new())
+                                        }
+                                    };
+                                    ConnMeta {
+                                        driver_type: cfg.driver_type().to_string(),
+                                        host,
+                                        port,
+                                    }
+                                })
+                                .unwrap_or_default();
+
+                            let databases = dbs
+                                .into_iter()
+                                .map(|(name, schemas)| DbInfo { name, schemas })
+                                .collect();
+
+                            ConnInfo {
+                                conn_id,
+                                label,
+                                databases,
+                                meta,
+                            }
+                        })
+                        .collect();
+                    self.structure_sync_dialog = Some(StructureSyncDialog::new(conns));
+                }
             }
             ctx.request_repaint();
         }
