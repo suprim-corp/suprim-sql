@@ -1,10 +1,10 @@
 //! Schema comparison logic and DDL script generation (placeholder).
 
-use super::state::StructureSyncDialog;
-use super::types::DiffKind;
+use crate::ui::dialog::tool::structure_sync::state::StructureSyncDialog;
+use crate::ui::dialog::tool::structure_sync::types::DiffKind;
 
 impl StructureSyncDialog {
-    pub(super) fn run_comparison(&mut self) {
+    pub(crate) fn run_comparison(&mut self) {
         self.compared = true;
         self.diff_entries.clear();
         self.ddl_script.clear();
@@ -61,7 +61,7 @@ impl StructureSyncDialog {
     }
 
     #[allow(dead_code)]
-    pub(super) fn regenerate_script(&mut self) {
+    pub(crate) fn regenerate_script(&mut self) {
         let mut lines = Vec::new();
         for entry in &self.diff_entries {
             if !entry.checked {

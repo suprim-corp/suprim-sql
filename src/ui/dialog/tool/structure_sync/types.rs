@@ -2,6 +2,23 @@
 
 use uuid::Uuid;
 
+/// Wizard step in the Structure Synchronization flow.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[allow(dead_code)]
+pub(crate) enum WizardStep {
+    /// Step 1: Select source and target endpoints.
+    #[default]
+    Select,
+    /// Step 2: Compare schemas (async fetch + diff).
+    Compare,
+    /// Step 3: Review diff entries with checkboxes.
+    Review,
+    /// Step 4: Preview generated DDL script.
+    Preview,
+    /// Step 5: Execute DDL against target.
+    Execute,
+}
+
 /// Database entry with its schemas.
 #[derive(Clone)]
 pub struct DbInfo {

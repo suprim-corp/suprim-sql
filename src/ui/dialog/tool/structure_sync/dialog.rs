@@ -5,8 +5,8 @@
 
 use eframe::egui;
 
-use super::header_banner;
 use super::state::StructureSyncDialog;
+use super::steps::select;
 use super::types::SyncDialogResult;
 
 impl StructureSyncDialog {
@@ -74,14 +74,9 @@ impl StructureSyncDialog {
                     return;
                 }
 
-                header_banner::render_header_banner(
-                    ui,
-                    &self.connections,
-                    &self.source,
-                    &self.target,
-                );
+                select::render_header_banner(ui, &self.connections, &self.source, &self.target);
                 ui.add_space(8.0);
-                header_banner::render_endpoint_pickers(
+                select::render_endpoint_pickers(
                     ui,
                     &self.connections,
                     &mut self.source,
@@ -89,7 +84,7 @@ impl StructureSyncDialog {
                 );
                 ui.add_space(6.0);
                 ui.separator();
-                header_banner::render_information_panels(
+                select::render_information_panels(
                     ui,
                     &self.connections,
                     &self.source,
@@ -100,7 +95,7 @@ impl StructureSyncDialog {
                 ui.add_space(4.0);
 
                 let mut run_compare = false;
-                header_banner::render_bottom_bar(
+                select::render_bottom_bar(
                     ui,
                     self.compared,
                     &self.ddl_script,

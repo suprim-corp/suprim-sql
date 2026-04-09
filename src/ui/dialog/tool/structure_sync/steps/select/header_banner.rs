@@ -5,11 +5,7 @@
 
 use eframe::egui;
 
-use super::types::{ConnInfo, Endpoint};
-
-// Re-export so callers can still use `renderer::*`.
-pub(crate) use super::endpoint_picker::render_endpoint_pickers;
-pub(crate) use super::info_panel::render_information_panels;
+use crate::ui::dialog::tool::structure_sync::types::{ConnInfo, Endpoint};
 
 pub(crate) fn endpoint_summary(connections: &[ConnInfo], ep: &Endpoint) -> (String, String) {
     let name = connections

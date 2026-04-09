@@ -1,12 +1,14 @@
 //! StructureSyncDialog state, construction, and event-driven data updates.
 
-use super::types::{ConnInfo, DbInfo, DiffEntry, Endpoint};
+use super::types::{ConnInfo, DbInfo, DiffEntry, Endpoint, WizardStep};
 
 /// Top-level dialog state.
 pub struct StructureSyncDialog {
     pub(super) connections: Vec<ConnInfo>,
     pub(super) source: Endpoint,
     pub(super) target: Endpoint,
+    #[allow(dead_code)]
+    pub(super) step: WizardStep,
     pub(super) diff_entries: Vec<DiffEntry>,
     pub(super) ddl_script: String,
     pub(super) compared: bool,
@@ -29,6 +31,7 @@ impl StructureSyncDialog {
             connections,
             source,
             target,
+            step: WizardStep::default(),
             diff_entries: Vec::new(),
             ddl_script: String::new(),
             compared: false,

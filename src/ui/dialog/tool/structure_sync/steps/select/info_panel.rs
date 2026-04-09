@@ -5,7 +5,7 @@
 
 use eframe::egui;
 
-use super::types::{ConnInfo, Endpoint};
+use crate::ui::dialog::tool::structure_sync::types::{ConnInfo, Endpoint};
 
 // ── Information panels ──────────────────────────────────────────────────
 

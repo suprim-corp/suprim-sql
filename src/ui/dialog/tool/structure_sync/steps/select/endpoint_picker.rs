@@ -4,7 +4,7 @@
 
 use eframe::egui;
 
-use super::types::{ConnInfo, Endpoint};
+use crate::ui::dialog::tool::structure_sync::types::{ConnInfo, Endpoint};
 
 /// Render source + target pickers side by side.
 pub(crate) fn render_endpoint_pickers(
