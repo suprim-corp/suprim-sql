@@ -25,6 +25,8 @@ pub struct ConnInfo {
     pub label: String,
     pub databases: Vec<DbInfo>,
     pub meta: ConnMeta,
+    /// Whether this connection is currently active (connected to the server).
+    pub connected: bool,
 }
 
 /// One side of the comparison (source or target).
@@ -43,6 +45,8 @@ pub struct SyncDialogResult {
     pub schema_requests: Vec<(Uuid, String)>,
     /// Connections whose database lists need to be fetched.
     pub database_requests: Vec<Uuid>,
+    /// Connections that need to be connected first.
+    pub connect_requests: Vec<Uuid>,
 }
 
 #[derive(Clone)]

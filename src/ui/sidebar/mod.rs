@@ -49,7 +49,13 @@ impl Sidebar {
     /// Used by dialogs that need connection/database/schema dropdowns.
     pub fn connection_list(
         &self,
-    ) -> Vec<(Uuid, String, Vec<(String, Vec<String>)>, Option<String>)> {
+    ) -> Vec<(
+        Uuid,
+        String,
+        Vec<(String, Vec<String>)>,
+        Option<String>,
+        bool,
+    )> {
         self.connections
             .iter()
             .map(|c| {
@@ -61,7 +67,14 @@ impl Sidebar {
                         (d.name.clone(), schemas)
                     })
                     .collect();
-                (c.conn_id, c.label.clone(), dbs, c.server_version.clone())
+                let connected = c.status == ConnectionStatus::Connected;
+                (
+                    c.conn_id,
+                    c.label.clone(),
+                    dbs,
+                    c.server_version.clone(),
+                    connected,
+                )
             })
             .collect()
     }

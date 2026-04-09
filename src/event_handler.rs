@@ -197,7 +197,7 @@ impl App {
                         .sidebar
                         .connection_list()
                         .into_iter()
-                        .map(|(conn_id, label, dbs, server_version)| {
+                        .map(|(conn_id, label, dbs, server_version, connected)| {
                             let (host, port, driver_type) = self
                                 .config
                                 .connections
@@ -239,6 +239,7 @@ impl App {
                                     port,
                                     server_version,
                                 },
+                                connected,
                             }
                         })
                         .collect();

@@ -73,10 +73,20 @@ impl StructureSyncDialog {
         let mut open = true;
         let mut schema_requests = Vec::new();
         let mut database_requests = Vec::new();
+        let mut connect_requests = Vec::new();
 
-        // Check if selected endpoints need database or schema loading
+        // Check if selected endpoints need connecting, database, or schema loading
         for ep in [&self.source, &self.target] {
             if let Some(conn) = self.connections.get(ep.conn_idx) {
+                if !conn.connected {
+                    // Not connected yet — request connect
+                    let key = conn.conn_id;
+                    if !self.pending_db_requests.contains(&key) {
+                        self.pending_db_requests.insert(key);
+                        connect_requests.push(key);
+                    }
+                    continue; // databases will arrive after Connected event
+                }
                 // Need databases?
                 if conn.databases.is_empty() {
                     let key = conn.conn_id;
@@ -161,6 +171,7 @@ impl StructureSyncDialog {
             open,
             schema_requests,
             database_requests,
+            connect_requests,
         }
     }
 
@@ -225,6 +236,7 @@ impl StructureSyncDialog {
         for conn in &mut self.connections {
             if conn.conn_id == conn_id {
                 conn.meta.server_version = version.clone();
+                conn.connected = true; // Connected event means it's now active
             }
         }
     }

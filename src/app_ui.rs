@@ -83,6 +83,17 @@ impl App {
         // ── Structure Sync dialog (modal) ───────────────────────────────
         if let Some(dialog) = &mut self.structure_sync_dialog {
             let result = dialog.show(&ctx);
+            // Connect disconnected connections first
+            for conn_id in &result.connect_requests {
+                if let Some(cfg) = self.config.connections.iter().find(|c| c.id == *conn_id) {
+                    self.sidebar.on_connecting(*conn_id);
+                    let _ = self
+                        .cmd_tx
+                        .try_send(suprim_sql::db::driver::DbCommand::Connect {
+                            config: cfg.clone(),
+                        });
+                }
+            }
             // Send database list requests
             for conn_id in &result.database_requests {
                 let _ = self
