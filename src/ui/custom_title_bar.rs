@@ -18,6 +18,9 @@ const TRAFFIC_LIGHT_PADDING: f32 = 70.0;
 pub fn show_title_bar(ui: &mut egui::Ui) -> TitleBarAction {
     let mut action = TitleBarAction::None;
 
+    // Reposition traffic lights to vertically center within our title bar.
+    super::macos_menu::center_traffic_lights(TITLE_BAR_HEIGHT as f64);
+
     egui::Panel::top("custom_title_bar")
         .exact_size(TITLE_BAR_HEIGHT)
         .show_separator_line(true)

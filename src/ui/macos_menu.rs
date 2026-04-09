@@ -12,7 +12,7 @@ use std::sync::mpsc;
 use objc2::rc::Retained;
 use objc2::runtime::Sel;
 use objc2::{define_class, msg_send, sel, DefinedClass, MainThreadOnly};
-use objc2_app_kit::{NSApplication, NSMenu, NSMenuItem};
+use objc2_app_kit::{NSApplication, NSMenu, NSMenuItem, NSWindowButton};
 use objc2_foundation::{MainThreadMarker, NSObject, NSString};
 
 // ── Public types ────────────────────────────────────────────────────────
@@ -212,4 +212,38 @@ fn make_item(
     };
     unsafe { item.setTarget(Some(target.as_ref())) };
     item
+}
+
+/// Reposition macOS traffic-light buttons so they are vertically centered
+/// within the custom title bar of the given height.
+///
+/// Called every frame because macOS layout resets the position.
+pub fn center_traffic_lights(title_bar_height: f64) {
+    let Some(mtm) = MainThreadMarker::new() else {
+        return;
+    };
+    let app = NSApplication::sharedApplication(mtm);
+    let Some(window) = app.mainWindow() else {
+        return;
+    };
+    let Some(close_btn) = window.standardWindowButton(NSWindowButton::CloseButton) else {
+        return;
+    };
+    let Some(container) = (unsafe { close_btn.superview() }) else {
+        return;
+    };
+    let Some(parent) = (unsafe { container.superview() }) else {
+        return;
+    };
+
+    let cf = container.frame();
+    let parent_h = parent.frame().size.height;
+    let new_y = parent_h - title_bar_height + (title_bar_height - cf.size.height) / 2.0;
+
+    if (new_y - cf.origin.y).abs() > 0.5 {
+        container.setFrame(objc2_foundation::NSRect::new(
+            objc2_foundation::NSPoint::new(cf.origin.x, new_y),
+            cf.size,
+        ));
+    }
 }
