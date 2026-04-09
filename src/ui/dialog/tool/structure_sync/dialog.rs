@@ -68,6 +68,7 @@ impl StructureSyncDialog {
                 ui.set_min_height(DIALOG_H);
                 ui.set_max_height(DIALOG_H);
                 ui.set_min_width(DIALOG_W);
+                ui.set_max_width(DIALOG_W);
 
                 if self.connections.is_empty() {
                     ui.label("No active connections. Connect to a database first.");
@@ -105,71 +106,77 @@ impl StructureSyncDialog {
                 ui.add_space(4.0);
                 ui.separator();
 
-                // ── Remaining area: middle + footer ─────────────────────────
-                // Use bottom_up layout so footer renders at the actual bottom,
-                // regardless of how much content the middle section has.
-                let remaining = ui.available_size();
-                let full_w = remaining.x;
+                // ── Middle: content ─────────────────────────────────────────
+                // Footer: separator(1) + spacing(4) + button_row(~24) + spacing(4) ≈ 33
+                const FOOTER_H: f32 = 33.0;
+                let middle_h = (ui.available_height() - FOOTER_H).max(40.0);
+                let mut run_compare = false;
+                let mut reset_to_idle = false;
 
-                ui.allocate_ui_with_layout(
-                    remaining,
-                    egui::Layout::bottom_up(egui::Align::LEFT),
-                    |ui| {
-                        // Footer (rendered first because bottom_up)
-                        let mut run_compare = false;
-                        let mut reset_to_idle = false;
-                        render_bottom_bar(
-                            ui,
-                            &self.compare_state,
-                            &self.ddl_script,
-                            &mut self.status,
-                            &mut open,
-                            &mut run_compare,
-                            &mut reset_to_idle,
-                        );
-                        ui.add_space(4.0);
-                        ui.separator();
-
-                        // Middle content (rendered second = above footer)
-                        let middle_h = ui.available_height();
-                        ui.allocate_ui_with_layout(
-                            egui::vec2(full_w, middle_h),
-                            egui::Layout::top_down(egui::Align::LEFT),
-                            |ui| match self.compare_state {
-                                CompareState::Idle => {
-                                    select::render_information_panels(
-                                        ui,
-                                        &self.connections,
-                                        &self.source,
-                                        &self.target,
-                                        &self.status,
-                                    );
-                                }
-                                CompareState::Loading => {
-                                    render_loading_state(ui);
-                                }
-                                CompareState::Done => {
-                                    render_diff_results(ui, &mut self.diff_groups);
-                                }
-                            },
-                        );
-
-                        if reset_to_idle {
-                            self.compare_state = CompareState::Idle;
-                            self.diff_groups.clear();
-                            self.ddl_script.clear();
-                            self.status = None;
-                        } else if run_compare {
-                            if let Some(req) = self.validate_and_create_compare_request() {
-                                self.compare_state = CompareState::Loading;
-                                self.diff_groups.clear();
-                                self.ddl_script.clear();
-                                self.status = Some("Loading schemas...".into());
-                                compare_request = Some(req);
-                            }
+                match self.compare_state {
+                    CompareState::Idle => {
+                        egui::ScrollArea::vertical()
+                            .id_salt("info_panels_scroll")
+                            .max_height(middle_h)
+                            .show(ui, |ui| {
+                                select::render_information_panels(
+                                    ui,
+                                    &self.connections,
+                                    &self.source,
+                                    &self.target,
+                                    &self.status,
+                                );
+                            });
+                    }
+                    CompareState::Loading => {
+                        render_loading_state(ui, middle_h);
+                    }
+                    CompareState::Done => {
+                        // Status summary above diff results
+                        if let Some(msg) = self.status.as_deref() {
+                            ui.label(egui::RichText::new(msg).weak().size(11.0));
+                            ui.add_space(2.0);
                         }
-                    },
+                        let status_used = if self.status.is_some() { 18.0 } else { 0.0 };
+                        render_diff_results(
+                            ui,
+                            &mut self.diff_groups,
+                            (middle_h - status_used).max(40.0),
+                        );
+                    }
+                }
+
+                // ── Footer (sticky bottom) ───────────────────────────────
+                // Push footer to bottom by consuming remaining space
+                let gap = (ui.available_height() - FOOTER_H).max(0.0);
+                if gap > 0.0 {
+                    ui.allocate_space(egui::vec2(0.0, gap));
+                }
+                ui.separator();
+                render_bottom_bar(
+                    ui,
+                    &self.compare_state,
+                    &self.ddl_script,
+                    &mut self.status,
+                    &mut open,
+                    &mut run_compare,
+                    &mut reset_to_idle,
                 );
+
+                if reset_to_idle {
+                    self.compare_state = CompareState::Idle;
+                    self.diff_groups.clear();
+                    self.ddl_script.clear();
+                    self.status = None;
+                } else if run_compare {
+                    if let Some(req) = self.validate_and_create_compare_request() {
+                        self.compare_state = CompareState::Loading;
+                        self.diff_groups.clear();
+                        self.ddl_script.clear();
+                        self.status = Some("Loading schemas...".into());
+                        compare_request = Some(req);
+                    }
+                }
             });
 
         SyncDialogResult {

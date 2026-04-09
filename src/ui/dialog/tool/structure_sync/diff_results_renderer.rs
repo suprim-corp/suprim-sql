@@ -9,9 +9,9 @@ use crate::ui::dialog::tool::structure_sync::types::{DiffEntry, DiffGroup, DiffK
 
 // ── Loading spinner ─────────────────────────────────────────────────────────
 
-pub(crate) fn render_loading_state(ui: &mut egui::Ui) {
+pub(crate) fn render_loading_state(ui: &mut egui::Ui, max_h: f32) {
     ui.vertical_centered(|ui| {
-        ui.add_space(ui.available_height() / 3.0);
+        ui.add_space(max_h / 3.0);
         ui.spinner();
         ui.add_space(8.0);
         ui.label(egui::RichText::new("Comparing schemas...").weak());
@@ -20,12 +20,12 @@ pub(crate) fn render_loading_state(ui: &mut egui::Ui) {
 
 // ── Diff results ────────────────────────────────────────────────────────────
 
-pub(crate) fn render_diff_results(ui: &mut egui::Ui, groups: &mut [DiffGroup]) {
+pub(crate) fn render_diff_results(ui: &mut egui::Ui, groups: &mut [DiffGroup], max_h: f32) {
     let total: usize = groups.iter().map(|g| g.total_count()).sum();
 
     if total == 0 {
         ui.vertical_centered(|ui| {
-            ui.add_space(ui.available_height() / 3.0);
+            ui.add_space(max_h / 3.0);
             ui.label(
                 egui::RichText::new(format!(
                     "{}  Schemas are identical",
@@ -38,12 +38,10 @@ pub(crate) fn render_diff_results(ui: &mut egui::Ui, groups: &mut [DiffGroup]) {
         return;
     }
 
-    // Fill all available height from parent allocate_ui
-    let height = ui.available_height();
-
-    egui::ScrollArea::vertical()
+    egui::ScrollArea::both()
         .id_salt("diff_results")
-        .max_height(height)
+        .max_height(max_h)
+        .auto_shrink(false)
         .show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             for group in groups.iter_mut() {

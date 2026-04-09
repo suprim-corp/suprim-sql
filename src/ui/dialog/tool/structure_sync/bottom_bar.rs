@@ -15,11 +15,6 @@ pub(crate) fn render_bottom_bar(
     run_compare: &mut bool,
     reset_to_idle: &mut bool,
 ) {
-    // Status line above buttons
-    if let Some(msg) = status.as_deref() {
-        ui.label(egui::RichText::new(msg).weak().size(11.0));
-    }
-
     ui.horizontal(|ui| {
         if ui
             .button("Options")
