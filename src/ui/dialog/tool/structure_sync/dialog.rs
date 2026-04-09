@@ -5,9 +5,11 @@
 
 use eframe::egui;
 
+use super::bottom_bar::render_bottom_bar;
+use super::diff_results_renderer::{render_diff_results, render_loading_state};
 use super::state::StructureSyncDialog;
 use super::steps::select;
-use super::types::{CompareRequest, CompareState, DiffEntry, DiffKind, SyncDialogResult};
+use super::types::{CompareRequest, CompareState, SyncDialogResult};
 
 impl StructureSyncDialog {
     /// Render the dialog. Returns actions for the app to handle.
@@ -29,7 +31,6 @@ impl StructureSyncDialog {
                     }
                     continue;
                 }
-                // Need databases?
                 if conn.databases.is_empty() {
                     let key = conn.conn_id;
                     if !self.pending_db_requests.contains(&key) {
@@ -37,7 +38,6 @@ impl StructureSyncDialog {
                         database_requests.push(key);
                     }
                 }
-                // Need schemas?
                 if !ep.database.is_empty() {
                     let key = (conn.conn_id, ep.database.clone());
                     if !self.pending_schema_requests.contains(&key) {
@@ -56,12 +56,19 @@ impl StructureSyncDialog {
             }
         }
 
+        const DIALOG_W: f32 = 720.0;
+        const DIALOG_H: f32 = 480.0;
+
         egui::Window::new("Structure Synchronization")
             .collapsible(false)
             .resizable(false)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .fixed_size([660.0, 560.0])
+            .fixed_size([DIALOG_W, DIALOG_H])
             .show(ctx, |ui| {
+                ui.set_min_height(DIALOG_H);
+                ui.set_max_height(DIALOG_H);
+                ui.set_min_width(DIALOG_W);
+
                 if self.connections.is_empty() {
                     ui.label("No active connections. Connect to a database first.");
                     ui.add_space(8.0);
@@ -75,67 +82,98 @@ impl StructureSyncDialog {
                     return;
                 }
 
-                // Disable pickers while loading comparison
-                let pickers_enabled = self.compare_state != CompareState::Loading;
-                ui.add_enabled_ui(pickers_enabled, |ui| {
-                    select::render_endpoint_pickers(
-                        ui,
-                        &self.connections,
-                        &mut self.source,
-                        &mut self.target,
-                    );
-                });
-
-                ui.add_space(6.0);
-                ui.separator();
-
-                // Show diff results or info panels depending on compare state
+                // ── Top: pickers or summary ─────────────────────────────────
                 match self.compare_state {
                     CompareState::Idle => {
-                        select::render_information_panels(
+                        select::render_endpoint_pickers(
+                            ui,
+                            &self.connections,
+                            &mut self.source,
+                            &mut self.target,
+                        );
+                    }
+                    _ => {
+                        select::render_endpoint_summary(
                             ui,
                             &self.connections,
                             &self.source,
                             &self.target,
-                            &self.status,
                         );
                     }
-                    CompareState::Loading => {
-                        render_loading_state(ui);
-                    }
-                    CompareState::Done => {
-                        render_diff_results(ui, &mut self.diff_entries, &self.ddl_script);
-                        // Status line
-                        if let Some(status) = &self.status {
-                            ui.add_space(4.0);
-                            ui.label(egui::RichText::new(status).weak().size(11.0));
-                        }
-                    }
                 }
 
-                ui.separator();
                 ui.add_space(4.0);
+                ui.separator();
 
-                let mut run_compare = false;
-                render_bottom_bar(
-                    ui,
-                    &self.compare_state,
-                    &self.ddl_script,
-                    &mut self.status,
-                    &mut open,
-                    &mut run_compare,
+                // ── Remaining area: middle + footer ─────────────────────────
+                // Use bottom_up layout so footer renders at the actual bottom,
+                // regardless of how much content the middle section has.
+                let remaining = ui.available_size();
+                let full_w = remaining.x;
+
+                ui.allocate_ui_with_layout(
+                    remaining,
+                    egui::Layout::bottom_up(egui::Align::LEFT),
+                    |ui| {
+                        // Footer (rendered first because bottom_up)
+                        let mut run_compare = false;
+                        let mut reset_to_idle = false;
+                        render_bottom_bar(
+                            ui,
+                            &self.compare_state,
+                            &self.ddl_script,
+                            &mut self.status,
+                            &mut open,
+                            &mut run_compare,
+                            &mut reset_to_idle,
+                        );
+                        ui.add_space(4.0);
+                        ui.separator();
+
+                        // Middle content (rendered second = above footer)
+                        let middle_h = ui.available_height();
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(full_w, middle_h),
+                            egui::Layout::top_down(egui::Align::LEFT),
+                            |ui| match self.compare_state {
+                                CompareState::Idle => {
+                                    select::render_information_panels(
+                                        ui,
+                                        &self.connections,
+                                        &self.source,
+                                        &self.target,
+                                        &self.status,
+                                    );
+                                }
+                                CompareState::Loading => {
+                                    render_loading_state(ui);
+                                }
+                                CompareState::Done => {
+                                    render_diff_results(ui, &mut self.diff_groups);
+                                    if let Some(status) = &self.status {
+                                        ui.add_space(4.0);
+                                        ui.label(egui::RichText::new(status).weak().size(11.0));
+                                    }
+                                }
+                            },
+                        );
+
+                        if reset_to_idle {
+                            self.compare_state = CompareState::Idle;
+                            self.diff_groups.clear();
+                            self.ddl_script.clear();
+                            self.status = None;
+                        } else if run_compare {
+                            if let Some(req) = self.validate_and_create_compare_request() {
+                                self.compare_state = CompareState::Loading;
+                                self.diff_groups.clear();
+                                self.ddl_script.clear();
+                                self.status = Some("Loading schemas...".into());
+                                compare_request = Some(req);
+                            }
+                        }
+                    },
                 );
-
-                if run_compare {
-                    // Validate selections first
-                    if let Some(req) = self.validate_and_create_compare_request() {
-                        self.compare_state = CompareState::Loading;
-                        self.diff_entries.clear();
-                        self.ddl_script.clear();
-                        self.status = Some("Loading schemas...".into());
-                        compare_request = Some(req);
-                    }
-                }
             });
 
         SyncDialogResult {
@@ -147,7 +185,6 @@ impl StructureSyncDialog {
         }
     }
 
-    /// Validate endpoint selections and build a CompareRequest if valid.
     fn validate_and_create_compare_request(&mut self) -> Option<CompareRequest> {
         if self.source.database.is_empty() || self.target.database.is_empty() {
             self.status = Some("Please select a database for both source and target.".into());
@@ -183,124 +220,4 @@ impl StructureSyncDialog {
             target_schema: self.target.schema.clone(),
         })
     }
-}
-
-// ── Diff results rendering ──────────────────────────────────────────────────
-
-fn render_loading_state(ui: &mut egui::Ui) {
-    let avail = ui.available_size();
-    ui.allocate_ui(egui::vec2(avail.x, avail.y.min(180.0)), |ui| {
-        ui.vertical_centered(|ui| {
-            ui.add_space(40.0);
-            ui.spinner();
-            ui.add_space(8.0);
-            ui.label(egui::RichText::new("Comparing schemas...").weak());
-        });
-    });
-}
-
-fn render_diff_results(ui: &mut egui::Ui, entries: &mut [DiffEntry], _ddl_script: &str) {
-    let avail = ui.available_size();
-    let height = (avail.y - 60.0).max(100.0);
-
-    egui::ScrollArea::vertical()
-        .id_salt("diff_results")
-        .max_height(height)
-        .show(ui, |ui| {
-            if entries.is_empty() {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(30.0);
-                    ui.label(
-                        egui::RichText::new(format!(
-                            "{}  Schemas are identical",
-                            egui_phosphor::regular::CHECK_CIRCLE
-                        ))
-                        .size(14.0)
-                        .color(egui::Color32::from_rgb(76, 175, 80)),
-                    );
-                });
-                return;
-            }
-
-            for entry in entries.iter_mut() {
-                let indent = entry.depth as f32 * 16.0;
-                ui.horizontal(|ui| {
-                    ui.add_space(indent);
-                    ui.checkbox(&mut entry.checked, "");
-                    let (icon, color) = match entry.kind {
-                        DiffKind::Added => (
-                            egui_phosphor::regular::PLUS_CIRCLE,
-                            egui::Color32::from_rgb(76, 175, 80),
-                        ),
-                        DiffKind::Removed => (
-                            egui_phosphor::regular::MINUS_CIRCLE,
-                            egui::Color32::from_rgb(244, 67, 54),
-                        ),
-                        DiffKind::Modified => (
-                            egui_phosphor::regular::PENCIL_SIMPLE,
-                            egui::Color32::from_rgb(255, 152, 0),
-                        ),
-                    };
-                    ui.label(egui::RichText::new(icon).color(color));
-                    ui.label(&entry.label);
-                });
-            }
-        });
-}
-
-// ── Bottom bar (extended for compare state) ─────────────────────────────────
-
-fn render_bottom_bar(
-    ui: &mut egui::Ui,
-    compare_state: &CompareState,
-    ddl_script: &str,
-    status: &mut Option<String>,
-    open: &mut bool,
-    run_compare: &mut bool,
-) {
-    ui.horizontal(|ui| {
-        if ui
-            .button("Options")
-            .on_hover_cursor(egui::CursorIcon::PointingHand)
-            .clicked()
-        {
-            // TODO: options dialog
-        }
-
-        if *compare_state == CompareState::Done && !ddl_script.is_empty() {
-            if ui
-                .button(format!(
-                    "{}  Copy Script",
-                    egui_phosphor::regular::CLIPBOARD_TEXT
-                ))
-                .on_hover_cursor(egui::CursorIcon::PointingHand)
-                .clicked()
-            {
-                ui.ctx().copy_text(ddl_script.to_owned());
-                *status = Some("Script copied to clipboard".into());
-            }
-        }
-
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let compare_enabled = *compare_state != CompareState::Loading;
-            let compare_label = match compare_state {
-                CompareState::Loading => "Comparing...",
-                _ => "Compare",
-            };
-            if ui
-                .add_enabled(compare_enabled, egui::Button::new(compare_label))
-                .on_hover_cursor(egui::CursorIcon::PointingHand)
-                .clicked()
-            {
-                *run_compare = true;
-            }
-            if ui
-                .button("Close")
-                .on_hover_cursor(egui::CursorIcon::PointingHand)
-                .clicked()
-            {
-                *open = false;
-            }
-        });
-    });
 }

@@ -1,20 +1,18 @@
-//! DDL script generation from diff entries.
+//! DDL script generation from structured diff entries.
 //!
 //! Takes the source `SchemaNode` + checked `DiffEntry` list and produces
 //! PostgreSQL DDL statements to bring the target schema in sync with source.
 
 use suprim_sql::db::schema::{ColumnNode, ForeignKeyNode, IndexNode, SchemaNode, TableNode};
 
-use crate::ui::dialog::tool::structure_sync::types::{DiffEntry, DiffKind};
+use crate::ui::dialog::tool::structure_sync::types::{DiffEntry, DiffGroup, DiffKind, ObjectType};
 
-/// Generate DDL script from checked diff entries.
-///
-/// `target_schema` is the schema name on the target side (for qualified names).
+/// Generate DDL script from checked diff groups.
 pub(crate) fn generate_ddl(
     source: &SchemaNode,
     target: &SchemaNode,
     target_schema: &str,
-    entries: &[DiffEntry],
+    groups: &[DiffGroup],
 ) -> String {
     let mut lines: Vec<String> = Vec::new();
     lines.push(format!(
@@ -30,127 +28,123 @@ pub(crate) fn generate_ddl(
     let src_tables = table_map(&source.tables);
     let tgt_tables = table_map(&target.tables);
 
-    let mut i = 0;
-    while i < entries.len() {
-        let entry = &entries[i];
-        if !entry.checked {
-            i += 1;
-            continue;
-        }
-
-        match (&entry.kind, parse_object_type(&entry.label)) {
-            // ── CREATE TABLE ────────────────────────────────────────────
-            (DiffKind::Added, Some(("Table", name))) => {
-                if let Some(tbl) = src_tables.get(name) {
-                    lines.push(create_table_ddl(target_schema, tbl));
-                    lines.push(String::new());
-                    // Create indexes for the new table
-                    for idx in &tbl.indexes {
-                        lines.push(create_index_ddl(target_schema, name, idx));
-                    }
-                    // Create FKs for the new table
-                    for fk in &tbl.foreign_keys {
-                        lines.push(add_foreign_key_ddl(target_schema, name, fk));
-                    }
-                }
-                // Skip child entries (columns of the new table)
-                i += 1;
-                while i < entries.len() && entries[i].depth > 0 {
-                    i += 1;
-                }
+    for group in groups {
+        for entry in &group.entries {
+            if !entry.checked {
                 continue;
             }
-
-            // ── DROP TABLE ──────────────────────────────────────────────
-            (DiffKind::Removed, Some(("Table", name))) => {
-                lines.push(format!(
-                    "DROP TABLE IF EXISTS \"{target_schema}\".\"{name}\" CASCADE;"
-                ));
-                lines.push(String::new());
-            }
-
-            // ── ALTER TABLE (modified) ──────────────────────────────────
-            (DiffKind::Modified, Some(("Table", name))) => {
-                // Process child entries for this table
-                i += 1;
-                while i < entries.len() && entries[i].depth > 0 {
-                    let child = &entries[i];
-                    if child.checked {
-                        if let Some(ddl) = alter_table_child_ddl(
-                            target_schema,
-                            name,
-                            child,
-                            &src_tables,
-                            &tgt_tables,
-                        ) {
-                            lines.push(ddl);
-                        }
-                    }
-                    i += 1;
-                }
-                lines.push(String::new());
-                continue;
-            }
-
-            // ── Views ───────────────────────────────────────────────────
-            (DiffKind::Added, Some(("View", name))) => {
-                lines.push(format!(
-                    "-- TODO: CREATE VIEW \"{target_schema}\".\"{name}\" (definition not available from schema introspection);"
-                ));
-                lines.push(String::new());
-            }
-            (DiffKind::Removed, Some(("View", name))) => {
-                lines.push(format!(
-                    "DROP VIEW IF EXISTS \"{target_schema}\".\"{name}\" CASCADE;"
-                ));
-                lines.push(String::new());
-            }
-            (DiffKind::Added, Some(("Materialized View", name))) => {
-                lines.push(format!(
-                    "-- TODO: CREATE MATERIALIZED VIEW \"{target_schema}\".\"{name}\" (definition not available);"
-                ));
-                lines.push(String::new());
-            }
-            (DiffKind::Removed, Some(("Materialized View", name))) => {
-                lines.push(format!(
-                    "DROP MATERIALIZED VIEW IF EXISTS \"{target_schema}\".\"{name}\" CASCADE;"
-                ));
-                lines.push(String::new());
-            }
-
-            // ── Sequences ───────────────────────────────────────────────
-            (DiffKind::Added, Some(("Sequence", name))) => {
-                if let Some(seq) = source.sequences.iter().find(|s| s.name == name) {
-                    lines.push(format!(
-                        "CREATE SEQUENCE \"{target_schema}\".\"{name}\" AS {} INCREMENT BY {} MINVALUE {} MAXVALUE {} START WITH {};",
-                        seq.data_type, seq.increment, seq.min_value, seq.max_value, seq.start_value
-                    ));
-                }
-                lines.push(String::new());
-            }
-            (DiffKind::Removed, Some(("Sequence", name))) => {
-                lines.push(format!(
-                    "DROP SEQUENCE IF EXISTS \"{target_schema}\".\"{name}\" CASCADE;"
-                ));
-                lines.push(String::new());
-            }
-            (DiffKind::Modified, Some(("Sequence", name))) => {
-                if let Some(seq) = source.sequences.iter().find(|s| s.name == name) {
-                    lines.push(format!(
-                        "ALTER SEQUENCE \"{target_schema}\".\"{name}\" AS {} INCREMENT BY {} MINVALUE {} MAXVALUE {};",
-                        seq.data_type, seq.increment, seq.min_value, seq.max_value
-                    ));
-                }
-                lines.push(String::new());
-            }
-
-            _ => {}
+            generate_entry_ddl(
+                target_schema,
+                entry,
+                &src_tables,
+                &tgt_tables,
+                source,
+                &mut lines,
+            );
         }
-
-        i += 1;
     }
 
     lines.join("\n")
+}
+
+fn generate_entry_ddl(
+    schema: &str,
+    entry: &DiffEntry,
+    src_tables: &std::collections::HashMap<&str, &TableNode>,
+    tgt_tables: &std::collections::HashMap<&str, &TableNode>,
+    source: &SchemaNode,
+    lines: &mut Vec<String>,
+) {
+    let name = &entry.name;
+    match (entry.object_type, entry.kind) {
+        // ── Tables ──────────────────────────────────────────────────────
+        (ObjectType::Table, DiffKind::Added) => {
+            if let Some(tbl) = src_tables.get(name.as_str()) {
+                lines.push(create_table_ddl(schema, tbl));
+                lines.push(String::new());
+                for idx in &tbl.indexes {
+                    lines.push(create_index_ddl(schema, name, idx));
+                }
+                for fk in &tbl.foreign_keys {
+                    lines.push(add_foreign_key_ddl(schema, name, fk));
+                }
+            }
+        }
+        (ObjectType::Table, DiffKind::Removed) => {
+            lines.push(format!(
+                "DROP TABLE IF EXISTS \"{schema}\".\"{name}\" CASCADE;"
+            ));
+            lines.push(String::new());
+        }
+        (ObjectType::Table, DiffKind::Modified) => {
+            // Process children (columns, indexes, FKs)
+            for child in &entry.children {
+                if !child.checked {
+                    continue;
+                }
+                if let Some(ddl) =
+                    alter_table_child_ddl(schema, name, child, src_tables, tgt_tables)
+                {
+                    lines.push(ddl);
+                }
+            }
+            lines.push(String::new());
+        }
+
+        // ── Views ───────────────────────────────────────────────────────
+        (ObjectType::View, DiffKind::Added) => {
+            lines.push(format!(
+                "-- TODO: CREATE VIEW \"{schema}\".\"{name}\" (definition not available from schema introspection);"
+            ));
+            lines.push(String::new());
+        }
+        (ObjectType::View, DiffKind::Removed) => {
+            lines.push(format!(
+                "DROP VIEW IF EXISTS \"{schema}\".\"{name}\" CASCADE;"
+            ));
+            lines.push(String::new());
+        }
+        (ObjectType::MaterializedView, DiffKind::Added) => {
+            lines.push(format!(
+                "-- TODO: CREATE MATERIALIZED VIEW \"{schema}\".\"{name}\" (definition not available);"
+            ));
+            lines.push(String::new());
+        }
+        (ObjectType::MaterializedView, DiffKind::Removed) => {
+            lines.push(format!(
+                "DROP MATERIALIZED VIEW IF EXISTS \"{schema}\".\"{name}\" CASCADE;"
+            ));
+            lines.push(String::new());
+        }
+
+        // ── Sequences ───────────────────────────────────────────────────
+        (ObjectType::Sequence, DiffKind::Added) => {
+            if let Some(seq) = source.sequences.iter().find(|s| s.name == *name) {
+                lines.push(format!(
+                    "CREATE SEQUENCE \"{schema}\".\"{name}\" AS {} INCREMENT BY {} MINVALUE {} MAXVALUE {} START WITH {};",
+                    seq.data_type, seq.increment, seq.min_value, seq.max_value, seq.start_value
+                ));
+            }
+            lines.push(String::new());
+        }
+        (ObjectType::Sequence, DiffKind::Removed) => {
+            lines.push(format!(
+                "DROP SEQUENCE IF EXISTS \"{schema}\".\"{name}\" CASCADE;"
+            ));
+            lines.push(String::new());
+        }
+        (ObjectType::Sequence, DiffKind::Modified) => {
+            if let Some(seq) = source.sequences.iter().find(|s| s.name == *name) {
+                lines.push(format!(
+                    "ALTER SEQUENCE \"{schema}\".\"{name}\" AS {} INCREMENT BY {} MINVALUE {} MAXVALUE {};",
+                    seq.data_type, seq.increment, seq.min_value, seq.max_value
+                ));
+            }
+            lines.push(String::new());
+        }
+
+        _ => {}
+    }
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -159,20 +153,82 @@ fn table_map(tables: &[TableNode]) -> std::collections::HashMap<&str, &TableNode
     tables.iter().map(|t| (t.name.as_str(), t)).collect()
 }
 
-/// Parse "Table: users" → Some(("Table", "users"))
-fn parse_object_type(label: &str) -> Option<(&str, &str)> {
-    let label = label.trim();
-    let colon = label.find(':')?;
-    let kind = &label[..colon];
-    let mut name = label[colon + 1..].trim();
-    // Strip trailing modifiers like " (modified)" or " — type: ..."
-    if let Some(paren) = name.find(" (") {
-        name = &name[..paren];
+fn alter_table_child_ddl(
+    schema: &str,
+    table: &str,
+    entry: &DiffEntry,
+    src_tables: &std::collections::HashMap<&str, &TableNode>,
+    _tgt_tables: &std::collections::HashMap<&str, &TableNode>,
+) -> Option<String> {
+    let child_name = &entry.name;
+    match (entry.object_type, entry.kind) {
+        (ObjectType::Column, DiffKind::Added) => {
+            if let Some(tbl) = src_tables.get(table) {
+                if let Some(col) = tbl.columns.iter().find(|c| c.name == *child_name) {
+                    return Some(add_column_ddl(schema, table, col));
+                }
+            }
+            Some(format!(
+                "-- Cannot resolve column definition for {table}.{child_name}"
+            ))
+        }
+        (ObjectType::Column, DiffKind::Removed) => Some(format!(
+            "ALTER TABLE \"{schema}\".\"{table}\" DROP COLUMN \"{child_name}\";"
+        )),
+        (ObjectType::Column, DiffKind::Modified) => {
+            if let Some(tbl) = src_tables.get(table) {
+                if let Some(col) = tbl.columns.iter().find(|c| c.name == *child_name) {
+                    return Some(alter_column_ddl(schema, table, col));
+                }
+            }
+            None
+        }
+
+        (ObjectType::Index, DiffKind::Added) => {
+            if let Some(tbl) = src_tables.get(table) {
+                if let Some(idx) = tbl.indexes.iter().find(|i| i.name == *child_name) {
+                    return Some(create_index_ddl(schema, table, idx));
+                }
+            }
+            None
+        }
+        (ObjectType::Index, DiffKind::Removed) => Some(format!(
+            "DROP INDEX IF EXISTS \"{schema}\".\"{child_name}\";"
+        )),
+        (ObjectType::Index, DiffKind::Modified) => {
+            let mut ddl = format!("DROP INDEX IF EXISTS \"{schema}\".\"{child_name}\";\n");
+            if let Some(tbl) = src_tables.get(table) {
+                if let Some(idx) = tbl.indexes.iter().find(|i| i.name == *child_name) {
+                    ddl.push_str(&create_index_ddl(schema, table, idx));
+                }
+            }
+            Some(ddl)
+        }
+
+        (ObjectType::ForeignKey, DiffKind::Added) => {
+            if let Some(tbl) = src_tables.get(table) {
+                if let Some(fk) = tbl.foreign_keys.iter().find(|f| f.name == *child_name) {
+                    return Some(add_foreign_key_ddl(schema, table, fk));
+                }
+            }
+            None
+        }
+        (ObjectType::ForeignKey, DiffKind::Removed) => Some(format!(
+            "ALTER TABLE \"{schema}\".\"{table}\" DROP CONSTRAINT \"{child_name}\";"
+        )),
+        (ObjectType::ForeignKey, DiffKind::Modified) => {
+            let mut ddl =
+                format!("ALTER TABLE \"{schema}\".\"{table}\" DROP CONSTRAINT \"{child_name}\";\n");
+            if let Some(tbl) = src_tables.get(table) {
+                if let Some(fk) = tbl.foreign_keys.iter().find(|f| f.name == *child_name) {
+                    ddl.push_str(&add_foreign_key_ddl(schema, table, fk));
+                }
+            }
+            Some(ddl)
+        }
+
+        _ => None,
     }
-    if let Some(dash) = name.find(" —") {
-        name = &name[..dash];
-    }
-    Some((kind, name))
 }
 
 fn create_table_ddl(schema: &str, tbl: &TableNode) -> String {
@@ -246,95 +302,6 @@ fn add_foreign_key_ddl(schema: &str, table: &str, fk: &ForeignKeyNode) -> String
         "ALTER TABLE \"{schema}\".\"{table}\" ADD CONSTRAINT \"{}\" FOREIGN KEY ({cols}) REFERENCES \"{schema}\".\"{}\" ({ref_cols});",
         fk.name, fk.ref_table
     )
-}
-
-fn alter_table_child_ddl(
-    schema: &str,
-    table: &str,
-    entry: &DiffEntry,
-    src_tables: &std::collections::HashMap<&str, &TableNode>,
-    _tgt_tables: &std::collections::HashMap<&str, &TableNode>,
-) -> Option<String> {
-    let label = entry.label.trim();
-
-    if let Some(rest) = label.strip_prefix("Column: ") {
-        let col_name = rest.split_whitespace().next().unwrap_or(rest);
-        match entry.kind {
-            DiffKind::Added => {
-                // Find column definition from source
-                if let Some(tbl) = src_tables.get(table) {
-                    if let Some(col) = tbl.columns.iter().find(|c| c.name == col_name) {
-                        return Some(add_column_ddl(schema, table, col));
-                    }
-                }
-                Some(format!(
-                    "-- Cannot resolve column definition for {table}.{col_name}"
-                ))
-            }
-            DiffKind::Removed => Some(format!(
-                "ALTER TABLE \"{schema}\".\"{table}\" DROP COLUMN \"{col_name}\";"
-            )),
-            DiffKind::Modified => {
-                if let Some(tbl) = src_tables.get(table) {
-                    if let Some(col) = tbl.columns.iter().find(|c| c.name == col_name) {
-                        return Some(alter_column_ddl(schema, table, col));
-                    }
-                }
-                None
-            }
-        }
-    } else if let Some(rest) = label.strip_prefix("Index: ") {
-        let idx_name = rest.split_whitespace().next().unwrap_or(rest);
-        match entry.kind {
-            DiffKind::Added => {
-                if let Some(tbl) = src_tables.get(table) {
-                    if let Some(idx) = tbl.indexes.iter().find(|i| i.name == idx_name) {
-                        return Some(create_index_ddl(schema, table, idx));
-                    }
-                }
-                None
-            }
-            DiffKind::Removed => Some(format!("DROP INDEX IF EXISTS \"{schema}\".\"{idx_name}\";")),
-            DiffKind::Modified => {
-                // Drop and recreate
-                let mut ddl = format!("DROP INDEX IF EXISTS \"{schema}\".\"{idx_name}\";\n");
-                if let Some(tbl) = src_tables.get(table) {
-                    if let Some(idx) = tbl.indexes.iter().find(|i| i.name == idx_name) {
-                        ddl.push_str(&create_index_ddl(schema, table, idx));
-                    }
-                }
-                Some(ddl)
-            }
-        }
-    } else if let Some(rest) = label.strip_prefix("FK: ") {
-        let fk_name = rest.split_whitespace().next().unwrap_or(rest);
-        match entry.kind {
-            DiffKind::Added => {
-                if let Some(tbl) = src_tables.get(table) {
-                    if let Some(fk) = tbl.foreign_keys.iter().find(|f| f.name == fk_name) {
-                        return Some(add_foreign_key_ddl(schema, table, fk));
-                    }
-                }
-                None
-            }
-            DiffKind::Removed => Some(format!(
-                "ALTER TABLE \"{schema}\".\"{table}\" DROP CONSTRAINT \"{fk_name}\";"
-            )),
-            DiffKind::Modified => {
-                let mut ddl = format!(
-                    "ALTER TABLE \"{schema}\".\"{table}\" DROP CONSTRAINT \"{fk_name}\";\n"
-                );
-                if let Some(tbl) = src_tables.get(table) {
-                    if let Some(fk) = tbl.foreign_keys.iter().find(|f| f.name == fk_name) {
-                        ddl.push_str(&add_foreign_key_ddl(schema, table, fk));
-                    }
-                }
-                Some(ddl)
-            }
-        }
-    } else {
-        None
-    }
 }
 
 fn add_column_ddl(schema: &str, table: &str, col: &ColumnNode) -> String {

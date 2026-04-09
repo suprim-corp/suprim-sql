@@ -1,16 +1,17 @@
 /// Structure Synchronization dialog — compare schemas between two connections.
 ///
 /// File layout:
-/// - `state.rs`  — dialog struct, construction, event-driven data updates
-/// - `dialog.rs` — UI orchestration (show method, egui::Window, step routing)
-/// - `types.rs`  — shared types (ConnInfo, Endpoint, DiffEntry, WizardStep, etc.)
-/// - `steps/`    — wizard step implementations:
-///     - `select/`  — endpoint picker, header banner, info panel
-///     - `compare/` — schema comparison logic
-///     - `review/`  — diff review with checkboxes
-///     - `preview/` — DDL script viewer
-///     - `execute/` — DDL execution with progress
+/// - `state.rs`                 — dialog struct, construction, event-driven data updates
+/// - `dialog.rs`                — UI orchestration (show method, egui::Window, step routing)
+/// - `diff_results_renderer.rs` — diff results UI (loading, groups, entries, inline rows)
+/// - `bottom_bar.rs`            — bottom bar (Options, Copy Script, Close, Compare)
+/// - `types.rs`                 — shared types (ConnInfo, Endpoint, DiffEntry, WizardStep, etc.)
+/// - `steps/`                   — wizard step implementations:
+///     - `select/`  — endpoint picker, info panel
+///     - `compare/` — schema comparison logic + DDL generation
+mod bottom_bar;
 mod dialog;
+mod diff_results_renderer;
 pub(crate) mod state;
 pub(crate) mod steps;
 pub(crate) mod types;

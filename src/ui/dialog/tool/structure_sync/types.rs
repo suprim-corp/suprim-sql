@@ -90,17 +90,85 @@ pub struct SyncDialogResult {
     pub compare_request: Option<CompareRequest>,
 }
 
-#[derive(Clone)]
-pub(crate) struct DiffEntry {
-    pub label: String,
-    pub kind: DiffKind,
-    pub checked: bool,
-    pub depth: u8,
+// ── Diff model ──────────────────────────────────────────────────────────────
+
+/// What kind of change an entry represents.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DiffKind {
+    /// Object exists in source but not target → needs to be created on target.
+    Added,
+    /// Object exists in target but not source → needs to be removed from target.
+    Removed,
+    /// Object exists on both sides but differs.
+    Modified,
 }
 
-#[derive(Clone, Copy, PartialEq)]
-pub(crate) enum DiffKind {
-    Added,
-    Removed,
-    Modified,
+/// What type of database object an entry represents.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ObjectType {
+    Table,
+    Column,
+    Index,
+    ForeignKey,
+    View,
+    MaterializedView,
+    Sequence,
+}
+
+impl ObjectType {
+    /// Icon string for this object type (using egui_phosphor icons).
+    pub fn icon(&self) -> &'static str {
+        match self {
+            Self::Table => egui_phosphor::regular::TABLE,
+            Self::Column => egui_phosphor::regular::COLUMNS,
+            Self::Index => egui_phosphor::regular::SORT_ASCENDING,
+            Self::ForeignKey => egui_phosphor::regular::LINK,
+            Self::View => egui_phosphor::regular::EYE,
+            Self::MaterializedView => egui_phosphor::regular::DATABASE,
+            Self::Sequence => egui_phosphor::regular::HASH,
+        }
+    }
+}
+
+/// A single diff entry — one database object that differs between source and target.
+#[derive(Clone)]
+pub(crate) struct DiffEntry {
+    /// The object type (Table, Column, Index, etc.).
+    pub object_type: ObjectType,
+    /// The object name.
+    pub name: String,
+    /// Optional detail string (e.g. column type, index columns).
+    pub detail: String,
+    /// What kind of change.
+    pub kind: DiffKind,
+    /// Whether the user wants to include this in the DDL script.
+    pub checked: bool,
+    /// Child entries (e.g. columns/indexes/FKs under a table).
+    pub children: Vec<DiffEntry>,
+}
+
+/// A top-level group in the diff results UI (Modified / Created / Deleted).
+pub(crate) struct DiffGroup {
+    pub kind: DiffKind,
+    pub entries: Vec<DiffEntry>,
+}
+
+impl DiffGroup {
+    pub fn label(&self) -> &'static str {
+        match self.kind {
+            DiffKind::Modified => "Objects to be modified",
+            DiffKind::Added => "Objects to be created",
+            DiffKind::Removed => "Objects to be deleted",
+        }
+    }
+
+    /// Count of checked entries (top-level only).
+    pub fn checked_count(&self) -> usize {
+        self.entries.iter().filter(|e| e.checked).count()
+    }
+
+    /// Total number of entries (top-level only).
+    pub fn total_count(&self) -> usize {
+        self.entries.len()
+    }
 }

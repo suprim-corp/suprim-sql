@@ -3,7 +3,7 @@
 use suprim_sql::db::schema::SchemaNode;
 
 use super::steps::compare::{ddl_generator, diff_engine};
-use super::types::{CompareState, ConnInfo, DbInfo, DiffEntry, Endpoint, WizardStep};
+use super::types::{CompareState, ConnInfo, DbInfo, DiffGroup, DiffKind, Endpoint, WizardStep};
 
 /// Top-level dialog state.
 pub struct StructureSyncDialog {
@@ -12,7 +12,8 @@ pub struct StructureSyncDialog {
     pub(super) target: Endpoint,
     #[allow(dead_code)]
     pub(super) step: WizardStep,
-    pub(super) diff_entries: Vec<DiffEntry>,
+    /// Three groups: Modified, Created, Deleted.
+    pub(super) diff_groups: Vec<DiffGroup>,
     pub(super) ddl_script: String,
     pub(super) compare_state: CompareState,
     pub(super) status: Option<String>,
@@ -39,7 +40,7 @@ impl StructureSyncDialog {
             source,
             target,
             step: WizardStep::default(),
-            diff_entries: Vec::new(),
+            diff_groups: Vec::new(),
             ddl_script: String::new(),
             compare_state: CompareState::default(),
             status: None,
@@ -142,37 +143,55 @@ impl StructureSyncDialog {
     /// Called when the DB worker returns both schema nodes.
     /// Runs diff + DDL generation on the UI thread (fast, pure Rust).
     pub fn on_schemas_compared(&mut self, source: SchemaNode, target: SchemaNode) {
-        self.diff_entries = diff_engine::diff_schemas(&source, &target);
+        let all_entries = diff_engine::diff_schemas(&source, &target);
+
+        // Group entries by DiffKind into 3 groups (Modified, Created, Deleted).
+        let modified: Vec<_> = all_entries
+            .iter()
+            .filter(|e| e.kind == DiffKind::Modified)
+            .cloned()
+            .collect();
+        let added: Vec<_> = all_entries
+            .iter()
+            .filter(|e| e.kind == DiffKind::Added)
+            .cloned()
+            .collect();
+        let removed: Vec<_> = all_entries
+            .into_iter()
+            .filter(|e| e.kind == DiffKind::Removed)
+            .collect();
+
+        self.diff_groups = vec![
+            DiffGroup {
+                kind: DiffKind::Modified,
+                entries: modified,
+            },
+            DiffGroup {
+                kind: DiffKind::Added,
+                entries: added,
+            },
+            DiffGroup {
+                kind: DiffKind::Removed,
+                entries: removed,
+            },
+        ];
+
         self.ddl_script =
-            ddl_generator::generate_ddl(&source, &target, &self.target.schema, &self.diff_entries);
+            ddl_generator::generate_ddl(&source, &target, &self.target.schema, &self.diff_groups);
         self.source_schema_node = Some(source);
         self.target_schema_node = Some(target);
         self.compare_state = CompareState::Done;
 
-        if self.diff_entries.is_empty() {
+        let total: usize = self.diff_groups.iter().map(|g| g.total_count()).sum();
+        if total == 0 {
             self.status = Some("Schemas are identical — no differences found.".into());
         } else {
-            let added = self
-                .diff_entries
-                .iter()
-                .filter(|e| e.kind == super::types::DiffKind::Added && e.depth == 0)
-                .count();
-            let removed = self
-                .diff_entries
-                .iter()
-                .filter(|e| e.kind == super::types::DiffKind::Removed && e.depth == 0)
-                .count();
-            let modified = self
-                .diff_entries
-                .iter()
-                .filter(|e| e.kind == super::types::DiffKind::Modified && e.depth == 0)
-                .count();
+            let added = self.diff_groups[1].total_count();
+            let removed = self.diff_groups[2].total_count();
+            let modified = self.diff_groups[0].total_count();
             self.status = Some(format!(
                 "Found {} difference(s): {} added, {} removed, {} modified",
-                added + removed + modified,
-                added,
-                removed,
-                modified,
+                total, added, removed, modified,
             ));
         }
     }
@@ -182,7 +201,7 @@ impl StructureSyncDialog {
     pub(super) fn regenerate_script(&mut self) {
         if let (Some(src), Some(tgt)) = (&self.source_schema_node, &self.target_schema_node) {
             self.ddl_script =
-                ddl_generator::generate_ddl(src, tgt, &self.target.schema, &self.diff_entries);
+                ddl_generator::generate_ddl(src, tgt, &self.target.schema, &self.diff_groups);
         }
     }
 }

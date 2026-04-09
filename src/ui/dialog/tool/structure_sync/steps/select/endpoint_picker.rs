@@ -6,6 +6,71 @@ use eframe::egui;
 
 use crate::ui::dialog::tool::structure_sync::types::{ConnInfo, Endpoint};
 
+/// Render read-only summary of selected endpoints (used in compare/results steps).
+pub(crate) fn render_endpoint_summary(
+    ui: &mut egui::Ui,
+    connections: &[ConnInfo],
+    source: &Endpoint,
+    target: &Endpoint,
+) {
+    ui.columns(2, |cols| {
+        render_summary_side(
+            &mut cols[0],
+            "Source",
+            egui::Color32::from_rgb(66, 165, 245),
+            connections,
+            source,
+        );
+        render_summary_side(
+            &mut cols[1],
+            "Target",
+            egui::Color32::from_rgb(76, 175, 80),
+            connections,
+            target,
+        );
+    });
+}
+
+fn render_summary_side(
+    ui: &mut egui::Ui,
+    label: &str,
+    label_color: egui::Color32,
+    connections: &[ConnInfo],
+    endpoint: &Endpoint,
+) {
+    ui.label(
+        egui::RichText::new(label)
+            .color(label_color)
+            .strong()
+            .size(13.0),
+    );
+
+    let conn_label = connections
+        .get(endpoint.conn_idx)
+        .map(|c| c.label.as_str())
+        .unwrap_or("—");
+    let db_label = if endpoint.database.is_empty() {
+        "—"
+    } else {
+        &endpoint.database
+    };
+    let schema_label = if endpoint.schema.is_empty() {
+        "—"
+    } else {
+        &endpoint.schema
+    };
+
+    let weak = ui.visuals().weak_text_color();
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(egui_phosphor::regular::DATABASE).color(weak));
+        ui.label(conn_label);
+        ui.label(egui::RichText::new("/").color(weak));
+        ui.label(db_label);
+        ui.label(egui::RichText::new("/").color(weak));
+        ui.label(schema_label);
+    });
+}
+
 /// Render source + target pickers side by side.
 pub(crate) fn render_endpoint_pickers(
     ui: &mut egui::Ui,

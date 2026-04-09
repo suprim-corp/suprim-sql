@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use suprim_sql::db::schema::{ColumnNode, ForeignKeyNode, IndexNode, TableNode};
 
-use crate::ui::dialog::tool::structure_sync::types::{DiffEntry, DiffKind};
+use crate::ui::dialog::tool::structure_sync::types::{DiffEntry, DiffKind, ObjectType};
 
 // ── Tables ──────────────────────────────────────────────────────────────────
 
@@ -12,25 +12,49 @@ pub(super) fn diff_tables(source: &[TableNode], target: &[TableNode], out: &mut 
     let src_map: HashMap<&str, &TableNode> = source.iter().map(|t| (t.name.as_str(), t)).collect();
     let tgt_map: HashMap<&str, &TableNode> = target.iter().map(|t| (t.name.as_str(), t)).collect();
 
-    // Tables only in source → need to be ADDED to target
+    // Tables only in source → need to be CREATED on target
     for name in sorted_keys(&src_map) {
         if !tgt_map.contains_key(name) {
+            let tbl = src_map[name];
+            let mut children = Vec::new();
+            for col in &tbl.columns {
+                children.push(DiffEntry {
+                    object_type: ObjectType::Column,
+                    name: col.name.clone(),
+                    detail: col_signature(col),
+                    kind: DiffKind::Added,
+                    checked: true,
+                    children: Vec::new(),
+                });
+            }
+            for idx in &tbl.indexes {
+                children.push(DiffEntry {
+                    object_type: ObjectType::Index,
+                    name: idx.name.clone(),
+                    detail: idx_detail(idx),
+                    kind: DiffKind::Added,
+                    checked: true,
+                    children: Vec::new(),
+                });
+            }
+            for fk in &tbl.foreign_keys {
+                children.push(DiffEntry {
+                    object_type: ObjectType::ForeignKey,
+                    name: fk.name.clone(),
+                    detail: fk_detail(fk),
+                    kind: DiffKind::Added,
+                    checked: true,
+                    children: Vec::new(),
+                });
+            }
             out.push(DiffEntry {
-                label: format!("Table: {name}"),
+                object_type: ObjectType::Table,
+                name: name.to_string(),
+                detail: String::new(),
                 kind: DiffKind::Added,
                 checked: true,
-                depth: 0,
+                children,
             });
-            if let Some(tbl) = src_map.get(name) {
-                for col in &tbl.columns {
-                    out.push(DiffEntry {
-                        label: format!("  Column: {} {}", col.name, col_signature(col)),
-                        kind: DiffKind::Added,
-                        checked: true,
-                        depth: 1,
-                    });
-                }
-            }
         }
     }
 
@@ -38,10 +62,12 @@ pub(super) fn diff_tables(source: &[TableNode], target: &[TableNode], out: &mut 
     for name in sorted_keys(&tgt_map) {
         if !src_map.contains_key(name) {
             out.push(DiffEntry {
-                label: format!("Table: {name}"),
+                object_type: ObjectType::Table,
+                name: name.to_string(),
+                detail: String::new(),
                 kind: DiffKind::Removed,
                 checked: true,
-                depth: 0,
+                children: Vec::new(),
             });
         }
     }
@@ -63,12 +89,13 @@ fn diff_single_table(name: &str, source: &TableNode, target: &TableNode, out: &m
 
     if !children.is_empty() {
         out.push(DiffEntry {
-            label: format!("Table: {name}"),
+            object_type: ObjectType::Table,
+            name: name.to_string(),
+            detail: String::new(),
             kind: DiffKind::Modified,
             checked: true,
-            depth: 0,
+            children,
         });
-        out.extend(children);
     }
 }
 
@@ -82,21 +109,26 @@ pub(crate) fn diff_columns(source: &[ColumnNode], target: &[ColumnNode], out: &m
         if !tgt_map.contains_key(name) {
             let col = src_map[name];
             out.push(DiffEntry {
-                label: format!("  Column: {name} {}", col_signature(col)),
+                object_type: ObjectType::Column,
+                name: name.to_string(),
+                detail: col_signature(col),
                 kind: DiffKind::Added,
                 checked: true,
-                depth: 1,
+                children: Vec::new(),
             });
         }
     }
 
     for name in sorted_keys(&tgt_map) {
         if !src_map.contains_key(name) {
+            let col = tgt_map[name];
             out.push(DiffEntry {
-                label: format!("  Column: {name}"),
+                object_type: ObjectType::Column,
+                name: name.to_string(),
+                detail: col_signature(col),
                 kind: DiffKind::Removed,
                 checked: true,
-                depth: 1,
+                children: Vec::new(),
             });
         }
     }
@@ -106,10 +138,12 @@ pub(crate) fn diff_columns(source: &[ColumnNode], target: &[ColumnNode], out: &m
             let changes = column_changes(src, tgt);
             if !changes.is_empty() {
                 out.push(DiffEntry {
-                    label: format!("  Column: {name} — {changes}"),
+                    object_type: ObjectType::Column,
+                    name: name.to_string(),
+                    detail: changes,
                     kind: DiffKind::Modified,
                     checked: true,
-                    depth: 1,
+                    children: Vec::new(),
                 });
             }
         }
@@ -146,6 +180,21 @@ fn column_changes(src: &ColumnNode, tgt: &ColumnNode) -> String {
     diffs.join(", ")
 }
 
+fn idx_detail(idx: &IndexNode) -> String {
+    let cols = idx.columns.join(", ");
+    if idx.is_unique {
+        format!("UNIQUE ({cols})")
+    } else {
+        format!("({cols})")
+    }
+}
+
+fn fk_detail(fk: &ForeignKeyNode) -> String {
+    let cols = fk.columns.join(", ");
+    let refs = format!("{}({})", fk.ref_table, fk.ref_columns.join(", "));
+    format!("({cols}) → {refs}")
+}
+
 // ── Indexes ─────────────────────────────────────────────────────────────────
 
 fn diff_indexes(source: &[IndexNode], target: &[IndexNode], out: &mut Vec<DiffEntry>) {
@@ -154,14 +203,13 @@ fn diff_indexes(source: &[IndexNode], target: &[IndexNode], out: &mut Vec<DiffEn
 
     for name in sorted_keys(&src_map) {
         if !tgt_map.contains_key(name) {
-            let idx = src_map[name];
-            let cols = idx.columns.join(", ");
-            let uniq = if idx.is_unique { " UNIQUE" } else { "" };
             out.push(DiffEntry {
-                label: format!("  Index: {name}{uniq} ({cols})"),
+                object_type: ObjectType::Index,
+                name: name.to_string(),
+                detail: idx_detail(src_map[name]),
                 kind: DiffKind::Added,
                 checked: true,
-                depth: 1,
+                children: Vec::new(),
             });
         }
     }
@@ -169,10 +217,12 @@ fn diff_indexes(source: &[IndexNode], target: &[IndexNode], out: &mut Vec<DiffEn
     for name in sorted_keys(&tgt_map) {
         if !src_map.contains_key(name) {
             out.push(DiffEntry {
-                label: format!("  Index: {name}"),
+                object_type: ObjectType::Index,
+                name: name.to_string(),
+                detail: idx_detail(tgt_map[name]),
                 kind: DiffKind::Removed,
                 checked: true,
-                depth: 1,
+                children: Vec::new(),
             });
         }
     }
@@ -181,10 +231,12 @@ fn diff_indexes(source: &[IndexNode], target: &[IndexNode], out: &mut Vec<DiffEn
         if let (Some(src), Some(tgt)) = (src_map.get(name), tgt_map.get(name)) {
             if src.columns != tgt.columns || src.is_unique != tgt.is_unique {
                 out.push(DiffEntry {
-                    label: format!("  Index: {name} (modified)"),
+                    object_type: ObjectType::Index,
+                    name: name.to_string(),
+                    detail: format!("{} → {}", idx_detail(tgt), idx_detail(src)),
                     kind: DiffKind::Modified,
                     checked: true,
-                    depth: 1,
+                    children: Vec::new(),
                 });
             }
         }
@@ -205,14 +257,13 @@ fn diff_foreign_keys(
 
     for name in sorted_keys(&src_map) {
         if !tgt_map.contains_key(name) {
-            let fk = src_map[name];
-            let cols = fk.columns.join(", ");
-            let refs = format!("{}({})", fk.ref_table, fk.ref_columns.join(", "));
             out.push(DiffEntry {
-                label: format!("  FK: {name} ({cols}) → {refs}"),
+                object_type: ObjectType::ForeignKey,
+                name: name.to_string(),
+                detail: fk_detail(src_map[name]),
                 kind: DiffKind::Added,
                 checked: true,
-                depth: 1,
+                children: Vec::new(),
             });
         }
     }
@@ -220,10 +271,12 @@ fn diff_foreign_keys(
     for name in sorted_keys(&tgt_map) {
         if !src_map.contains_key(name) {
             out.push(DiffEntry {
-                label: format!("  FK: {name}"),
+                object_type: ObjectType::ForeignKey,
+                name: name.to_string(),
+                detail: fk_detail(tgt_map[name]),
                 kind: DiffKind::Removed,
                 checked: true,
-                depth: 1,
+                children: Vec::new(),
             });
         }
     }
@@ -235,10 +288,12 @@ fn diff_foreign_keys(
                 || src.ref_columns != tgt.ref_columns
             {
                 out.push(DiffEntry {
-                    label: format!("  FK: {name} (modified)"),
+                    object_type: ObjectType::ForeignKey,
+                    name: name.to_string(),
+                    detail: format!("{} → {}", fk_detail(tgt), fk_detail(src)),
                     kind: DiffKind::Modified,
                     checked: true,
-                    depth: 1,
+                    children: Vec::new(),
                 });
             }
         }

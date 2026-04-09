@@ -4,28 +4,35 @@ use std::collections::HashMap;
 
 use suprim_sql::db::schema::{SequenceNode, ViewNode};
 
-use crate::ui::dialog::tool::structure_sync::types::{DiffEntry, DiffKind};
+use crate::ui::dialog::tool::structure_sync::types::{DiffEntry, DiffKind, ObjectType};
 
 use super::diff_tables::diff_columns;
 
 // ── Views ───────────────────────────────────────────────────────────────────
 
 pub(super) fn diff_views(
-    kind_label: &str,
+    materialized: bool,
     source: &[ViewNode],
     target: &[ViewNode],
     out: &mut Vec<DiffEntry>,
 ) {
+    let obj_type = if materialized {
+        ObjectType::MaterializedView
+    } else {
+        ObjectType::View
+    };
     let src_map: HashMap<&str, &ViewNode> = source.iter().map(|v| (v.name.as_str(), v)).collect();
     let tgt_map: HashMap<&str, &ViewNode> = target.iter().map(|v| (v.name.as_str(), v)).collect();
 
     for name in sorted_keys(&src_map) {
         if !tgt_map.contains_key(name) {
             out.push(DiffEntry {
-                label: format!("{kind_label}: {name}"),
+                object_type: obj_type,
+                name: name.to_string(),
+                detail: String::new(),
                 kind: DiffKind::Added,
                 checked: true,
-                depth: 0,
+                children: Vec::new(),
             });
         }
     }
@@ -33,10 +40,12 @@ pub(super) fn diff_views(
     for name in sorted_keys(&tgt_map) {
         if !src_map.contains_key(name) {
             out.push(DiffEntry {
-                label: format!("{kind_label}: {name}"),
+                object_type: obj_type,
+                name: name.to_string(),
+                detail: String::new(),
                 kind: DiffKind::Removed,
                 checked: true,
-                depth: 0,
+                children: Vec::new(),
             });
         }
     }
@@ -48,12 +57,13 @@ pub(super) fn diff_views(
             diff_columns(&src.columns, &tgt.columns, &mut children);
             if !children.is_empty() {
                 out.push(DiffEntry {
-                    label: format!("{kind_label}: {name}"),
+                    object_type: obj_type,
+                    name: name.to_string(),
+                    detail: String::new(),
                     kind: DiffKind::Modified,
                     checked: true,
-                    depth: 0,
+                    children,
                 });
-                out.extend(children);
             }
         }
     }
@@ -74,10 +84,12 @@ pub(super) fn diff_sequences(
     for name in sorted_keys(&src_map) {
         if !tgt_map.contains_key(name) {
             out.push(DiffEntry {
-                label: format!("Sequence: {name}"),
+                object_type: ObjectType::Sequence,
+                name: name.to_string(),
+                detail: String::new(),
                 kind: DiffKind::Added,
                 checked: true,
-                depth: 0,
+                children: Vec::new(),
             });
         }
     }
@@ -85,10 +97,12 @@ pub(super) fn diff_sequences(
     for name in sorted_keys(&tgt_map) {
         if !src_map.contains_key(name) {
             out.push(DiffEntry {
-                label: format!("Sequence: {name}"),
+                object_type: ObjectType::Sequence,
+                name: name.to_string(),
+                detail: String::new(),
                 kind: DiffKind::Removed,
                 checked: true,
-                depth: 0,
+                children: Vec::new(),
             });
         }
     }
@@ -101,10 +115,15 @@ pub(super) fn diff_sequences(
                 || src.max_value != tgt.max_value
             {
                 out.push(DiffEntry {
-                    label: format!("Sequence: {name} (modified)"),
+                    object_type: ObjectType::Sequence,
+                    name: name.to_string(),
+                    detail: format!(
+                        "{} inc={} → {} inc={}",
+                        tgt.data_type, tgt.increment, src.data_type, src.increment
+                    ),
                     kind: DiffKind::Modified,
                     checked: true,
-                    depth: 0,
+                    children: Vec::new(),
                 });
             }
         }
