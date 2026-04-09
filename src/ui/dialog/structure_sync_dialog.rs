@@ -7,7 +7,7 @@
 use eframe::egui;
 
 use super::structure_sync_renderer as renderer;
-pub use super::structure_sync_types::{ConnInfo, ConnMeta, DbInfo};
+pub use super::structure_sync_types::{ConnInfo, ConnMeta, DbInfo, SyncDialogResult};
 use super::structure_sync_types::{DiffEntry, DiffKind, Endpoint};
 
 /// Top-level dialog state.
@@ -19,6 +19,10 @@ pub struct StructureSyncDialog {
     ddl_script: String,
     compared: bool,
     status: Option<String>,
+    /// Track which (conn_id, database) combos already had schema requests sent.
+    pending_schema_requests: std::collections::HashSet<(uuid::Uuid, String)>,
+    /// Track which conn_ids already had database list requests sent.
+    pending_db_requests: std::collections::HashSet<uuid::Uuid>,
 }
 
 // ── Construction ────────────────────────────────────────────────────────
@@ -37,6 +41,8 @@ impl StructureSyncDialog {
             ddl_script: String::new(),
             compared: false,
             status: None,
+            pending_schema_requests: std::collections::HashSet::new(),
+            pending_db_requests: std::collections::HashSet::new(),
         }
     }
 
@@ -62,9 +68,41 @@ impl StructureSyncDialog {
         }
     }
 
-    /// Render the dialog. Returns `false` when the user closes it.
-    pub fn show(&mut self, ctx: &egui::Context) -> bool {
+    /// Render the dialog. Returns actions for the app to handle.
+    pub fn show(&mut self, ctx: &egui::Context) -> SyncDialogResult {
         let mut open = true;
+        let mut schema_requests = Vec::new();
+        let mut database_requests = Vec::new();
+
+        // Check if selected endpoints need database or schema loading
+        for ep in [&self.source, &self.target] {
+            if let Some(conn) = self.connections.get(ep.conn_idx) {
+                // Need databases?
+                if conn.databases.is_empty() {
+                    let key = conn.conn_id;
+                    if !self.pending_db_requests.contains(&key) {
+                        self.pending_db_requests.insert(key);
+                        database_requests.push(key);
+                    }
+                }
+                // Need schemas?
+                if !ep.database.is_empty() {
+                    let key = (conn.conn_id, ep.database.clone());
+                    if !self.pending_schema_requests.contains(&key) {
+                        let has_schemas = conn
+                            .databases
+                            .iter()
+                            .find(|d| d.name == ep.database)
+                            .map(|d| !d.schemas.is_empty())
+                            .unwrap_or(false);
+                        if !has_schemas {
+                            self.pending_schema_requests.insert(key.clone());
+                            schema_requests.push(key);
+                        }
+                    }
+                }
+            }
+        }
 
         egui::Window::new("Structure Synchronization")
             .collapsible(false)
@@ -119,7 +157,76 @@ impl StructureSyncDialog {
                 }
             });
 
-        open
+        SyncDialogResult {
+            open,
+            schema_requests,
+            database_requests,
+        }
+    }
+
+    /// Update schema list for a connection+database when new data arrives.
+    pub fn update_schemas(&mut self, conn_id: uuid::Uuid, database: &str, schemas: Vec<String>) {
+        // Clear from pending set
+        self.pending_schema_requests
+            .remove(&(conn_id, database.to_string()));
+
+        for conn in &mut self.connections {
+            if conn.conn_id == conn_id {
+                if let Some(db) = conn.databases.iter_mut().find(|d| d.name == database) {
+                    db.schemas = schemas.clone();
+                }
+            }
+        }
+        // Auto-select first schema if endpoint's schema is empty
+        for ep in [&mut self.source, &mut self.target] {
+            if let Some(conn) = self.connections.get(ep.conn_idx) {
+                if conn.conn_id == conn_id && ep.database == database && ep.schema.is_empty() {
+                    if let Some(db) = conn.databases.iter().find(|d| d.name == database) {
+                        ep.schema = db.schemas.first().cloned().unwrap_or_default();
+                    }
+                }
+            }
+        }
+    }
+
+    /// Update database list for a connection when new data arrives.
+    pub fn update_databases(&mut self, conn_id: uuid::Uuid, databases: Vec<String>) {
+        use super::structure_sync_types::DbInfo;
+
+        self.pending_db_requests.remove(&conn_id);
+
+        for conn in &mut self.connections {
+            if conn.conn_id == conn_id {
+                conn.databases = databases
+                    .iter()
+                    .map(|name| DbInfo {
+                        name: name.clone(),
+                        schemas: Vec::new(),
+                    })
+                    .collect();
+            }
+        }
+        // Auto-select first database if endpoint's database is empty
+        for ep in [&mut self.source, &mut self.target] {
+            if let Some(conn) = self.connections.get(ep.conn_idx) {
+                if conn.conn_id == conn_id && ep.database.is_empty() {
+                    ep.database = conn
+                        .databases
+                        .first()
+                        .map(|d| d.name.clone())
+                        .unwrap_or_default();
+                }
+            }
+        }
+    }
+
+    /// Update server version for a connection when Connected event arrives.
+    pub fn update_server_version(&mut self, conn_id: uuid::Uuid, version: Option<String>) {
+        for conn in &mut self.connections {
+            if conn.conn_id == conn_id {
+                conn.meta.server_version = version.clone();
+            }
+        }
     }
 }
 

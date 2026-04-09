@@ -22,6 +22,8 @@ pub(super) struct ConnectionEntry {
     pub schema_detail_requested: HashSet<String>,
     /// Database names that have already had a ListSchemas request sent.
     pub schemas_requested: HashSet<String>,
+    /// Server version string (e.g. "PostgreSQL 16.2 on ...").
+    pub server_version: Option<String>,
 }
 
 impl ConnectionEntry {
@@ -42,6 +44,7 @@ impl ConnectionEntry {
             picker_open: false,
             schema_detail_requested: HashSet::new(),
             schemas_requested: HashSet::new(),
+            server_version: None,
         }
     }
 

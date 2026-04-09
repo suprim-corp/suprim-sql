@@ -314,26 +314,41 @@ fn render_info_column(
         .id_salt(scroll_id)
         .max_height(max_height)
         .show(ui, |ui| {
-            if let Some(conn) = connections.get(endpoint.conn_idx) {
-                let m = &conn.meta;
-                ui.label(format!("Database Type: {}", m.driver_type));
-                ui.label(format!("Name: {}", conn.label));
-                if !m.host.is_empty() {
-                    ui.label(format!("Host: {}", m.host));
-                }
-                if !m.port.is_empty() {
-                    ui.label(format!("Port: {}", m.port));
-                }
-                if !endpoint.database.is_empty() {
-                    ui.label(format!("Database: {}", endpoint.database));
-                }
-                if !endpoint.schema.is_empty() {
-                    ui.label(format!("Schema: {}", endpoint.schema));
-                }
-            } else {
-                ui.label(egui::RichText::new("No connection selected.").weak());
-            }
+            // Disable horizontal justify so wrapped text isn't stretched
+            ui.with_layout(
+                egui::Layout::top_down(egui::Align::LEFT).with_main_justify(false),
+                |ui| {
+                    if let Some(conn) = connections.get(endpoint.conn_idx) {
+                        let m = &conn.meta;
+                        info_row(ui, "Database Type", &m.driver_type);
+                        if let Some(ver) = &m.server_version {
+                            info_row(ui, "Version", ver);
+                        }
+                        info_row(ui, "Name", &conn.label);
+                        if !m.host.is_empty() {
+                            info_row(ui, "Host", &m.host);
+                        }
+                        if !m.port.is_empty() {
+                            info_row(ui, "Port", &m.port);
+                        }
+                        if !endpoint.database.is_empty() {
+                            info_row(ui, "Database", &endpoint.database);
+                        }
+                        if !endpoint.schema.is_empty() {
+                            info_row(ui, "Schema", &endpoint.schema);
+                        }
+                    } else {
+                        ui.label(egui::RichText::new("No connection selected.").weak());
+                    }
+                },
+            );
         });
+}
+
+/// Single key-value row with the value wrapping (not justified).
+fn info_row(ui: &mut egui::Ui, key: &str, value: &str) {
+    let text = format!("{key}: {value}");
+    ui.add(egui::Label::new(text).wrap());
 }
 
 // ── Bottom bar ──────────────────────────────────────────────────────────

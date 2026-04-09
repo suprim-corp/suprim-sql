@@ -67,7 +67,25 @@ impl App {
 
         // ── Structure Sync dialog (modal) ───────────────────────────────
         if let Some(dialog) = &mut self.structure_sync_dialog {
-            if !dialog.show(&ctx) {
+            let result = dialog.show(&ctx);
+            // Send database list requests
+            for conn_id in &result.database_requests {
+                let _ = self
+                    .cmd_tx
+                    .try_send(suprim_sql::db::driver::DbCommand::ListDatabases {
+                        conn_id: *conn_id,
+                    });
+            }
+            // Send schema load requests
+            for (conn_id, database) in &result.schema_requests {
+                let _ = self
+                    .cmd_tx
+                    .try_send(suprim_sql::db::driver::DbCommand::ListSchemas {
+                        conn_id: *conn_id,
+                        database: database.clone(),
+                    });
+            }
+            if !result.open {
                 self.structure_sync_dialog = None;
             }
         }

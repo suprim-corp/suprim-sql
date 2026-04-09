@@ -36,7 +36,9 @@ impl Sidebar {
     /// Returns a list of (conn_id, label, databases_with_schemas) for all active connections.
     /// Each database entry is (db_name, vec_of_schema_names).
     /// Used by dialogs that need connection/database/schema dropdowns.
-    pub fn connection_list(&self) -> Vec<(Uuid, String, Vec<(String, Vec<String>)>)> {
+    pub fn connection_list(
+        &self,
+    ) -> Vec<(Uuid, String, Vec<(String, Vec<String>)>, Option<String>)> {
         self.connections
             .iter()
             .map(|c| {
@@ -48,7 +50,7 @@ impl Sidebar {
                         (d.name.clone(), schemas)
                     })
                     .collect();
-                (c.conn_id, c.label.clone(), dbs)
+                (c.conn_id, c.label.clone(), dbs, c.server_version.clone())
             })
             .collect()
     }
@@ -80,10 +82,12 @@ impl Sidebar {
         name: String,
         schema: SchemaTree,
         visible: Option<Vec<String>>,
+        server_version: Option<String>,
     ) {
         self.connections.retain(|c| c.conn_id != conn_id);
-        self.connections
-            .push(ConnectionEntry::new(conn_id, name, schema, visible));
+        let mut entry = ConnectionEntry::new(conn_id, name, schema, visible);
+        entry.server_version = server_version;
+        self.connections.push(entry);
     }
 
     pub fn on_disconnected(&mut self, conn_id: Uuid) {

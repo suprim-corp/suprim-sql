@@ -15,6 +15,7 @@ pub struct ConnMeta {
     pub driver_type: String,
     pub host: String,
     pub port: String,
+    pub server_version: Option<String>,
 }
 
 /// Lightweight connection descriptor passed in from the outside.
@@ -32,6 +33,16 @@ pub(crate) struct Endpoint {
     pub conn_idx: usize,
     pub database: String,
     pub schema: String,
+}
+
+/// Result from dialog `show()` — tells the app what to do.
+pub struct SyncDialogResult {
+    /// `false` when the user closed the dialog.
+    pub open: bool,
+    /// Databases whose schemas need to be fetched (conn_id, database_name).
+    pub schema_requests: Vec<(Uuid, String)>,
+    /// Connections whose database lists need to be fetched.
+    pub database_requests: Vec<Uuid>,
 }
 
 #[derive(Clone)]

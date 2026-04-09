@@ -17,7 +17,16 @@ impl App {
         while let Ok(event) = self.event_rx.try_recv() {
             had_events = true;
             match event {
-                DbEvent::Connected { conn_id, databases } => {
+                DbEvent::Connected {
+                    conn_id,
+                    databases,
+                    server_version,
+                } => {
+                    // Forward to structure sync dialog if open
+                    if let Some(dialog) = &mut self.structure_sync_dialog {
+                        dialog.update_databases(conn_id, databases.clone());
+                        dialog.update_server_version(conn_id, server_version.clone());
+                    }
                     let schema = SchemaTree {
                         databases: databases
                             .into_iter()
@@ -33,8 +42,13 @@ impl App {
                         .map(|c| c.name.clone())
                         .unwrap_or_else(|| conn_id.to_string());
                     let visible_dbs = saved.and_then(|c| c.visible_databases.clone());
-                    self.sidebar
-                        .on_connected(conn_id, conn_name, schema, visible_dbs);
+                    self.sidebar.on_connected(
+                        conn_id,
+                        conn_name,
+                        schema,
+                        visible_dbs,
+                        server_version,
+                    );
                     self.status = "Connected".to_string();
                 }
                 DbEvent::Disconnected { conn_id } => {
@@ -50,6 +64,10 @@ impl App {
                         format!("Query complete \u{2014} {row_count} rows  ({millis} ms)");
                 }
                 DbEvent::DatabasesListed { conn_id, databases } => {
+                    // Forward to structure sync dialog if open
+                    if let Some(dialog) = &mut self.structure_sync_dialog {
+                        dialog.update_databases(conn_id, databases.clone());
+                    }
                     let schema = SchemaTree {
                         databases: databases
                             .into_iter()
@@ -67,7 +85,12 @@ impl App {
                     database,
                     schemas,
                 } => {
-                    self.sidebar.on_schemas_listed(conn_id, &database, schemas);
+                    self.sidebar
+                        .on_schemas_listed(conn_id, &database, schemas.clone());
+                    // Forward to structure sync dialog if open
+                    if let Some(dialog) = &mut self.structure_sync_dialog {
+                        dialog.update_schemas(conn_id, &database, schemas);
+                    }
                 }
                 DbEvent::SchemaDetailLoaded {
                     conn_id,
@@ -156,19 +179,19 @@ impl App {
                     };
                     use suprim_sql::db::connection::DriverParams;
 
+                    // Build ConnInfo from active (connected) connections only
                     let conns: Vec<ConnInfo> = self
                         .sidebar
                         .connection_list()
                         .into_iter()
-                        .map(|(conn_id, label, dbs)| {
-                            // Look up config to extract host/port/driver_type
-                            let meta = self
+                        .map(|(conn_id, label, dbs, server_version)| {
+                            let (host, port, driver_type) = self
                                 .config
                                 .connections
                                 .iter()
                                 .find(|c| c.id == conn_id)
                                 .map(|cfg| {
-                                    let (host, port) = match &cfg.params {
+                                    let (h, p) = match &cfg.params {
                                         DriverParams::Postgres { host, port, .. }
                                         | DriverParams::Mysql { host, port, .. }
                                         | DriverParams::Mssql { host, port, .. } => {
@@ -184,11 +207,7 @@ impl App {
                                             (uri.clone(), String::new())
                                         }
                                     };
-                                    ConnMeta {
-                                        driver_type: cfg.driver_type().to_string(),
-                                        host,
-                                        port,
-                                    }
+                                    (h, p, cfg.driver_type().to_string())
                                 })
                                 .unwrap_or_default();
 
@@ -201,7 +220,12 @@ impl App {
                                 conn_id,
                                 label,
                                 databases,
-                                meta,
+                                meta: ConnMeta {
+                                    driver_type,
+                                    host,
+                                    port,
+                                    server_version,
+                                },
                             }
                         })
                         .collect();

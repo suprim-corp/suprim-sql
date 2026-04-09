@@ -235,6 +235,8 @@ pub enum DbEvent {
         conn_id: Uuid,
         /// Database names available on this server.
         databases: Vec<String>,
+        /// Server version string (e.g. "PostgreSQL 16.2").
+        server_version: Option<String>,
     },
     Disconnected {
         conn_id: Uuid,

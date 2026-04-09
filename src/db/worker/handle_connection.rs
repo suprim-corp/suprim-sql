@@ -24,12 +24,30 @@ impl DbWorker {
             return;
         }
         let db_result = driver.list_databases().await;
+
+        // Query server version (best-effort — ignore errors)
+        let server_version = match driver.execute("SELECT version()").await {
+            Ok(qr) => qr
+                .rows
+                .first()
+                .and_then(|row| row.first())
+                .and_then(|v| match v {
+                    crate::db::values::DbValue::Text(s) => Some(s.clone()),
+                    _ => None,
+                }),
+            Err(_) => None,
+        };
+
         self.connections.insert(conn_id, driver);
         match db_result {
             Ok(databases) => {
                 let _ = self
                     .event_tx
-                    .send(DbEvent::Connected { conn_id, databases })
+                    .send(DbEvent::Connected {
+                        conn_id,
+                        databases,
+                        server_version,
+                    })
                     .await;
             }
             Err(e) => {
