@@ -197,7 +197,6 @@ impl StructureSyncDialog {
     }
 
     /// Regenerate DDL script from current (possibly toggled) diff entries.
-    #[allow(dead_code)]
     pub(super) fn regenerate_script(&mut self) {
         if let (Some(src), Some(tgt)) = (&self.source_schema_node, &self.target_schema_node) {
             self.ddl_script =

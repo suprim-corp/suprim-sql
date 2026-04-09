@@ -1,6 +1,6 @@
 //! Bottom bar for the Structure Synchronization dialog.
 //!
-//! Contains Options, Copy Script, Close, and Compare/Re-Compare buttons.
+//! Contains Options, Copy Script, Close, Compare/Re-Compare, and navigation buttons.
 
 use eframe::egui;
 
@@ -14,6 +14,8 @@ pub(crate) fn render_bottom_bar(
     open: &mut bool,
     run_compare: &mut bool,
     reset_to_idle: &mut bool,
+    advance_to_preview: &mut bool,
+    back_to_done: &mut bool,
 ) {
     ui.horizontal(|ui| {
         if ui
@@ -24,7 +26,11 @@ pub(crate) fn render_bottom_bar(
             // TODO: options dialog
         }
 
-        if *compare_state == CompareState::Done && !ddl_script.is_empty() {
+        // Copy Script — available in Done and Preview states
+        let show_copy = matches!(compare_state, CompareState::Done | CompareState::Preview)
+            && !ddl_script.is_empty();
+
+        if show_copy {
             if ui
                 .button(format!(
                     "{}  Copy Script",
@@ -41,7 +47,6 @@ pub(crate) fn render_bottom_bar(
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             match compare_state {
                 CompareState::Idle => {
-                    // Step 1: Close | Compare
                     if ui
                         .button("Compare")
                         .on_hover_cursor(egui::CursorIcon::PointingHand)
@@ -68,13 +73,13 @@ pub(crate) fn render_bottom_bar(
                     }
                 }
                 CompareState::Done => {
-                    // Step 2: Back | Re-Compare | Next
+                    // Next → Preview DDL
                     if ui
                         .button(format!("Next  {}", egui_phosphor::regular::ARROW_RIGHT))
                         .on_hover_cursor(egui::CursorIcon::PointingHand)
                         .clicked()
                     {
-                        // TODO: advance to step 3
+                        *advance_to_preview = true;
                     }
                     if ui
                         .button("Re-Compare")
@@ -89,6 +94,26 @@ pub(crate) fn render_bottom_bar(
                         .clicked()
                     {
                         *reset_to_idle = true;
+                    }
+                }
+                CompareState::Preview => {
+                    // Execute (disabled for now — TODO: step 5)
+                    let execute_btn =
+                        egui::Button::new(format!("Execute  {}", egui_phosphor::regular::PLAY));
+                    if ui
+                        .add_enabled(false, execute_btn)
+                        .on_disabled_hover_text("Execute step coming soon")
+                        .clicked()
+                    {
+                        // TODO: advance to execute step
+                    }
+                    // Back → return to diff results
+                    if ui
+                        .button(format!("{}  Back", egui_phosphor::regular::ARROW_LEFT))
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .clicked()
+                    {
+                        *back_to_done = true;
                     }
                 }
             }

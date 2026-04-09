@@ -29,6 +29,8 @@ pub(crate) enum CompareState {
     Loading,
     /// Comparison finished, diff entries populated.
     Done,
+    /// Previewing generated DDL script before execution.
+    Preview,
 }
 
 /// Database entry with its schemas.

@@ -8,7 +8,7 @@ use eframe::egui;
 use super::bottom_bar::render_bottom_bar;
 use super::diff_results_renderer::{render_diff_results, render_loading_state};
 use super::state::StructureSyncDialog;
-use super::steps::select;
+use super::steps::{preview, select};
 use super::types::{CompareRequest, CompareState, SyncDialogResult};
 
 impl StructureSyncDialog {
@@ -165,6 +165,8 @@ impl StructureSyncDialog {
             let middle_h = (ui.available_height() - FOOTER_H).max(40.0);
             let mut run_compare = false;
             let mut reset_to_idle = false;
+            let mut advance_to_preview = false;
+            let mut back_to_done = false;
 
             match self.compare_state {
                 CompareState::Idle => {
@@ -197,6 +199,9 @@ impl StructureSyncDialog {
                         (middle_h - status_used).max(40.0),
                     );
                 }
+                CompareState::Preview => {
+                    preview::render_ddl_preview(ui, &self.ddl_script, middle_h);
+                }
             }
 
             // ── Footer (sticky bottom) ───────────────────────────────
@@ -214,6 +219,8 @@ impl StructureSyncDialog {
                 &mut open,
                 &mut run_compare,
                 &mut reset_to_idle,
+                &mut advance_to_preview,
+                &mut back_to_done,
             );
 
             if reset_to_idle {
@@ -229,6 +236,12 @@ impl StructureSyncDialog {
                     self.status = Some("Loading schemas...".into());
                     compare_request = Some(req);
                 }
+            } else if advance_to_preview {
+                self.regenerate_script();
+                self.compare_state = CompareState::Preview;
+                self.status = None;
+            } else if back_to_done {
+                self.compare_state = CompareState::Done;
             }
         });
 
