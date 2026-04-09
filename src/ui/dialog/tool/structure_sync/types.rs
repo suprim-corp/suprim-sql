@@ -143,10 +143,8 @@ pub(crate) struct DiffEntry {
     pub kind: DiffKind,
     /// Whether the user wants to include this in the DDL script.
     pub checked: bool,
-    /// Child entries (e.g. columns under a modified table).
+    /// Child entries (e.g. columns, indexes, FKs under a table).
     pub children: Vec<DiffEntry>,
-    /// Parent table name (for indexes, FKs, columns shown as top-level entries).
-    pub parent_table: Option<String>,
 }
 
 /// A top-level group in the diff results UI (Modified / Created / Deleted).

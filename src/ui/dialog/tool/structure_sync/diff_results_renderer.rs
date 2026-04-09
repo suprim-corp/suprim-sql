@@ -94,16 +94,11 @@ fn render_entry(ui: &mut egui::Ui, entry: &mut DiffEntry, depth: usize) {
     let style = kind_style(entry.kind);
     let obj_icon = entry.object_type.icon();
 
-    // Build display text: "name (detail) — parent_table"
+    // Build display text: "name (detail)"
     let mut name_text = entry.name.clone();
     if !entry.detail.is_empty() {
         name_text.push_str(&format!("  ({})", entry.detail));
     }
-    let table_suffix = entry
-        .parent_table
-        .as_ref()
-        .map(|t| format!(" — {t}"))
-        .unwrap_or_default();
 
     if has_children {
         // Collapsible parent entry
@@ -123,9 +118,6 @@ fn render_entry(ui: &mut egui::Ui, entry: &mut DiffEntry, depth: usize) {
             op_badge(ui, entry.kind);
             ui.label(egui::RichText::new(obj_icon).color(style.color).size(13.0));
             ui.label(&name_text);
-            if !table_suffix.is_empty() {
-                ui.label(egui::RichText::new(&table_suffix).weak().size(11.0));
-            }
         })
         .body_unindented(|ui| {
             for child in entry.children.iter_mut() {
@@ -140,9 +132,6 @@ fn render_entry(ui: &mut egui::Ui, entry: &mut DiffEntry, depth: usize) {
             op_badge(ui, entry.kind);
             ui.label(egui::RichText::new(obj_icon).color(style.color).size(12.0));
             ui.label(egui::RichText::new(&name_text).size(12.0));
-            if !table_suffix.is_empty() {
-                ui.label(egui::RichText::new(&table_suffix).weak().size(11.0));
-            }
         });
     }
 }

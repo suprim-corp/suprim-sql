@@ -62,6 +62,28 @@ fn generate_entry_ddl(
             if let Some(tbl) = src_tables.get(name.as_str()) {
                 lines.push(create_table_ddl(schema, tbl));
                 lines.push(String::new());
+                // Indexes and FKs from children
+                for child in &entry.children {
+                    if !child.checked {
+                        continue;
+                    }
+                    match child.object_type {
+                        ObjectType::Index => {
+                            if let Some(idx) = tbl.indexes.iter().find(|i| i.name == child.name) {
+                                lines.push(create_index_ddl(schema, name, idx));
+                                lines.push(String::new());
+                            }
+                        }
+                        ObjectType::ForeignKey => {
+                            if let Some(fk) = tbl.foreign_keys.iter().find(|f| f.name == child.name)
+                            {
+                                lines.push(add_foreign_key_ddl(schema, name, fk));
+                                lines.push(String::new());
+                            }
+                        }
+                        _ => {} // Columns already in CREATE TABLE
+                    }
+                }
             }
         }
         (ObjectType::Table, DiffKind::Removed) => {
@@ -71,21 +93,77 @@ fn generate_entry_ddl(
             lines.push(String::new());
         }
         (ObjectType::Table, DiffKind::Modified) => {
-            // Process children (columns only — indexes/FKs are top-level now)
             for child in &entry.children {
                 if !child.checked {
                     continue;
                 }
-                if let Some(ddl) =
-                    alter_table_child_ddl(schema, name, child, src_tables, tgt_tables)
-                {
-                    lines.push(ddl);
+                match child.object_type {
+                    ObjectType::Column => {
+                        if let Some(ddl) =
+                            alter_table_child_ddl(schema, name, child, src_tables, tgt_tables)
+                        {
+                            lines.push(ddl);
+                        }
+                    }
+                    ObjectType::Index => match child.kind {
+                        DiffKind::Added => {
+                            if let Some(idx) =
+                                find_index_in_tables(&child.name, src_tables).map(|(_, i)| i)
+                            {
+                                lines.push(create_index_ddl(schema, name, idx));
+                            }
+                        }
+                        DiffKind::Removed => {
+                            lines.push(format!(
+                                "DROP INDEX IF EXISTS \"{schema}\".\"{}\";\n",
+                                child.name
+                            ));
+                        }
+                        DiffKind::Modified => {
+                            lines.push(format!(
+                                "DROP INDEX IF EXISTS \"{schema}\".\"{}\";",
+                                child.name
+                            ));
+                            if let Some(idx) =
+                                find_index_in_tables(&child.name, src_tables).map(|(_, i)| i)
+                            {
+                                lines.push(create_index_ddl(schema, name, idx));
+                            }
+                        }
+                    },
+                    ObjectType::ForeignKey => match child.kind {
+                        DiffKind::Added => {
+                            if let Some(fk) =
+                                find_fk_in_tables(&child.name, src_tables).map(|(_, f)| f)
+                            {
+                                lines.push(add_foreign_key_ddl(schema, name, fk));
+                            }
+                        }
+                        DiffKind::Removed => {
+                            lines.push(format!(
+                                "ALTER TABLE \"{schema}\".\"{name}\" DROP CONSTRAINT \"{}\";",
+                                child.name
+                            ));
+                        }
+                        DiffKind::Modified => {
+                            lines.push(format!(
+                                "ALTER TABLE \"{schema}\".\"{name}\" DROP CONSTRAINT \"{}\";",
+                                child.name
+                            ));
+                            if let Some(fk) =
+                                find_fk_in_tables(&child.name, src_tables).map(|(_, f)| f)
+                            {
+                                lines.push(add_foreign_key_ddl(schema, name, fk));
+                            }
+                        }
+                    },
+                    _ => {}
                 }
             }
             lines.push(String::new());
         }
 
-        // ── Indexes (top-level) ─────────────────────────────────────────
+        // ── Top-level Index/FK (shouldn't happen now, but keep as fallback) ─
         (ObjectType::Index, DiffKind::Added) => {
             if let Some((tbl_name, idx)) = find_index_in_tables(name, src_tables) {
                 lines.push(create_index_ddl(schema, tbl_name, idx));
@@ -103,8 +181,6 @@ fn generate_entry_ddl(
             }
             lines.push(String::new());
         }
-
-        // ── Foreign Keys (top-level) ────────────────────────────────────
         (ObjectType::ForeignKey, DiffKind::Added) => {
             if let Some((tbl_name, fk)) = find_fk_in_tables(name, src_tables) {
                 lines.push(add_foreign_key_ddl(schema, tbl_name, fk));
@@ -116,13 +192,10 @@ fn generate_entry_ddl(
                 lines.push(format!(
                     "ALTER TABLE \"{schema}\".\"{tbl_name}\" DROP CONSTRAINT \"{name}\";"
                 ));
-            } else {
-                lines.push(format!("-- Cannot find table for FK \"{name}\" to drop"));
             }
             lines.push(String::new());
         }
         (ObjectType::ForeignKey, DiffKind::Modified) => {
-            // Drop from target, re-create from source
             if let Some((tbl_name, _)) = find_fk_in_tables(name, tgt_tables) {
                 lines.push(format!(
                     "ALTER TABLE \"{schema}\".\"{tbl_name}\" DROP CONSTRAINT \"{name}\";"

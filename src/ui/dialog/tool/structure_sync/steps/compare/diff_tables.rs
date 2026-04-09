@@ -1,7 +1,7 @@
-//! Table-level diff: tables, columns within tables, indexes, foreign keys.
+//! Table-level diff: tables, columns, indexes, foreign keys.
 //!
-//! All indexes and FKs are flat top-level entries with `parent_table` set.
-//! Only columns remain nested under their parent table (Modified case).
+//! All sub-objects (columns, indexes, FKs) are nested as children of their
+//! parent table entry.
 
 use std::collections::HashMap;
 
@@ -15,18 +15,33 @@ pub(super) fn diff_tables(source: &[TableNode], target: &[TableNode], out: &mut 
     let src_map: HashMap<&str, &TableNode> = source.iter().map(|t| (t.name.as_str(), t)).collect();
     let tgt_map: HashMap<&str, &TableNode> = target.iter().map(|t| (t.name.as_str(), t)).collect();
 
-    // Tables only in source → CREATED on target
+    // Tables only in source → CREATE on target
     for name in sorted_keys(&src_map) {
         if !tgt_map.contains_key(name) {
             let tbl = src_map[name];
-            let mut col_children = Vec::new();
+            let mut children = Vec::new();
             for col in &tbl.columns {
-                col_children.push(make_entry(
+                children.push(make_entry(
                     ObjectType::Column,
                     &col.name,
                     col_signature(col),
                     DiffKind::Added,
-                    Some(name),
+                ));
+            }
+            for idx in &tbl.indexes {
+                children.push(make_entry(
+                    ObjectType::Index,
+                    &idx.name,
+                    idx_detail(idx),
+                    DiffKind::Added,
+                ));
+            }
+            for fk in &tbl.foreign_keys {
+                children.push(make_entry(
+                    ObjectType::ForeignKey,
+                    &fk.name,
+                    fk_detail(fk),
+                    DiffKind::Added,
                 ));
             }
             out.push(DiffEntry {
@@ -35,61 +50,48 @@ pub(super) fn diff_tables(source: &[TableNode], target: &[TableNode], out: &mut 
                 detail: String::new(),
                 kind: DiffKind::Added,
                 checked: true,
-                children: col_children,
-                parent_table: None,
+                children,
             });
-            for idx in &tbl.indexes {
-                out.push(make_entry(
-                    ObjectType::Index,
-                    &idx.name,
-                    idx_detail(idx),
-                    DiffKind::Added,
-                    Some(name),
-                ));
-            }
-            for fk in &tbl.foreign_keys {
-                out.push(make_entry(
-                    ObjectType::ForeignKey,
-                    &fk.name,
-                    fk_detail(fk),
-                    DiffKind::Added,
-                    Some(name),
-                ));
-            }
         }
     }
 
-    // Tables only in target → REMOVED from target (list ALL sub-objects flat)
+    // Tables only in target → DROP from target
     for name in sorted_keys(&tgt_map) {
         if !src_map.contains_key(name) {
             let tbl = tgt_map[name];
+            let mut children = Vec::new();
+            for col in &tbl.columns {
+                children.push(make_entry(
+                    ObjectType::Column,
+                    &col.name,
+                    col_signature(col),
+                    DiffKind::Removed,
+                ));
+            }
+            for idx in &tbl.indexes {
+                children.push(make_entry(
+                    ObjectType::Index,
+                    &idx.name,
+                    idx_detail(idx),
+                    DiffKind::Removed,
+                ));
+            }
+            for fk in &tbl.foreign_keys {
+                children.push(make_entry(
+                    ObjectType::ForeignKey,
+                    &fk.name,
+                    fk_detail(fk),
+                    DiffKind::Removed,
+                ));
+            }
             out.push(DiffEntry {
                 object_type: ObjectType::Table,
                 name: name.to_string(),
                 detail: String::new(),
                 kind: DiffKind::Removed,
                 checked: true,
-                children: Vec::new(),
-                parent_table: None,
+                children,
             });
-            for idx in &tbl.indexes {
-                out.push(make_entry(
-                    ObjectType::Index,
-                    &idx.name,
-                    idx_detail(idx),
-                    DiffKind::Removed,
-                    Some(name),
-                ));
-            }
-            for fk in &tbl.foreign_keys {
-                out.push(make_entry(
-                    ObjectType::ForeignKey,
-                    &fk.name,
-                    fk_detail(fk),
-                    DiffKind::Removed,
-                    Some(name),
-                ));
-            }
         }
     }
 
@@ -102,65 +104,47 @@ pub(super) fn diff_tables(source: &[TableNode], target: &[TableNode], out: &mut 
 }
 
 fn diff_single_table(name: &str, source: &TableNode, target: &TableNode, out: &mut Vec<DiffEntry>) {
-    // Columns nested under Modified table
-    let mut col_children = Vec::new();
-    diff_columns(
-        &source.columns,
-        &target.columns,
-        &mut col_children,
-        Some(name),
-    );
+    let mut children = Vec::new();
+    diff_columns(&source.columns, &target.columns, &mut children);
+    diff_indexes(&source.indexes, &target.indexes, &mut children);
+    diff_foreign_keys(&source.foreign_keys, &target.foreign_keys, &mut children);
 
-    if !col_children.is_empty() {
+    if !children.is_empty() {
         out.push(DiffEntry {
             object_type: ObjectType::Table,
             name: name.to_string(),
             detail: String::new(),
             kind: DiffKind::Modified,
             checked: true,
-            children: col_children,
-            parent_table: None,
+            children,
         });
     }
-
-    // Indexes and FKs — flat top-level with parent_table
-    diff_indexes(&source.indexes, &target.indexes, out, name);
-    diff_foreign_keys(&source.foreign_keys, &target.foreign_keys, out, name);
 }
 
 // ── Columns (pub(crate) — also used by views diff) ─────────────────────────
 
-pub(crate) fn diff_columns(
-    source: &[ColumnNode],
-    target: &[ColumnNode],
-    out: &mut Vec<DiffEntry>,
-    parent: Option<&str>,
-) {
+pub(crate) fn diff_columns(source: &[ColumnNode], target: &[ColumnNode], out: &mut Vec<DiffEntry>) {
     let src_map: HashMap<&str, &ColumnNode> = source.iter().map(|c| (c.name.as_str(), c)).collect();
     let tgt_map: HashMap<&str, &ColumnNode> = target.iter().map(|c| (c.name.as_str(), c)).collect();
 
     for name in sorted_keys(&src_map) {
         if !tgt_map.contains_key(name) {
-            let col = src_map[name];
             out.push(make_entry(
                 ObjectType::Column,
                 name,
-                col_signature(col),
+                col_signature(src_map[name]),
                 DiffKind::Added,
-                parent,
             ));
         }
     }
 
     for name in sorted_keys(&tgt_map) {
         if !src_map.contains_key(name) {
-            let col = tgt_map[name];
             out.push(make_entry(
                 ObjectType::Column,
                 name,
-                col_signature(col),
+                col_signature(tgt_map[name]),
                 DiffKind::Removed,
-                parent,
             ));
         }
     }
@@ -174,7 +158,6 @@ pub(crate) fn diff_columns(
                     name,
                     changes,
                     DiffKind::Modified,
-                    parent,
                 ));
             }
         }
@@ -183,12 +166,7 @@ pub(crate) fn diff_columns(
 
 // ── Indexes ─────────────────────────────────────────────────────────────────
 
-fn diff_indexes(
-    source: &[IndexNode],
-    target: &[IndexNode],
-    out: &mut Vec<DiffEntry>,
-    table_name: &str,
-) {
+fn diff_indexes(source: &[IndexNode], target: &[IndexNode], out: &mut Vec<DiffEntry>) {
     let src_map: HashMap<&str, &IndexNode> = source.iter().map(|i| (i.name.as_str(), i)).collect();
     let tgt_map: HashMap<&str, &IndexNode> = target.iter().map(|i| (i.name.as_str(), i)).collect();
 
@@ -199,7 +177,6 @@ fn diff_indexes(
                 name,
                 idx_detail(src_map[name]),
                 DiffKind::Added,
-                Some(table_name),
             ));
         }
     }
@@ -211,7 +188,6 @@ fn diff_indexes(
                 name,
                 idx_detail(tgt_map[name]),
                 DiffKind::Removed,
-                Some(table_name),
             ));
         }
     }
@@ -219,17 +195,13 @@ fn diff_indexes(
     for name in sorted_keys(&src_map) {
         if let (Some(src), Some(tgt)) = (src_map.get(name), tgt_map.get(name)) {
             if src.columns != tgt.columns || src.is_unique != tgt.is_unique {
+                let arrow = egui_phosphor::regular::ARROW_RIGHT;
+                let detail = format!("{} {arrow} {}", idx_detail(tgt), idx_detail(src));
                 out.push(make_entry(
                     ObjectType::Index,
                     name,
-                    format!(
-                        "{} {} {}",
-                        idx_detail(tgt),
-                        egui_phosphor::regular::ARROW_RIGHT,
-                        idx_detail(src)
-                    ),
+                    detail,
                     DiffKind::Modified,
-                    Some(table_name),
                 ));
             }
         }
@@ -242,7 +214,6 @@ fn diff_foreign_keys(
     source: &[ForeignKeyNode],
     target: &[ForeignKeyNode],
     out: &mut Vec<DiffEntry>,
-    table_name: &str,
 ) {
     let src_map: HashMap<&str, &ForeignKeyNode> =
         source.iter().map(|f| (f.name.as_str(), f)).collect();
@@ -256,7 +227,6 @@ fn diff_foreign_keys(
                 name,
                 fk_detail(src_map[name]),
                 DiffKind::Added,
-                Some(table_name),
             ));
         }
     }
@@ -268,7 +238,6 @@ fn diff_foreign_keys(
                 name,
                 fk_detail(tgt_map[name]),
                 DiffKind::Removed,
-                Some(table_name),
             ));
         }
     }
@@ -279,17 +248,13 @@ fn diff_foreign_keys(
                 || src.ref_table != tgt.ref_table
                 || src.ref_columns != tgt.ref_columns
             {
+                let arrow = egui_phosphor::regular::ARROW_RIGHT;
+                let detail = format!("{} {arrow} {}", fk_detail(tgt), fk_detail(src));
                 out.push(make_entry(
                     ObjectType::ForeignKey,
                     name,
-                    format!(
-                        "{} {} {}",
-                        fk_detail(tgt),
-                        egui_phosphor::regular::ARROW_RIGHT,
-                        fk_detail(src)
-                    ),
+                    detail,
                     DiffKind::Modified,
-                    Some(table_name),
                 ));
             }
         }
@@ -298,13 +263,7 @@ fn diff_foreign_keys(
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-fn make_entry(
-    object_type: ObjectType,
-    name: &str,
-    detail: String,
-    kind: DiffKind,
-    parent: Option<&str>,
-) -> DiffEntry {
+fn make_entry(object_type: ObjectType, name: &str, detail: String, kind: DiffKind) -> DiffEntry {
     DiffEntry {
         object_type,
         name: name.to_string(),
@@ -312,7 +271,6 @@ fn make_entry(
         kind,
         checked: true,
         children: Vec::new(),
-        parent_table: parent.map(|s| s.to_string()),
     }
 }
 
