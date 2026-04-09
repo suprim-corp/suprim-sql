@@ -101,6 +101,7 @@ impl ConnectionEntry {
                 views: vec![],
                 materialized_views: vec![],
                 sequences: vec![],
+                functions: vec![],
             })
             .collect();
 

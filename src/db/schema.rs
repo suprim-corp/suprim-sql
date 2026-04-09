@@ -22,6 +22,7 @@ pub struct SchemaNode {
     pub views: Vec<ViewNode>,
     pub materialized_views: Vec<ViewNode>,
     pub sequences: Vec<SequenceNode>,
+    pub functions: Vec<FunctionNode>,
     /// Whether table/view detail has been loaded (for lazy loading in UI).
     pub loaded: bool,
 }
@@ -82,6 +83,26 @@ pub struct ForeignKeyNode {
     pub columns: Vec<String>,
     pub ref_table: String,
     pub ref_columns: Vec<String>,
+}
+
+/// A database function or stored procedure.
+#[derive(Debug, Clone)]
+pub struct FunctionNode {
+    pub id: uuid::Uuid,
+    /// Function name (without arguments — use `identity_args` for overload distinction).
+    pub name: String,
+    /// Argument types as a comma-separated string (used to distinguish overloads).
+    pub identity_args: String,
+    /// Full function signature: `name(arg_types)`.
+    pub signature: String,
+    /// Return type (e.g. "void", "integer", "SETOF record").
+    pub return_type: String,
+    /// Language (e.g. "plpgsql", "sql", "c").
+    pub language: String,
+    /// Full source definition (`CREATE OR REPLACE FUNCTION …`).
+    pub definition: String,
+    /// Whether this is a procedure (CALL) rather than a function (SELECT).
+    pub is_procedure: bool,
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────

@@ -136,6 +136,9 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
         })
         .collect();
 
+    // ── 1d. Functions and procedures ──────────────────────────────────────────
+    let functions = super::function_loader::load_functions(pool, schema_name).await;
+
     let matview_names: Vec<String> = matview_rows
         .iter()
         .map(|r| r.try_get::<String, _>("name").unwrap_or_default())
@@ -149,6 +152,7 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
             views: vec![],
             materialized_views: vec![],
             sequences,
+            functions,
             loaded: true,
         });
     }
@@ -347,6 +351,7 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
         views,
         materialized_views,
         sequences,
+        functions,
         loaded: true,
     })
 }

@@ -22,6 +22,7 @@ pub(crate) fn diff_schemas(source: &SchemaNode, target: &SchemaNode) -> Vec<Diff
         &mut entries,
     );
     super::diff_views_sequences::diff_sequences(&source.sequences, &target.sequences, &mut entries);
+    super::diff_functions::diff_functions(&source.functions, &target.functions, &mut entries);
 
     entries
 }
