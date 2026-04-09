@@ -1,6 +1,9 @@
 //! StructureSyncDialog state, construction, and event-driven data updates.
 
-use super::types::{ConnInfo, DbInfo, DiffEntry, Endpoint, WizardStep};
+use suprim_sql::db::schema::SchemaNode;
+
+use super::steps::compare::{ddl_generator, diff_engine};
+use super::types::{CompareState, ConnInfo, DbInfo, DiffEntry, Endpoint, WizardStep};
 
 /// Top-level dialog state.
 pub struct StructureSyncDialog {
@@ -11,12 +14,16 @@ pub struct StructureSyncDialog {
     pub(super) step: WizardStep,
     pub(super) diff_entries: Vec<DiffEntry>,
     pub(super) ddl_script: String,
-    pub(super) compared: bool,
+    pub(super) compare_state: CompareState,
     pub(super) status: Option<String>,
     /// Track which (conn_id, database) combos already had schema requests sent.
     pub(super) pending_schema_requests: std::collections::HashSet<(uuid::Uuid, String)>,
     /// Track which conn_ids already had database list requests sent.
     pub(super) pending_db_requests: std::collections::HashSet<uuid::Uuid>,
+    /// Cached source schema node (from last comparison).
+    pub(super) source_schema_node: Option<SchemaNode>,
+    /// Cached target schema node (from last comparison).
+    pub(super) target_schema_node: Option<SchemaNode>,
 }
 
 // ── Construction ────────────────────────────────────────────────────────
@@ -34,10 +41,12 @@ impl StructureSyncDialog {
             step: WizardStep::default(),
             diff_entries: Vec::new(),
             ddl_script: String::new(),
-            compared: false,
+            compare_state: CompareState::default(),
             status: None,
             pending_schema_requests: std::collections::HashSet::new(),
             pending_db_requests: std::collections::HashSet::new(),
+            source_schema_node: None,
+            target_schema_node: None,
         }
     }
 
@@ -127,6 +136,53 @@ impl StructureSyncDialog {
                 conn.meta.server_version = version.clone();
                 conn.connected = true;
             }
+        }
+    }
+
+    /// Called when the DB worker returns both schema nodes.
+    /// Runs diff + DDL generation on the UI thread (fast, pure Rust).
+    pub fn on_schemas_compared(&mut self, source: SchemaNode, target: SchemaNode) {
+        self.diff_entries = diff_engine::diff_schemas(&source, &target);
+        self.ddl_script =
+            ddl_generator::generate_ddl(&source, &target, &self.target.schema, &self.diff_entries);
+        self.source_schema_node = Some(source);
+        self.target_schema_node = Some(target);
+        self.compare_state = CompareState::Done;
+
+        if self.diff_entries.is_empty() {
+            self.status = Some("Schemas are identical — no differences found.".into());
+        } else {
+            let added = self
+                .diff_entries
+                .iter()
+                .filter(|e| e.kind == super::types::DiffKind::Added && e.depth == 0)
+                .count();
+            let removed = self
+                .diff_entries
+                .iter()
+                .filter(|e| e.kind == super::types::DiffKind::Removed && e.depth == 0)
+                .count();
+            let modified = self
+                .diff_entries
+                .iter()
+                .filter(|e| e.kind == super::types::DiffKind::Modified && e.depth == 0)
+                .count();
+            self.status = Some(format!(
+                "Found {} difference(s): {} added, {} removed, {} modified",
+                added + removed + modified,
+                added,
+                removed,
+                modified,
+            ));
+        }
+    }
+
+    /// Regenerate DDL script from current (possibly toggled) diff entries.
+    #[allow(dead_code)]
+    pub(super) fn regenerate_script(&mut self) {
+        if let (Some(src), Some(tgt)) = (&self.source_schema_node, &self.target_schema_node) {
+            self.ddl_script =
+                ddl_generator::generate_ddl(src, tgt, &self.target.schema, &self.diff_entries);
         }
     }
 }

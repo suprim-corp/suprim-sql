@@ -144,6 +144,24 @@ impl DbWorker {
                 })
                 .await
             }
+            DbCommand::CompareSchemas {
+                source_conn_id,
+                source_database,
+                source_schema,
+                target_conn_id,
+                target_database,
+                target_schema,
+            } => {
+                self.handle_compare_schemas(
+                    source_conn_id,
+                    &source_database,
+                    &source_schema,
+                    target_conn_id,
+                    &target_database,
+                    &target_schema,
+                )
+                .await
+            }
             DbCommand::Shutdown => unreachable!("handled in run()"),
         }
     }

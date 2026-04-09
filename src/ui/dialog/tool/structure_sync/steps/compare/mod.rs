@@ -1,3 +1,6 @@
 //! Step 2: Compare — fetch schemas from both endpoints and compute diff.
 
-mod comparison;
+pub(crate) mod ddl_generator;
+pub(crate) mod diff_engine;
+pub(crate) mod diff_tables;
+pub(crate) mod diff_views_sequences;

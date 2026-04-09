@@ -111,6 +111,19 @@ impl App {
                         database: database.clone(),
                     });
             }
+            // Send compare request
+            if let Some(req) = result.compare_request {
+                let _ = self
+                    .cmd_tx
+                    .try_send(suprim_sql::db::driver::DbCommand::CompareSchemas {
+                        source_conn_id: req.source_conn_id,
+                        source_database: req.source_database,
+                        source_schema: req.source_schema,
+                        target_conn_id: req.target_conn_id,
+                        target_database: req.target_database,
+                        target_schema: req.target_schema,
+                    });
+            }
             if !result.open {
                 self.structure_sync_dialog = None;
             }

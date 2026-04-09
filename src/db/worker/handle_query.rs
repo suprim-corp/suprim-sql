@@ -126,4 +126,72 @@ impl DbWorker {
             }
         }
     }
+
+    pub(super) async fn handle_compare_schemas(
+        &self,
+        source_conn_id: Uuid,
+        source_database: &str,
+        source_schema: &str,
+        target_conn_id: Uuid,
+        target_database: &str,
+        target_schema: &str,
+    ) {
+        // Load source schema
+        let src_driver = match self.connections.get(&source_conn_id) {
+            Some(d) => d,
+            None => {
+                self.send_error(source_conn_id, None, "Source connection not found".into())
+                    .await;
+                return;
+            }
+        };
+        let source_node = match src_driver
+            .load_schema_detail(source_database, source_schema)
+            .await
+        {
+            Ok(n) => n,
+            Err(e) => {
+                self.send_error(
+                    source_conn_id,
+                    None,
+                    format!("Failed to load source schema: {e}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        // Load target schema
+        let tgt_driver = match self.connections.get(&target_conn_id) {
+            Some(d) => d,
+            None => {
+                self.send_error(target_conn_id, None, "Target connection not found".into())
+                    .await;
+                return;
+            }
+        };
+        let target_node = match tgt_driver
+            .load_schema_detail(target_database, target_schema)
+            .await
+        {
+            Ok(n) => n,
+            Err(e) => {
+                self.send_error(
+                    target_conn_id,
+                    None,
+                    format!("Failed to load target schema: {e}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        let _ = self
+            .event_tx
+            .send(DbEvent::SchemasCompared {
+                source: source_node,
+                target: target_node,
+            })
+            .await;
+    }
 }

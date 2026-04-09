@@ -228,6 +228,15 @@ pub enum DbCommand {
         old_name: String,
         new_name: String,
     },
+    /// Load schema detail for two endpoints and return both for comparison.
+    CompareSchemas {
+        source_conn_id: Uuid,
+        source_database: String,
+        source_schema: String,
+        target_conn_id: Uuid,
+        target_database: String,
+        target_schema: String,
+    },
     /// Gracefully shut down the worker
     Shutdown,
 }
@@ -287,5 +296,10 @@ pub enum DbEvent {
     TestConnectionResult {
         success: bool,
         message: String,
+    },
+    /// Both schemas loaded for comparison.
+    SchemasCompared {
+        source: SchemaNode,
+        target: SchemaNode,
     },
 }

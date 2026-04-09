@@ -19,6 +19,18 @@ pub(crate) enum WizardStep {
     Execute,
 }
 
+/// State of the comparison operation.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum CompareState {
+    /// Not yet compared.
+    #[default]
+    Idle,
+    /// Waiting for DB worker to return both schemas.
+    Loading,
+    /// Comparison finished, diff entries populated.
+    Done,
+}
+
 /// Database entry with its schemas.
 #[derive(Clone)]
 pub struct DbInfo {
@@ -54,6 +66,16 @@ pub(crate) struct Endpoint {
     pub schema: String,
 }
 
+/// Request to kick off a schema comparison (sent via SyncDialogResult).
+pub struct CompareRequest {
+    pub source_conn_id: Uuid,
+    pub source_database: String,
+    pub source_schema: String,
+    pub target_conn_id: Uuid,
+    pub target_database: String,
+    pub target_schema: String,
+}
+
 /// Result from dialog `show()` — tells the app what to do.
 pub struct SyncDialogResult {
     /// `false` when the user closed the dialog.
@@ -64,10 +86,11 @@ pub struct SyncDialogResult {
     pub database_requests: Vec<Uuid>,
     /// Connections that need to be connected first.
     pub connect_requests: Vec<Uuid>,
+    /// Schema comparison request (triggered by "Compare" button).
+    pub compare_request: Option<CompareRequest>,
 }
 
 #[derive(Clone)]
-#[allow(dead_code)]
 pub(crate) struct DiffEntry {
     pub label: String,
     pub kind: DiffKind,
@@ -76,7 +99,6 @@ pub(crate) struct DiffEntry {
 }
 
 #[derive(Clone, Copy, PartialEq)]
-#[allow(dead_code)]
 pub(crate) enum DiffKind {
     Added,
     Removed,
