@@ -27,3 +27,11 @@ target
 Cargo.lock
 
 build_rs_cov.profraw
+
+.claude
+.opencode
+.repomixignore
+CLAUDE.md
+AGENTS.md
+/plans
+release-manifest.json
