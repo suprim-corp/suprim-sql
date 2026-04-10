@@ -100,27 +100,16 @@ fn render_schema_node(
                 return;
             }
 
-            let has_tables = !schema_node.tables.is_empty();
-            let has_views = !schema_node.views.is_empty();
-            let has_matviews = !schema_node.materialized_views.is_empty();
-            let has_sequences = !schema_node.sequences.is_empty();
-
-            if !has_tables && !has_views && !has_matviews && !has_sequences {
-                ui.weak("(empty)");
-                return;
-            }
-
-            if has_tables {
-                tables_folder_renderer::render_tables_folder(
-                    ui,
-                    conn_id,
-                    db_name,
-                    schema_name,
-                    schema_node,
-                    action,
-                );
-            }
-            if has_views {
+            // Always show all object folders (with count, even if 0).
+            tables_folder_renderer::render_tables_folder(
+                ui,
+                conn_id,
+                db_name,
+                schema_name,
+                schema_node,
+                action,
+            );
+            if !schema_node.views.is_empty() {
                 views_folder_renderer::render_views_folder(
                     ui,
                     conn_id,
@@ -130,7 +119,7 @@ fn render_schema_node(
                     action,
                 );
             }
-            if has_matviews {
+            if !schema_node.materialized_views.is_empty() {
                 views_folder_renderer::render_materialized_views_folder(
                     ui,
                     conn_id,
@@ -140,15 +129,13 @@ fn render_schema_node(
                     action,
                 );
             }
-            if has_sequences {
-                sequences_folder_renderer::render_sequences_folder(
-                    ui,
-                    conn_id,
-                    db_name,
-                    schema_name,
-                    schema_node,
-                );
-            }
+            sequences_folder_renderer::render_sequences_folder(
+                ui,
+                conn_id,
+                db_name,
+                schema_name,
+                schema_node,
+            );
         });
     resp.header_response
         .on_hover_cursor(CursorIcon::PointingHand);
