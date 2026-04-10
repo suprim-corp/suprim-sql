@@ -4,10 +4,15 @@ use egui_extras::{Column, TableBuilder};
 
 use suprim_sql::db::drivers::postgres::{PG_COLUMN_TYPES, PG_TYPES_WITH_PARAMS};
 
+use super::default_suggestions;
 use super::EditableColumn;
 
 /// Renders the editable columns grid and returns the index of a column to remove (if any).
-pub fn render_columns_grid(columns: &mut Vec<EditableColumn>, ui: &mut egui::Ui) {
+pub fn render_columns_grid(
+    columns: &mut Vec<EditableColumn>,
+    schema_functions: &[String],
+    ui: &mut egui::Ui,
+) {
     ui.label(
         egui::RichText::new(format!(
             "{} Columns ({})",
@@ -129,13 +134,41 @@ pub fn render_columns_grid(columns: &mut Vec<EditableColumn>, ui: &mut egui::Ui)
                         col.nullable = !not_null;
                     }
                 });
-                // Default
+                // Default (TextEdit + autocomplete popup)
                 row.col(|ui| {
-                    ui.add(
+                    let response = ui.add(
                         egui::TextEdit::singleline(&mut col.default_value)
                             .desired_width(ui.available_width())
                             .hint_text("default"),
                     );
+
+                    // Show popup when text field is focused
+                    if response.has_focus() {
+                        let suggestions = default_suggestions::filtered_suggestions(
+                            &col.db_type,
+                            &col.default_value,
+                            schema_functions,
+                        );
+                        if !suggestions.is_empty() {
+                            let popup_id = response.id.with("default_popup");
+                            egui::Popup::from_response(&response)
+                                .id(popup_id)
+                                .close_behavior(egui::PopupCloseBehavior::CloseOnClick)
+                                .show(|ui| {
+                                    ui.set_min_width(180.0);
+                                    egui::ScrollArea::vertical()
+                                        .max_height(160.0)
+                                        .show(ui, |ui| {
+                                            for suggestion in &suggestions {
+                                                if ui.selectable_label(false, suggestion).clicked()
+                                                {
+                                                    col.default_value = suggestion.clone();
+                                                }
+                                            }
+                                        });
+                                });
+                        }
+                    }
                 });
                 // Trash
                 row.col(|ui| {

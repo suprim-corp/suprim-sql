@@ -1,5 +1,6 @@
 /// Table structure editor tab — view and edit columns, indexes, and foreign keys.
 mod columns_grid;
+pub(crate) mod default_suggestions;
 mod detail_sections;
 mod sql_generator;
 
@@ -72,6 +73,8 @@ pub struct TableEditorTab {
     status_message: Option<String>,
     /// `true` when creating a brand-new table (vs. editing an existing one).
     pub is_new_table: bool,
+    /// Function signatures available in the current schema (for default value autocomplete).
+    pub schema_functions: Vec<String>,
 }
 
 impl TableEditorTab {
@@ -88,6 +91,7 @@ impl TableEditorTab {
             show_sql_preview: false,
             status_message: None,
             is_new_table: false,
+            schema_functions: Vec::new(),
         }
     }
 
@@ -113,6 +117,7 @@ impl TableEditorTab {
             show_sql_preview: false,
             status_message: None,
             is_new_table: true,
+            schema_functions: Vec::new(),
         }
     }
 
@@ -236,7 +241,11 @@ impl TableEditorTab {
             egui::ScrollArea::vertical()
                 .auto_shrink(false)
                 .show(ui, |ui| {
-                    columns_grid::render_columns_grid(&mut self.columns, ui);
+                    columns_grid::render_columns_grid(
+                        &mut self.columns,
+                        &self.schema_functions,
+                        ui,
+                    );
 
                     ui.add_space(16.0);
                     detail_sections::render_indexes_section(&self.indexes, ui);

@@ -31,6 +31,8 @@ pub enum SidebarAction {
         database: String,
         schema_name: String,
         table: TableNode,
+        /// Function signatures in this schema (for default-value autocomplete).
+        schema_functions: Vec<String>,
     },
     Disconnect {
         conn_id: Uuid,
@@ -93,5 +95,7 @@ pub enum SidebarAction {
         conn_id: Uuid,
         database: String,
         schema_name: String,
+        /// Function signatures in this schema (for default-value autocomplete).
+        schema_functions: Vec<String>,
     },
 }

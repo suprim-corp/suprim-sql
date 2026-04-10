@@ -58,10 +58,17 @@ pub fn handle_sidebar_action(action: SidebarAction, ctx: &mut SidebarContext<'_>
             database,
             schema_name,
             table,
+            schema_functions,
         } => {
             let name = (ctx.conn_name)(conn_id);
-            ctx.tab_manager
-                .open_table_editor(conn_id, name, database, schema_name, &table);
+            ctx.tab_manager.open_table_editor(
+                conn_id,
+                name,
+                database,
+                schema_name,
+                &table,
+                schema_functions,
+            );
         }
         SidebarAction::Disconnect { conn_id } => {
             let _ = ctx.cmd_tx.try_send(DbCommand::Disconnect { conn_id });
@@ -162,10 +169,16 @@ pub fn handle_sidebar_action(action: SidebarAction, ctx: &mut SidebarContext<'_>
             conn_id,
             database,
             schema_name,
+            schema_functions,
         } => {
             let name = (ctx.conn_name)(conn_id);
-            ctx.tab_manager
-                .open_new_table_editor(conn_id, name, database, schema_name);
+            ctx.tab_manager.open_new_table_editor(
+                conn_id,
+                name,
+                database,
+                schema_name,
+                schema_functions,
+            );
         }
     }
 }

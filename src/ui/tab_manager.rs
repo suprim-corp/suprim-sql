@@ -144,11 +144,14 @@ impl TabManager {
         database: String,
         schema_name: String,
         table: &suprim_sql::db::types::TableNode,
+        schema_functions: Vec<String>,
     ) {
         let tab_id = Uuid::new_v4();
+        let mut editor = TableEditorTab::new(conn_id, database, schema_name, table);
+        editor.schema_functions = schema_functions;
         self.tabs.push(TabEntry {
             tab_id,
-            kind: TabKind::TableEditor(TableEditorTab::new(conn_id, database, schema_name, table)),
+            kind: TabKind::TableEditor(editor),
             conn_name,
         });
         self.active_tab = Some(tab_id);
@@ -160,11 +163,14 @@ impl TabManager {
         conn_name: String,
         database: String,
         schema_name: String,
+        schema_functions: Vec<String>,
     ) {
         let tab_id = Uuid::new_v4();
+        let mut editor = TableEditorTab::new_empty(conn_id, database, schema_name);
+        editor.schema_functions = schema_functions;
         self.tabs.push(TabEntry {
             tab_id,
-            kind: TabKind::TableEditor(TableEditorTab::new_empty(conn_id, database, schema_name)),
+            kind: TabKind::TableEditor(editor),
             conn_name,
         });
         self.active_tab = Some(tab_id);

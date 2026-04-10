@@ -28,6 +28,7 @@ pub(super) fn render_table_context_menu(
     db_name: &str,
     schema_name: &str,
     table: &TableNode,
+    schema_functions: &[String],
     action: &mut Option<SidebarAction>,
 ) {
     let table_name = &table.name;
@@ -49,6 +50,7 @@ pub(super) fn render_table_context_menu(
                 database: db_name.to_owned(),
                 schema_name: schema_name.to_owned(),
                 table: table.clone(),
+                schema_functions: schema_functions.to_vec(),
             });
             ui.close();
         }

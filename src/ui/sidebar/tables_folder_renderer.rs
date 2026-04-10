@@ -64,12 +64,18 @@ pub(super) fn render_tables_folder(
                 let label_resp = &header_resp.inner;
 
                 // Right-click context menu on the label
+                let func_sigs: Vec<String> = schema_node
+                    .functions
+                    .iter()
+                    .map(|f| f.signature.clone())
+                    .collect();
                 table_context_menu::render_table_context_menu(
                     label_resp,
                     conn_id,
                     db_name,
                     schema_name,
                     table,
+                    &func_sigs,
                     action,
                 );
 
@@ -98,6 +104,11 @@ pub(super) fn render_tables_folder(
                 conn_id,
                 database: db_name.to_owned(),
                 schema_name: schema_name.to_owned(),
+                schema_functions: schema_node
+                    .functions
+                    .iter()
+                    .map(|f| f.signature.clone())
+                    .collect(),
             });
             ui.close();
         }
