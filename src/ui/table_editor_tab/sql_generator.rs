@@ -5,6 +5,16 @@ use uuid::Uuid;
 
 use super::EditableColumn;
 
+/// Combine base type + optional param into the full SQL type string.
+/// e.g. `("varchar", "255")` → `"varchar(255)"`, `("bigint", "")` → `"bigint"`.
+fn full_type(col: &EditableColumn) -> String {
+    if col.type_param.is_empty() {
+        col.db_type.clone()
+    } else {
+        format!("{}({})", col.db_type, col.type_param)
+    }
+}
+
 /// Generates CREATE TABLE DDL for a brand-new table.
 pub fn generate_create_table_sql(
     schema_name: &str,
@@ -24,7 +34,7 @@ pub fn generate_create_table_sql(
     let mut pk_cols: Vec<String> = Vec::new();
 
     for col in &valid_cols {
-        let mut def = format!("    \"{}\" {}", col.name, col.db_type);
+        let mut def = format!("    \"{}\" {}", col.name, full_type(col));
         if !col.nullable {
             def.push_str(" NOT NULL");
         }
@@ -61,7 +71,9 @@ pub fn generate_alter_sql(
         if !col.original && !col.name.is_empty() {
             let mut stmt = format!(
                 "ALTER TABLE {} ADD COLUMN \"{}\" {}",
-                full_table, col.name, col.db_type
+                full_table,
+                col.name,
+                full_type(col)
             );
             if !col.nullable {
                 stmt.push_str(" NOT NULL");

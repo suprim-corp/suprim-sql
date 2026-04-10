@@ -2,7 +2,7 @@
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
 
-use suprim_sql::db::drivers::postgres::PG_COLUMN_TYPES;
+use suprim_sql::db::drivers::postgres::{PG_COLUMN_TYPES, PG_TYPES_WITH_PARAMS};
 
 use super::EditableColumn;
 
@@ -26,15 +26,15 @@ pub fn render_columns_grid(columns: &mut Vec<EditableColumn>, ui: &mut egui::Ui)
 
     // Fixed column widths
     let col_num_w = 30.0_f32;
+    let col_length_w = 56.0_f32;
     let col_pk_w = 40.0_f32;
     let col_notnull_w = 70.0_f32;
     let col_trash_w = 30.0_f32;
-    let fixed_total = col_num_w + col_pk_w + col_notnull_w + col_trash_w;
+    let fixed_total = col_num_w + col_length_w + col_pk_w + col_notnull_w + col_trash_w;
 
-    // TableBuilder adds item_spacing.x between each column (7 cols = 6 gaps)
-    // plus a scrollbar gutter (~16px). Account for all of it.
+    // 8 columns = 7 gaps + scrollbar gutter (~16px)
     let spacing = ui.spacing().item_spacing.x;
-    let overhead = fixed_total + spacing * 6.0 + 16.0;
+    let overhead = fixed_total + spacing * 7.0 + 16.0;
     // Distribute remaining width across Name(3), Type(2), Default(2) = 7 parts
     let available = (ui.available_width() - overhead).max(210.0);
     let name_w = (available * 3.0 / 7.0).max(80.0);
@@ -47,6 +47,7 @@ pub fn render_columns_grid(columns: &mut Vec<EditableColumn>, ui: &mut egui::Ui)
         .column(Column::exact(col_num_w)) // #
         .column(Column::exact(name_w)) // Name
         .column(Column::exact(type_w)) // Type
+        .column(Column::exact(col_length_w)) // Length
         .column(Column::exact(col_pk_w)) // PK
         .column(Column::exact(col_notnull_w)) // NOT NULL
         .column(Column::exact(default_w)) // Default
@@ -60,6 +61,9 @@ pub fn render_columns_grid(columns: &mut Vec<EditableColumn>, ui: &mut egui::Ui)
             });
             header.col(|ui| {
                 ui.strong("Type");
+            });
+            header.col(|ui| {
+                ui.strong("Length");
             });
             header.col(|ui| {
                 ui.strong("PK");
@@ -77,9 +81,11 @@ pub fn render_columns_grid(columns: &mut Vec<EditableColumn>, ui: &mut egui::Ui)
                 let idx = row.index();
                 let col = &mut columns[idx];
 
+                // #
                 row.col(|ui| {
                     ui.label(format!("{}", idx + 1));
                 });
+                // Name
                 row.col(|ui| {
                     ui.add(
                         egui::TextEdit::singleline(&mut col.name)
@@ -87,6 +93,7 @@ pub fn render_columns_grid(columns: &mut Vec<EditableColumn>, ui: &mut egui::Ui)
                             .hint_text("column_name"),
                     );
                 });
+                // Type (ComboBox)
                 row.col(|ui| {
                     let combo_id = ui.make_persistent_id(format!("col_type_{idx}"));
                     egui::ComboBox::from_id_salt(combo_id)
@@ -98,15 +105,31 @@ pub fn render_columns_grid(columns: &mut Vec<EditableColumn>, ui: &mut egui::Ui)
                             }
                         });
                 });
+                // Length / Precision
+                row.col(|ui| {
+                    let needs_param = PG_TYPES_WITH_PARAMS
+                        .iter()
+                        .any(|&t| t == col.db_type.as_str());
+                    if needs_param {
+                        ui.add(
+                            egui::TextEdit::singleline(&mut col.type_param)
+                                .desired_width(ui.available_width())
+                                .hint_text("n"),
+                        );
+                    }
+                });
+                // PK
                 row.col(|ui| {
                     ui.checkbox(&mut col.is_primary_key, "");
                 });
+                // NOT NULL
                 row.col(|ui| {
                     let mut not_null = !col.nullable;
                     if ui.checkbox(&mut not_null, "").changed() {
                         col.nullable = !not_null;
                     }
                 });
+                // Default
                 row.col(|ui| {
                     ui.add(
                         egui::TextEdit::singleline(&mut col.default_value)
@@ -114,6 +137,7 @@ pub fn render_columns_grid(columns: &mut Vec<EditableColumn>, ui: &mut egui::Ui)
                             .hint_text("default"),
                     );
                 });
+                // Trash
                 row.col(|ui| {
                     let delete_label = egui::RichText::new(egui_phosphor::regular::TRASH)
                         .color(egui::Color32::from_rgb(220, 60, 60));

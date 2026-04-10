@@ -91,8 +91,9 @@ impl Default for PostgresDriver {
 
 // ─── Common PostgreSQL column types for UI dropdowns ─────────────────────────
 
-/// Curated list of common PostgreSQL column types (lowercase, user-friendly).
-/// Used by the table editor column-type dropdown.
+/// Curated list of common PostgreSQL column types (base names only, no params).
+/// Types that accept length/precision (varchar, char, numeric, etc.) get a
+/// separate input field in the UI for the user to specify `(n)` or `(p,s)`.
 pub const PG_COLUMN_TYPES: &[&str] = &[
     "bigint",
     "integer",
@@ -101,8 +102,8 @@ pub const PG_COLUMN_TYPES: &[&str] = &[
     "bigserial",
     "boolean",
     "text",
-    "varchar(255)",
-    "char(1)",
+    "varchar",
+    "char",
     "numeric",
     "real",
     "double precision",
@@ -123,4 +124,19 @@ pub const PG_COLUMN_TYPES: &[&str] = &[
     "money",
     "point",
     "hstore",
+];
+
+/// Types that accept a length/precision parameter (shown in the UI next to the
+/// type dropdown so the user can type e.g. `255` for `varchar(255)`).
+pub const PG_TYPES_WITH_PARAMS: &[&str] = &[
+    "varchar",
+    "char",
+    "numeric",
+    "decimal",
+    "bit",
+    "varbit",
+    "time",
+    "timestamp",
+    "timestamptz",
+    "interval",
 ];

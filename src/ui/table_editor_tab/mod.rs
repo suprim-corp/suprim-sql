@@ -13,7 +13,11 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub(crate) struct EditableColumn {
     pub name: String,
+    /// Base type name (e.g. `varchar`, `numeric`).
     pub db_type: String,
+    /// Optional length/precision parameter (e.g. `255`, `10,2`).
+    /// Combined with `db_type` when generating DDL: `varchar(255)`.
+    pub type_param: String,
     pub nullable: bool,
     pub is_primary_key: bool,
     pub default_value: String,
@@ -23,14 +27,31 @@ pub(crate) struct EditableColumn {
 
 impl From<&suprim_sql::db::types::ColumnNode> for EditableColumn {
     fn from(c: &suprim_sql::db::types::ColumnNode) -> Self {
+        // Parse "varchar(255)" → base="varchar", param="255"
+        let (base, param) = parse_type_and_param(&c.db_type);
         Self {
             name: c.name.clone(),
-            db_type: c.db_type.clone(),
+            db_type: base,
+            type_param: param,
             nullable: c.nullable,
             is_primary_key: c.is_primary_key,
             default_value: c.default_value.clone().unwrap_or_default(),
             original: true,
         }
+    }
+}
+
+/// Split a full type string like `varchar(255)` or `numeric(10,2)` into
+/// `("varchar", "255")` or `("numeric", "10,2")`. Types without params
+/// return an empty param string.
+fn parse_type_and_param(full_type: &str) -> (String, String) {
+    if let Some(open) = full_type.find('(') {
+        let base = full_type[..open].trim().to_string();
+        let rest = &full_type[open + 1..];
+        let param = rest.trim_end_matches(')').trim().to_string();
+        (base, param)
+    } else {
+        (full_type.to_string(), String::new())
     }
 }
 
@@ -80,6 +101,7 @@ impl TableEditorTab {
             columns: vec![EditableColumn {
                 name: "id".to_string(),
                 db_type: "bigint".to_string(),
+                type_param: String::new(),
                 nullable: false,
                 is_primary_key: true,
                 default_value: String::new(),
@@ -185,6 +207,7 @@ impl TableEditorTab {
                         self.columns.push(EditableColumn {
                             name: String::new(),
                             db_type: "text".to_string(),
+                            type_param: String::new(),
                             nullable: true,
                             is_primary_key: false,
                             default_value: String::new(),
