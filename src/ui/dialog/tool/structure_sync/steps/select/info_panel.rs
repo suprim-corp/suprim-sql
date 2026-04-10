@@ -29,72 +29,107 @@ pub(crate) fn render_information_panels(
     let src_color = egui::Color32::from_rgb(66, 165, 245);
     let tgt_color = egui::Color32::from_rgb(76, 175, 80);
 
-    // Use egui::Grid — each row automatically gets the max height of its cells.
-    let col_width = (ui.available_width() - ui.spacing().item_spacing.x) / 2.0;
+    // 3-column layout: source (45%) | arrow (10%) | target (45%)
+    // Using painter-based absolute positioning to guarantee column alignment.
+    let total_w = ui.available_width();
+    let col_w = (total_w * 0.45).max(100.0);
+    let mid_w = total_w * 0.10;
+    let wrap_width = col_w - 8.0;
+    let panel_left = ui.cursor().left();
+    let mid_x = panel_left + col_w; // start of middle column
+    let right_x = panel_left + col_w + mid_w; // start of right column
+    let mid_center_x = mid_x + mid_w / 2.0; // center of arrow column
 
-    egui::Grid::new("info_grid")
-        .num_columns(2)
-        .min_col_width(col_width)
-        .max_col_width(col_width)
-        .spacing([ui.spacing().item_spacing.x, 2.0])
-        .show(ui, |ui| {
-            // Heading row
-            ui.label(egui::RichText::new("Information").color(src_color).strong());
-            ui.label(egui::RichText::new("Information").color(tgt_color).strong());
-            ui.end_row();
+    let arrow_icon = egui_phosphor::regular::ARROW_RIGHT;
+    let text_color = ui.visuals().text_color();
+    let weak_color = ui.visuals().weak_text_color();
+    let arrow_color = weak_color;
+    let body_size = ui.style().text_styles[&egui::TextStyle::Body].size;
+    let key_font = egui::FontId::new(body_size + 1.0, egui::FontFamily::Proportional);
+    let val_font = egui::FontId::new(body_size, egui::FontFamily::Proportional);
+    let arrow_font = egui::FontId::proportional(body_size);
 
-            let text_color = ui.visuals().text_color();
-            let weak_color = ui.visuals().weak_text_color();
-            let body_size = ui.style().text_styles[&egui::TextStyle::Body].size;
-            let key_font = egui::FontId::new(body_size + 1.0, egui::FontFamily::Proportional);
-            let val_font = egui::FontId::new(body_size, egui::FontFamily::Proportional);
-            let wrap_width = col_width - 8.0;
+    let separator_stroke = egui::Stroke::new(
+        0.5,
+        ui.visuals()
+            .widgets
+            .noninteractive
+            .bg_stroke
+            .color
+            .linear_multiply(0.4),
+    );
 
-            // Data rows — single Label with LayoutJob per cell
-            let separator_stroke = egui::Stroke::new(
-                0.5,
-                ui.visuals()
-                    .widgets
-                    .noninteractive
-                    .bg_stroke
-                    .color
-                    .linear_multiply(0.4),
-            );
+    let row_h = 20.0;
 
-            for (key, src_val, tgt_val) in &rows {
-                // Subtle separator between rows
-                let rect = ui.available_rect_before_wrap();
-                ui.painter().line_segment(
-                    [
-                        egui::pos2(rect.left(), rect.top()),
-                        egui::pos2(
-                            rect.left() + col_width * 2.0 + ui.spacing().item_spacing.x,
-                            rect.top(),
-                        ),
-                    ],
-                    separator_stroke,
-                );
+    // Heading row — painted at absolute positions
+    {
+        let y = ui.cursor().top();
+        let painter = ui.painter();
 
-                // Align to top within the grid cell
-                ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
-                    ui.add(
-                        egui::Label::new(info_layout_job(
-                            key, src_val, &key_font, &val_font, text_color, weak_color, wrap_width,
-                        ))
-                        .wrap(),
-                    );
-                });
-                ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
-                    ui.add(
-                        egui::Label::new(info_layout_job(
-                            key, tgt_val, &key_font, &val_font, text_color, weak_color, wrap_width,
-                        ))
-                        .wrap(),
-                    );
-                });
-                ui.end_row();
-            }
-        });
+        // Source "Information" label
+        painter.text(
+            egui::pos2(panel_left, y),
+            egui::Align2::LEFT_TOP,
+            "Information",
+            egui::FontId::new(body_size + 1.0, egui::FontFamily::Proportional),
+            src_color,
+        );
+        // Target "Information" label
+        painter.text(
+            egui::pos2(right_x, y),
+            egui::Align2::LEFT_TOP,
+            "Information",
+            egui::FontId::new(body_size + 1.0, egui::FontFamily::Proportional),
+            tgt_color,
+        );
+        // Reserve space for the heading
+        ui.allocate_space(egui::vec2(total_w, row_h));
+    }
+
+    // Data rows
+    for (key, src_val, tgt_val) in &rows {
+        // Subtle separator — left column only
+        let y = ui.cursor().top();
+        ui.painter().line_segment(
+            [egui::pos2(panel_left, y), egui::pos2(panel_left + col_w, y)],
+            separator_stroke,
+        );
+        // Subtle separator — right column only
+        ui.painter().line_segment(
+            [egui::pos2(right_x, y), egui::pos2(right_x + col_w, y)],
+            separator_stroke,
+        );
+
+        // Measure how tall each side will be via LayoutJob galley
+        let src_job = info_layout_job(
+            key, src_val, &key_font, &val_font, text_color, weak_color, wrap_width,
+        );
+        let tgt_job = info_layout_job(
+            key, tgt_val, &key_font, &val_font, text_color, weak_color, wrap_width,
+        );
+        let src_galley = ui.painter().layout_job(src_job);
+        let tgt_galley = ui.painter().layout_job(tgt_job);
+        let max_h = src_galley.size().y.max(tgt_galley.size().y).max(row_h);
+
+        let row_y = ui.cursor().top();
+        let painter = ui.painter();
+
+        // Source text
+        painter.galley(egui::pos2(panel_left, row_y), src_galley, text_color);
+        // Arrow (centered vertically)
+        painter.text(
+            egui::pos2(mid_center_x, row_y + max_h / 2.0),
+            egui::Align2::CENTER_CENTER,
+            arrow_icon,
+            arrow_font.clone(),
+            arrow_color,
+        );
+        // Target text
+        painter.galley(egui::pos2(right_x, row_y), tgt_galley, text_color);
+
+        // Reserve the row height
+        ui.allocate_space(egui::vec2(total_w, max_h));
+    }
 }
 
 /// Build a LayoutJob: emphasized key + normal value in one text block.

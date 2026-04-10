@@ -71,30 +71,68 @@ fn render_summary_side(
     });
 }
 
-/// Render source + target pickers side by side.
+/// Render source + target pickers side by side with a swap button in between.
 pub(crate) fn render_endpoint_pickers(
     ui: &mut egui::Ui,
     connections: &[ConnInfo],
     source: &mut Endpoint,
     target: &mut Endpoint,
 ) {
-    ui.columns(2, |cols| {
-        render_single_picker(
-            &mut cols[0],
-            "Source",
-            egui::Color32::from_rgb(66, 165, 245),
-            connections,
-            source,
-            "src",
-        );
-        render_single_picker(
-            &mut cols[1],
-            "Target",
-            egui::Color32::from_rgb(76, 175, 80),
-            connections,
-            target,
-            "tgt",
-        );
+    let total_w = ui.available_width();
+    let col_w = (total_w * 0.45).max(100.0);
+    let swap_w = total_w * 0.10;
+
+    ui.horizontal(|ui| {
+        // Source column
+        ui.vertical(|ui| {
+            ui.set_min_width(col_w);
+            ui.set_max_width(col_w);
+            render_single_picker(
+                ui,
+                "Source",
+                egui::Color32::from_rgb(66, 165, 245),
+                connections,
+                source,
+                "src",
+            );
+        });
+
+        // Swap button (centered in middle column)
+        ui.vertical(|ui| {
+            ui.set_min_width(swap_w);
+            ui.set_max_width(swap_w);
+            // Push down to roughly center the button within the picker height
+            ui.add_space(40.0);
+            ui.centered_and_justified(|ui| {
+                let btn = ui
+                    .add(
+                        egui::Button::new(
+                            egui::RichText::new(egui_phosphor::regular::ARROWS_LEFT_RIGHT)
+                                .size(16.0),
+                        )
+                        .frame(false),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                    .on_hover_text("Swap source ↔ target");
+                if btn.clicked() {
+                    std::mem::swap(source, target);
+                }
+            });
+        });
+
+        // Target column
+        ui.vertical(|ui| {
+            ui.set_min_width(col_w);
+            ui.set_max_width(col_w);
+            render_single_picker(
+                ui,
+                "Target",
+                egui::Color32::from_rgb(76, 175, 80),
+                connections,
+                target,
+                "tgt",
+            );
+        });
     });
 }
 
