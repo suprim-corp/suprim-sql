@@ -73,11 +73,15 @@ fn render_single_connection(
 
         let (toggle_resp, header_resp, _body) = resp;
 
-        // Click on label → connect (if disconnected/failed)
-        if header_resp.inner.clicked()
+        // Click on label or chevron → connect (if disconnected/failed)
+        if (header_resp.inner.clicked() || toggle_resp.clicked())
             && (entry.status == ConnectionStatus::Disconnected
                 || entry.status == ConnectionStatus::Failed)
         {
+            // If chevron clicked, auto-expand after connection completes
+            if toggle_resp.clicked() {
+                entry.needs_expand = true;
+            }
             *action = Some(SidebarAction::Connect { conn_id });
         }
 
@@ -104,11 +108,16 @@ fn render_single_connection(
     if entry.needs_collapse {
         entry.needs_collapse = false;
     }
-    let cs = egui::collapsing_header::CollapsingState::load_with_default_open(
+    let mut cs = egui::collapsing_header::CollapsingState::load_with_default_open(
         ui.ctx(),
         header_id,
         default_open,
     );
+    // Auto-expand after connect triggered by chevron click
+    if entry.needs_expand {
+        cs.set_open(true);
+        entry.needs_expand = false;
+    }
     let resp = cs
         .show_header(ui, |ui| {
             ui.label(&header).on_hover_cursor(CursorIcon::PointingHand)

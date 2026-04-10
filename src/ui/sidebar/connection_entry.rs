@@ -36,6 +36,9 @@ pub(super) struct ConnectionEntry {
     pub server_version: Option<String>,
     /// Error message if connection failed.
     pub error_message: Option<String>,
+    /// When true, the next render after connecting will force-expand this entry.
+    /// Set when user clicks the chevron on a disconnected connection.
+    pub needs_expand: bool,
 }
 
 impl ConnectionEntry {
@@ -60,6 +63,7 @@ impl ConnectionEntry {
             schemas_requested: HashSet::new(),
             server_version: None,
             error_message: None,
+            needs_expand: false,
         }
     }
 
@@ -78,6 +82,7 @@ impl ConnectionEntry {
             schemas_requested: HashSet::new(),
             server_version: None,
             error_message: None,
+            needs_expand: false,
         }
     }
 
