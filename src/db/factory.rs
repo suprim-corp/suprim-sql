@@ -1,6 +1,6 @@
 use crate::db::connection::{ConnectionConfig, DriverType};
 use crate::db::driver::DatabaseDriver;
-use crate::db::postgres::PostgresDriver;
+use crate::db::drivers::postgres::PostgresDriver;
 use crate::error::{AppError, Result};
 
 /// Instantiate the correct driver from a ConnectionConfig at runtime.

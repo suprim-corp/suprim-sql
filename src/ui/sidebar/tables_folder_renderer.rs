@@ -84,6 +84,24 @@ pub(super) fn render_tables_folder(
                 }
             }
         });
+    // Right-click on "Tables" folder header → "New Table..."
+    tables_resp.header_response.context_menu(|ui| {
+        if ui
+            .button(format!(
+                "{}  New Table...",
+                egui_phosphor::regular::PLUS_CIRCLE
+            ))
+            .on_hover_cursor(CursorIcon::PointingHand)
+            .clicked()
+        {
+            *action = Some(SidebarAction::NewTable {
+                conn_id,
+                database: db_name.to_owned(),
+                schema_name: schema_name.to_owned(),
+            });
+            ui.close();
+        }
+    });
     tables_resp
         .header_response
         .on_hover_cursor(CursorIcon::PointingHand);

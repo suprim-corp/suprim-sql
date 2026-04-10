@@ -5,6 +5,49 @@ use uuid::Uuid;
 
 use super::EditableColumn;
 
+/// Generates CREATE TABLE DDL for a brand-new table.
+pub fn generate_create_table_sql(
+    schema_name: &str,
+    table_name: &str,
+    columns: &[EditableColumn],
+) -> String {
+    if table_name.is_empty() {
+        return "-- Table name is required".to_string();
+    }
+    let valid_cols: Vec<&EditableColumn> = columns.iter().filter(|c| !c.name.is_empty()).collect();
+    if valid_cols.is_empty() {
+        return "-- At least one column is required".to_string();
+    }
+
+    let full_table = format!("\"{}\".\"{}\"", schema_name, table_name);
+    let mut col_defs: Vec<String> = Vec::new();
+    let mut pk_cols: Vec<String> = Vec::new();
+
+    for col in &valid_cols {
+        let mut def = format!("    \"{}\" {}", col.name, col.db_type);
+        if !col.nullable {
+            def.push_str(" NOT NULL");
+        }
+        if !col.default_value.is_empty() {
+            def.push_str(&format!(" DEFAULT {}", col.default_value));
+        }
+        col_defs.push(def);
+        if col.is_primary_key {
+            pk_cols.push(format!("\"{}\"", col.name));
+        }
+    }
+
+    if !pk_cols.is_empty() {
+        col_defs.push(format!("    PRIMARY KEY ({})", pk_cols.join(", ")));
+    }
+
+    format!(
+        "CREATE TABLE {} (\n{}\n);",
+        full_table,
+        col_defs.join(",\n")
+    )
+}
+
 /// Generates ALTER TABLE ADD COLUMN statements for newly added columns.
 pub fn generate_alter_sql(
     schema_name: &str,

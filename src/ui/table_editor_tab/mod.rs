@@ -49,6 +49,8 @@ pub struct TableEditorTab {
     show_sql_preview: bool,
     /// Status message after save attempt.
     status_message: Option<String>,
+    /// `true` when creating a brand-new table (vs. editing an existing one).
+    pub is_new_table: bool,
 }
 
 impl TableEditorTab {
@@ -64,6 +66,31 @@ impl TableEditorTab {
             sql_preview: String::new(),
             show_sql_preview: false,
             status_message: None,
+            is_new_table: false,
+        }
+    }
+
+    /// Create an empty editor for designing a brand-new table.
+    pub fn new_empty(conn_id: Uuid, database: String, schema_name: String) -> Self {
+        Self {
+            conn_id,
+            database,
+            schema_name,
+            table_name: String::new(),
+            columns: vec![EditableColumn {
+                name: "id".to_string(),
+                db_type: "bigint".to_string(),
+                nullable: false,
+                is_primary_key: true,
+                default_value: String::new(),
+                original: false,
+            }],
+            indexes: Vec::new(),
+            foreign_keys: Vec::new(),
+            sql_preview: String::new(),
+            show_sql_preview: false,
+            status_message: None,
+            is_new_table: true,
         }
     }
 
@@ -71,42 +98,83 @@ impl TableEditorTab {
         ui.vertical(|ui| {
             // ── Header ──────────────────────────────────────────────
             ui.horizontal(|ui| {
-                ui.heading(format!(
-                    "{} Edit: {}.{}",
-                    egui_phosphor::regular::PENCIL_SIMPLE,
-                    self.schema_name,
-                    self.table_name,
-                ));
+                if self.is_new_table {
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "{}  New Table in {}.{}",
+                            egui_phosphor::regular::PLUS_CIRCLE,
+                            self.database,
+                            self.schema_name,
+                        ))
+                        .heading(),
+                    );
+                } else {
+                    ui.heading(format!(
+                        "{} Edit: {}.{}",
+                        egui_phosphor::regular::PENCIL_SIMPLE,
+                        self.schema_name,
+                        self.table_name,
+                    ));
+                }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let save_label = if self.is_new_table {
+                        "Create Table"
+                    } else {
+                        "Save Changes"
+                    };
                     if ui
-                        .button("Save Changes")
+                        .button(save_label)
                         .on_hover_cursor(egui::CursorIcon::PointingHand)
                         .clicked()
                     {
-                        let sql = sql_generator::generate_alter_sql(
-                            &self.schema_name,
-                            &self.table_name,
-                            &self.columns,
-                        );
-                        self.status_message = Some(sql_generator::execute_changes(
-                            self.conn_id,
-                            tab_id,
-                            &self.database,
-                            &sql,
-                            &mut self.columns,
-                            cmd_tx,
-                        ));
+                        if self.is_new_table {
+                            let sql = sql_generator::generate_create_table_sql(
+                                &self.schema_name,
+                                &self.table_name,
+                                &self.columns,
+                            );
+                            self.status_message = Some(sql_generator::execute_changes(
+                                self.conn_id,
+                                tab_id,
+                                &self.database,
+                                &sql,
+                                &mut self.columns,
+                                cmd_tx,
+                            ));
+                        } else {
+                            let sql = sql_generator::generate_alter_sql(
+                                &self.schema_name,
+                                &self.table_name,
+                                &self.columns,
+                            );
+                            self.status_message = Some(sql_generator::execute_changes(
+                                self.conn_id,
+                                tab_id,
+                                &self.database,
+                                &sql,
+                                &mut self.columns,
+                                cmd_tx,
+                            ));
+                        }
                     }
                     if ui
                         .button("Preview SQL")
                         .on_hover_cursor(egui::CursorIcon::PointingHand)
                         .clicked()
                     {
-                        self.sql_preview = sql_generator::generate_alter_sql(
-                            &self.schema_name,
-                            &self.table_name,
-                            &self.columns,
-                        );
+                        self.sql_preview = if self.is_new_table {
+                            sql_generator::generate_create_table_sql(
+                                &self.schema_name,
+                                &self.table_name,
+                                &self.columns,
+                            )
+                        } else {
+                            sql_generator::generate_alter_sql(
+                                &self.schema_name,
+                                &self.table_name,
+                                &self.columns,
+                            )
+                        };
                         self.show_sql_preview = true;
                     }
                     if ui
@@ -126,6 +194,15 @@ impl TableEditorTab {
                 });
             });
             ui.separator();
+
+            // ── Table name input (new table mode only) ──────────────
+            if self.is_new_table {
+                ui.horizontal(|ui| {
+                    ui.label("Table name:");
+                    ui.text_edit_singleline(&mut self.table_name);
+                });
+                ui.add_space(4.0);
+            }
 
             if let Some(msg) = &self.status_message {
                 ui.colored_label(ui.visuals().warn_fg_color, msg);

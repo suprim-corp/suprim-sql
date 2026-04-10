@@ -2,6 +2,8 @@
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
 
+use suprim_sql::db::drivers::postgres::PG_COLUMN_TYPES;
+
 use super::EditableColumn;
 
 /// Renders the editable columns grid and returns the index of a column to remove (if any).
@@ -86,11 +88,15 @@ pub fn render_columns_grid(columns: &mut Vec<EditableColumn>, ui: &mut egui::Ui)
                     );
                 });
                 row.col(|ui| {
-                    ui.add(
-                        egui::TextEdit::singleline(&mut col.db_type)
-                            .desired_width(ui.available_width())
-                            .hint_text("type"),
-                    );
+                    let combo_id = ui.make_persistent_id(format!("col_type_{idx}"));
+                    egui::ComboBox::from_id_salt(combo_id)
+                        .selected_text(&col.db_type)
+                        .width(ui.available_width() - 8.0)
+                        .show_ui(ui, |ui| {
+                            for &t in PG_COLUMN_TYPES {
+                                ui.selectable_value(&mut col.db_type, t.to_string(), t);
+                            }
+                        });
                 });
                 row.col(|ui| {
                     ui.checkbox(&mut col.is_primary_key, "");

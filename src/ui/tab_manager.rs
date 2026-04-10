@@ -39,7 +39,13 @@ impl TabEntry {
         let name = match &self.kind {
             TabKind::SqlEditor(_) => "Query".to_string(),
             TabKind::TableViewer(t) => truncate_str(&t.table_name, 18),
-            TabKind::TableEditor(t) => format!("Edit: {}", truncate_str(&t.table_name, 14)),
+            TabKind::TableEditor(t) => {
+                if t.is_new_table {
+                    "New Table".to_string()
+                } else {
+                    format!("Edit: {}", truncate_str(&t.table_name, 14))
+                }
+            }
         };
         let conn = truncate_str(&self.conn_name, 20);
         format!("{icon} {name} [{conn}]")
@@ -143,6 +149,22 @@ impl TabManager {
         self.tabs.push(TabEntry {
             tab_id,
             kind: TabKind::TableEditor(TableEditorTab::new(conn_id, database, schema_name, table)),
+            conn_name,
+        });
+        self.active_tab = Some(tab_id);
+    }
+
+    pub fn open_new_table_editor(
+        &mut self,
+        conn_id: Uuid,
+        conn_name: String,
+        database: String,
+        schema_name: String,
+    ) {
+        let tab_id = Uuid::new_v4();
+        self.tabs.push(TabEntry {
+            tab_id,
+            kind: TabKind::TableEditor(TableEditorTab::new_empty(conn_id, database, schema_name)),
             conn_name,
         });
         self.active_tab = Some(tab_id);

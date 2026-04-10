@@ -88,3 +88,39 @@ impl Default for PostgresDriver {
         Self::new()
     }
 }
+
+// ─── Common PostgreSQL column types for UI dropdowns ─────────────────────────
+
+/// Curated list of common PostgreSQL column types (lowercase, user-friendly).
+/// Used by the table editor column-type dropdown.
+pub const PG_COLUMN_TYPES: &[&str] = &[
+    "bigint",
+    "integer",
+    "smallint",
+    "serial",
+    "bigserial",
+    "boolean",
+    "text",
+    "varchar(255)",
+    "char(1)",
+    "numeric",
+    "real",
+    "double precision",
+    "date",
+    "timestamp",
+    "timestamptz",
+    "time",
+    "interval",
+    "uuid",
+    "json",
+    "jsonb",
+    "bytea",
+    "inet",
+    "cidr",
+    "macaddr",
+    "tsvector",
+    "xml",
+    "money",
+    "point",
+    "hstore",
+];

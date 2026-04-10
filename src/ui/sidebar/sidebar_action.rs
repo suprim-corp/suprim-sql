@@ -88,4 +88,10 @@ pub enum SidebarAction {
         old_name: String,
         new_name: String,
     },
+    /// Open table editor in "new table" mode.
+    NewTable {
+        conn_id: Uuid,
+        database: String,
+        schema_name: String,
+    },
 }

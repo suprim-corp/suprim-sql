@@ -158,5 +158,14 @@ pub fn handle_sidebar_action(action: SidebarAction, ctx: &mut SidebarContext<'_>
                 new_name,
             });
         }
+        SidebarAction::NewTable {
+            conn_id,
+            database,
+            schema_name,
+        } => {
+            let name = (ctx.conn_name)(conn_id);
+            ctx.tab_manager
+                .open_new_table_editor(conn_id, name, database, schema_name);
+        }
     }
 }

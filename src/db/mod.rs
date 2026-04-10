@@ -1,18 +1,12 @@
 pub mod connection;
 pub mod driver;
+pub mod drivers;
 pub mod factory;
-pub mod postgres;
 pub mod schema;
+pub mod sql_keywords;
 pub mod types;
 pub mod values;
 pub mod worker;
-
-// ── Drivers planned for future releases ──────────────────────────────────────
-// pub mod sqlite;   // src/db/sqlite/
-// pub mod mysql;    // src/db/mysql/
-// pub mod redis;    // src/db/redis/
-// pub mod mongodb;  // src/db/mongodb/
-// pub mod mssql;    // src/db/mssql/
 
 pub use connection::{ConnectionConfig, DriverParams, DriverType, SshConfig, TlsConfig};
 pub use driver::{DatabaseDriver, DbCommand, DbEvent};
