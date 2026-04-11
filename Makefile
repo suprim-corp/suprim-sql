@@ -1,4 +1,4 @@
-.PHONY: run build release bundle dmg test coverage lint fix clean
+.PHONY: run build release bundle bundle-sign dmg dmg-sign test coverage lint fix clean
 
 run:
 	clear && cargo run --bin SuprimSQL
@@ -13,9 +13,17 @@ release:
 bundle:
 	./scripts/build/macos.sh
 
+# macOS .app bundle + code signing (set CODESIGN_IDENTITY env var)
+bundle-sign:
+	./scripts/build/macos.sh --sign
+
 # macOS .dmg installer (requires: brew install create-dmg)
 dmg:
 	./scripts/build/macos.sh --dmg
+
+# macOS .dmg + code signing (full pipeline)
+dmg-sign:
+	./scripts/build/macos.sh --dmg --sign
 
 test:
 	cargo test --lib
