@@ -204,4 +204,56 @@ impl DbWorker {
             })
             .await;
     }
+
+    pub(super) async fn handle_create_database(&self, conn_id: Uuid, name: &str) {
+        let driver = match self.connections.get(&conn_id) {
+            Some(d) => d,
+            None => {
+                self.send_error(conn_id, None, "Not connected".into()).await;
+                return;
+            }
+        };
+        match driver.create_database(name).await {
+            Ok(()) => {
+                let _ = self
+                    .event_tx
+                    .send(DbEvent::DatabaseCreated { conn_id })
+                    .await;
+            }
+            Err(e) => {
+                self.send_error(conn_id, None, format!("Failed to create database: {e}"))
+                    .await;
+            }
+        }
+    }
+
+    pub(super) async fn handle_create_schema(
+        &self,
+        conn_id: Uuid,
+        database: &str,
+        name: &str,
+    ) {
+        let driver = match self.connections.get(&conn_id) {
+            Some(d) => d,
+            None => {
+                self.send_error(conn_id, None, "Not connected".into()).await;
+                return;
+            }
+        };
+        match driver.create_schema(database, name).await {
+            Ok(()) => {
+                let _ = self
+                    .event_tx
+                    .send(DbEvent::SchemaCreated {
+                        conn_id,
+                        database: database.to_string(),
+                    })
+                    .await;
+            }
+            Err(e) => {
+                self.send_error(conn_id, None, format!("Failed to create schema: {e}"))
+                    .await;
+            }
+        }
+    }
 }

@@ -123,6 +123,16 @@ impl App {
                     });
                     self.status = "Operation completed".to_string();
                 }
+                DbEvent::DatabaseCreated { conn_id } => {
+                    let _ = self.cmd_tx.try_send(DbCommand::ListDatabases { conn_id });
+                    self.status = "Database created".to_string();
+                }
+                DbEvent::SchemaCreated { conn_id, database } => {
+                    let _ = self
+                        .cmd_tx
+                        .try_send(DbCommand::ListSchemas { conn_id, database });
+                    self.status = "Schema created".to_string();
+                }
                 DbEvent::Error {
                     tab_id,
                     conn_id,

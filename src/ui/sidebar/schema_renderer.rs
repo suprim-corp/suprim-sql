@@ -48,9 +48,24 @@ pub(super) fn render_schema_tree(
                     ui.weak("loading schemas...");
                 }
             });
-        db_response
+        let db_header = db_response
             .header_response
             .on_hover_cursor(CursorIcon::PointingHand);
+
+        // Context menu on database node
+        db_header.context_menu(|ui| {
+            if ui
+                .button("New Schema...")
+                .on_hover_cursor(CursorIcon::PointingHand)
+                .clicked()
+            {
+                action = Some(SidebarAction::NewSchema {
+                    conn_id,
+                    database: db_node.name.clone(),
+                });
+                ui.close();
+            }
+        });
 
         // Trigger ListSchemas when database expanded but has no schemas yet.
         if db_response.openness > 0.0

@@ -62,6 +62,7 @@ impl App {
                             connection_dialog: &mut self.connection_dialog,
                             delete_connection_dialog: &mut self.delete_connection_dialog,
                             pending_delete_conn: &mut self.pending_delete_conn,
+                            input_dialog: &mut self.input_dialog,
                             conn_name: Box::new(|id| sidebar.conn_name(id)),
                         };
                         handle_sidebar_action(act, &mut ctx);
@@ -84,6 +85,9 @@ impl App {
 
         // ── Delete connection dialog (modal) ─────────────────────────────
         self.render_delete_connection_dialog(&ctx);
+
+        // ── Input dialog (New Database / New Schema) ─────────────────────
+        self.render_input_dialog(&ctx);
 
         // ── Structure Sync dialog (modal) ───────────────────────────────
         if let Some(dialog) = &mut self.structure_sync_dialog {
@@ -251,6 +255,36 @@ impl App {
             crate::ui::DeleteConnectionResult::Cancelled => {
                 self.pending_delete_conn = None;
                 self.delete_connection_dialog = None;
+            }
+        }
+    }
+
+    /// Shows the input dialog (New Database / New Schema) and handles its result.
+    fn render_input_dialog(&mut self, ctx: &egui::Context) {
+        let Some(dialog) = &mut self.input_dialog else {
+            return;
+        };
+        match dialog.show(ctx) {
+            crate::ui::InputDialogResult::Pending => {}
+            crate::ui::InputDialogResult::Confirmed(name) => {
+                match dialog.kind.clone() {
+                    crate::ui::InputDialogKind::NewDatabase { conn_id } => {
+                        let _ = self
+                            .cmd_tx
+                            .try_send(DbCommand::CreateDatabase { conn_id, name });
+                    }
+                    crate::ui::InputDialogKind::NewSchema { conn_id, database } => {
+                        let _ = self.cmd_tx.try_send(DbCommand::CreateSchema {
+                            conn_id,
+                            database,
+                            name,
+                        });
+                    }
+                }
+                self.input_dialog = None;
+            }
+            crate::ui::InputDialogResult::Cancelled => {
+                self.input_dialog = None;
             }
         }
     }

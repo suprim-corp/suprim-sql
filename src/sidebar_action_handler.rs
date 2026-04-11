@@ -5,7 +5,7 @@ use suprim_sql::db::driver::DbCommand;
 use suprim_sql::storage::AppConfig;
 use tokio::sync::mpsc;
 
-use crate::ui::{ConnectionDialog, DeleteConnectionDialog, SidebarAction, TabManager};
+use crate::ui::{ConnectionDialog, DeleteConnectionDialog, InputDialog, SidebarAction, TabManager};
 
 /// Sidebar context passed to the handler so it can mutate application state
 /// without needing a full `&mut App`.
@@ -16,6 +16,7 @@ pub struct SidebarContext<'a> {
     pub connection_dialog: &'a mut Option<ConnectionDialog>,
     pub delete_connection_dialog: &'a mut Option<DeleteConnectionDialog>,
     pub pending_delete_conn: &'a mut Option<uuid::Uuid>,
+    pub input_dialog: &'a mut Option<InputDialog>,
     /// Closure to look up a connection name by id (delegates to sidebar).
     pub conn_name: Box<dyn Fn(uuid::Uuid) -> String + 'a>,
 }
@@ -179,6 +180,12 @@ pub fn handle_sidebar_action(action: SidebarAction, ctx: &mut SidebarContext<'_>
                 schema_name,
                 schema_functions,
             );
+        }
+        SidebarAction::NewDatabase { conn_id } => {
+            *ctx.input_dialog = Some(InputDialog::new_database(conn_id));
+        }
+        SidebarAction::NewSchema { conn_id, database } => {
+            *ctx.input_dialog = Some(InputDialog::new_schema(conn_id, database));
         }
     }
 }

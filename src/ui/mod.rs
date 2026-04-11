@@ -13,7 +13,10 @@ mod table_editor_tab;
 mod table_viewer_tab;
 
 pub(crate) use dialog::about_dialog;
-pub use dialog::{ConnectionDialog, DeleteConnectionDialog, DeleteConnectionResult, DialogResult};
+pub use dialog::{
+    ConnectionDialog, DeleteConnectionDialog, DeleteConnectionResult, DialogResult, InputDialog,
+    InputDialogKind, InputDialogResult,
+};
 pub use sidebar::{Sidebar, SidebarAction};
 pub use statusbar::StatusBar;
 pub use tab_manager::TabManager;

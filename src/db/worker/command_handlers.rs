@@ -144,6 +144,16 @@ impl DbWorker {
                 })
                 .await
             }
+            DbCommand::CreateDatabase { conn_id, name } => {
+                self.handle_create_database(conn_id, &name).await
+            }
+            DbCommand::CreateSchema {
+                conn_id,
+                database,
+                name,
+            } => {
+                self.handle_create_schema(conn_id, &database, &name).await
+            }
             DbCommand::CompareSchemas {
                 source_conn_id,
                 source_database,

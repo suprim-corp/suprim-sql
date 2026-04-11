@@ -98,4 +98,13 @@ pub enum SidebarAction {
         /// Function signatures in this schema (for default-value autocomplete).
         schema_functions: Vec<String>,
     },
+    /// Create a new database on this connection.
+    NewDatabase {
+        conn_id: Uuid,
+    },
+    /// Create a new schema in this database.
+    NewSchema {
+        conn_id: Uuid,
+        database: String,
+    },
 }

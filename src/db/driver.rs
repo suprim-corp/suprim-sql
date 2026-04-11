@@ -135,7 +135,22 @@ pub trait DatabaseDriver: Send + Sync + std::fmt::Debug {
         self.execute(&sql).await?;
         Ok(())
     }
+
+    /// Create a new database.
+    async fn create_database(&self, name: &str) -> Result<()> {
+        let sql = format!("CREATE DATABASE \"{}\"", name);
+        self.execute(&sql).await?;
+        Ok(())
+    }
+
+    /// Create a new schema in a specific database.
+    async fn create_schema(&self, database: &str, name: &str) -> Result<()> {
+        let sql = format!("CREATE SCHEMA \"{}\"", name);
+        self.execute_on_database(&sql, database).await?;
+        Ok(())
+    }
 }
+
 
 // ─── Async channel protocol ───────────────────────────────────────────────────
 
@@ -235,6 +250,17 @@ pub enum DbCommand {
         old_name: String,
         new_name: String,
     },
+    /// Create a new database.
+    CreateDatabase {
+        conn_id: Uuid,
+        name: String,
+    },
+    /// Create a new schema in a database.
+    CreateSchema {
+        conn_id: Uuid,
+        database: String,
+        name: String,
+    },
     /// Load schema detail for two endpoints and return both for comparison.
     CompareSchemas {
         source_conn_id: Uuid,
@@ -292,6 +318,15 @@ pub enum DbEvent {
         conn_id: Uuid,
         database: String,
         schema_name: String,
+    },
+    /// A new database was created — triggers database list refresh.
+    DatabaseCreated {
+        conn_id: Uuid,
+    },
+    /// A new schema was created — triggers schema list refresh.
+    SchemaCreated {
+        conn_id: Uuid,
+        database: String,
     },
     Error {
         /// `None` for connection-level errors

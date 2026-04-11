@@ -219,6 +219,14 @@ fn render_context_menu(
             });
             ui.close();
         }
+        if ui
+            .button("New Database...")
+            .on_hover_cursor(CursorIcon::PointingHand)
+            .clicked()
+        {
+            *action = Some(SidebarAction::NewDatabase { conn_id });
+            ui.close();
+        }
         ui.separator();
         if ui
             .button("Filter Databases...")
