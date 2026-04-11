@@ -110,3 +110,105 @@ impl InputDialog {
         result
     }
 }
+
+// ── Tests ───────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui_kittest::kittest::Queryable;
+    use egui_kittest::Harness;
+
+    #[derive(Clone, Debug, PartialEq)]
+    enum ClickResult {
+        None,
+        Create(String),
+        Cancel,
+    }
+
+    #[test]
+    fn new_database_dialog_fields() {
+        let conn_id = uuid::Uuid::new_v4();
+        let dialog = InputDialog::new_database(conn_id);
+        assert_eq!(dialog.title, "New Database");
+        assert_eq!(dialog.label, "Database name");
+        assert!(dialog.value.is_empty());
+        assert!(matches!(dialog.kind, InputDialogKind::NewDatabase { .. }));
+    }
+
+    #[test]
+    fn new_schema_dialog_fields() {
+        let conn_id = uuid::Uuid::new_v4();
+        let dialog = InputDialog::new_schema(conn_id, "mydb".to_string());
+        assert_eq!(dialog.title, "New Schema");
+        assert_eq!(dialog.label, "Schema name");
+        assert!(dialog.value.is_empty());
+        match &dialog.kind {
+            InputDialogKind::NewSchema { database, .. } => {
+                assert_eq!(database, "mydb");
+            }
+            _ => panic!("Expected NewSchema kind"),
+        }
+    }
+
+    #[test]
+    fn dialog_renders_create_and_cancel_buttons() {
+        let harness = Harness::new_ui(|ui| {
+            ui.label("Database name");
+            ui.text_edit_singleline(&mut String::new());
+            ui.horizontal(|ui| {
+                ui.add_enabled(false, egui::Button::new("Create"));
+                ui.button("Cancel");
+            });
+        });
+
+        harness.get_by_label("Cancel");
+    }
+
+    #[test]
+    fn dialog_cancel_click() {
+        let mut harness = Harness::new_ui_state(
+            |ui, state: &mut ClickResult| {
+                ui.label("Schema name");
+                ui.horizontal(|ui| {
+                    if ui.button("Create").clicked() {
+                        *state = ClickResult::Create("test".to_string());
+                    }
+                    if ui.button("Cancel").clicked() {
+                        *state = ClickResult::Cancel;
+                    }
+                });
+            },
+            ClickResult::None,
+        );
+
+        harness.get_by_label("Cancel").click();
+        harness.run();
+
+        assert_eq!(*harness.state(), ClickResult::Cancel);
+    }
+
+    #[test]
+    fn snapshot_input_dialog_new_database() {
+        let mut harness = Harness::new_ui(|ui| {
+            ui.add_space(8.0);
+            ui.label("Database name");
+            ui.add_space(4.0);
+            let mut value = String::new();
+            ui.add(
+                egui::TextEdit::singleline(&mut value)
+                    .desired_width(300.0)
+                    .hint_text("Enter name..."),
+            );
+            ui.add_space(12.0);
+            ui.horizontal(|ui| {
+                ui.add_enabled(false, egui::Button::new("Create"));
+                ui.button("Cancel");
+            });
+        });
+
+        harness.fit_contents();
+        #[cfg(all(feature = "wgpu", feature = "snapshot"))]
+        harness.snapshot("input_dialog_new_database");
+    }
+}

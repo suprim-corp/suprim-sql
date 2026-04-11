@@ -73,3 +73,80 @@ pub(crate) fn render_ddl_preview(ui: &mut egui::Ui, ddl_script: &str, max_height
             );
         });
 }
+
+// ── Tests ───────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui_kittest::kittest::Queryable;
+    use egui_kittest::Harness;
+
+    #[test]
+    fn empty_script_shows_no_statements_message() {
+        let harness = Harness::new_ui(|ui| {
+            render_ddl_preview(ui, "", 300.0);
+        });
+
+        harness.get_by_label("No DDL statements to preview.");
+    }
+
+    #[test]
+    fn non_empty_script_shows_line_count() {
+        let script = "CREATE TABLE test (id INT);\nALTER TABLE test ADD col TEXT;";
+
+        let harness = Harness::new_ui(|ui| {
+            render_ddl_preview(ui, script, 300.0);
+        });
+
+        // Should show "2 line(s)" in the header
+        harness.get_by_label("2 line(s)");
+    }
+
+    #[test]
+    fn multiline_script_counts_lines_correctly() {
+        let script =
+            "-- Header\nCREATE TABLE a (id INT);\n\nCREATE TABLE b (id INT);\nDROP TABLE c;";
+
+        let harness = Harness::new_ui(|ui| {
+            render_ddl_preview(ui, script, 400.0);
+        });
+
+        harness.get_by_label("5 line(s)");
+    }
+
+    #[test]
+    fn snapshot_ddl_preview_with_content() {
+        let script = "-- Structure synchronization: public -> staging\n\
+                       -- Generated at: 2026-04-11\n\n\
+                       CREATE TABLE \"staging\".\"users\" (\n\
+                       \t\"id\" bigint NOT NULL,\n\
+                       \t\"name\" varchar(255),\n\
+                       \tPRIMARY KEY (\"id\")\n\
+                       );\n\n\
+                       DROP TABLE IF EXISTS \"staging\".\"old_logs\" CASCADE;";
+
+        let mut harness = Harness::builder()
+            .with_size(egui::Vec2::new(600.0, 400.0))
+            .build_ui(|ui| {
+                render_ddl_preview(ui, script, 350.0);
+            });
+
+        harness.fit_contents();
+        #[cfg(all(feature = "wgpu", feature = "snapshot"))]
+        harness.snapshot("ddl_preview_with_content");
+    }
+
+    #[test]
+    fn snapshot_ddl_preview_empty() {
+        let mut harness = Harness::builder()
+            .with_size(egui::Vec2::new(400.0, 200.0))
+            .build_ui(|ui| {
+                render_ddl_preview(ui, "", 150.0);
+            });
+
+        harness.fit_contents();
+        #[cfg(all(feature = "wgpu", feature = "snapshot"))]
+        harness.snapshot("ddl_preview_empty");
+    }
+}

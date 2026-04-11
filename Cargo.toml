@@ -2,7 +2,7 @@
 name = "suprim-sql"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.86"
+rust-version = "1.92"
 
 [[bin]]
 name = "SuprimSQL"
@@ -100,6 +100,9 @@ tokio = { version = "1", features = ["full"] }
 # Testcontainers
 testcontainers         = "0.27"
 testcontainers-modules = { version = "0.15", features = ["postgres", "mysql", "redis", "mongo", "mssql_server"] }
+
+# UI testing
+egui_kittest = { version = "0.34", features = ["wgpu", "snapshot"] }
 
 # Snapshot & property testing
 insta    = "1"
