@@ -1,0 +1,16 @@
+
+	<!-- High-DPI / Retina support -->
+	<key>NSHighResolutionCapable</key>
+	<true/>
+
+	<!-- GPU acceleration preference -->
+	<key>NSSupportsAutomaticGraphicsSwitching</key>
+	<true/>
+
+	<!-- Prevent App Nap for background DB connections -->
+	<key>NSAppSleepDisabled</key>
+	<true/>
+
+	<!-- Dark/Light appearance support -->
+	<key>NSRequiresAquaSystemAppearance</key>
+	<false/>

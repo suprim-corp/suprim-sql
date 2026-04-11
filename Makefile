@@ -1,4 +1,4 @@
-.PHONY: run build release test coverage lint fix clean
+.PHONY: run build release bundle dmg test coverage lint fix clean
 
 run:
 	clear && cargo run --bin SuprimSQL
@@ -8,6 +8,14 @@ build:
 
 release:
 	cargo build --bin SuprimSQL --release
+
+# macOS .app bundle (requires: cargo install cargo-bundle)
+bundle:
+	./scripts/build/macos.sh
+
+# macOS .dmg installer (requires: brew install create-dmg)
+dmg:
+	./scripts/build/macos.sh --dmg
 
 test:
 	cargo test --lib
