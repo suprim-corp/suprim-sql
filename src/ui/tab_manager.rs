@@ -266,11 +266,12 @@ impl TabManager {
         conn_id: Uuid,
         sessions: Vec<suprim_sql::db::schema::SessionInfo>,
         metrics: suprim_sql::db::schema::ServerMetrics,
+        slow_queries: Vec<suprim_sql::db::schema::SlowQueryInfo>,
     ) {
         for entry in &mut self.tabs {
             if let TabKind::ServerDashboard(d) = &mut entry.kind {
                 if d.conn_id == conn_id {
-                    d.on_data_loaded(sessions, metrics);
+                    d.on_data_loaded(sessions, metrics, slow_queries);
                     return;
                 }
             }

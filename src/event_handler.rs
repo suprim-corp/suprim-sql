@@ -174,9 +174,10 @@ impl App {
                     conn_id,
                     sessions,
                     metrics,
+                    slow_queries,
                 } => {
                     self.tab_manager
-                        .on_dashboard_loaded(conn_id, sessions, metrics);
+                        .on_dashboard_loaded(conn_id, sessions, metrics, slow_queries);
                 }
                 DbEvent::SessionKilled { conn_id, pid } => {
                     self.status = format!("Session PID {} terminated", pid);

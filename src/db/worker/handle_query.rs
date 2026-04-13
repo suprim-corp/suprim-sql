@@ -267,12 +267,14 @@ impl DbWorker {
         };
         let sessions = driver.list_sessions().await.unwrap_or_default();
         let metrics = driver.server_metrics().await.unwrap_or_default();
+        let slow_queries = driver.list_slow_queries().await.unwrap_or_default();
         let _ = self
             .event_tx
             .send(DbEvent::DashboardLoaded {
                 conn_id,
                 sessions,
                 metrics,
+                slow_queries,
             })
             .await;
     }

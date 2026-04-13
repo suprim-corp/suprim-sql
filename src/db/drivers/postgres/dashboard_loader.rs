@@ -1,9 +1,9 @@
-//! Load active sessions and server metrics from PostgreSQL catalog views.
+//! Load active sessions, slow queries, and server metrics from PostgreSQL catalog views.
 
 use sqlx::postgres::PgPool;
 use sqlx::Row;
 
-use crate::db::schema::{ServerMetrics, SessionInfo};
+use crate::db::schema::{ServerMetrics, SessionInfo, SlowQueryInfo};
 
 /// Load active (non-idle) sessions from `pg_stat_activity`.
 pub(super) async fn load_sessions(pool: &PgPool) -> Vec<SessionInfo> {
@@ -42,7 +42,7 @@ pub(super) async fn load_sessions(pool: &PgPool) -> Vec<SessionInfo> {
 
 /// Load server-level metrics from various PostgreSQL catalog views.
 pub(super) async fn load_metrics(pool: &PgPool) -> ServerMetrics {
-    // All metrics in a single query for efficiency
+    // Core metrics — no optional extensions, always available
     let row = sqlx::query(
         "SELECT \
             (SELECT count(*) FROM pg_stat_activity) AS connected, \
@@ -50,12 +50,13 @@ pub(super) async fn load_metrics(pool: &PgPool) -> ServerMetrics {
             (SELECT EXTRACT(EPOCH FROM now() - pg_postmaster_start_time())::bigint) AS uptime_secs, \
             (SELECT COALESCE(sum(xact_commit + xact_rollback), 0) FROM pg_stat_database) AS total_xact, \
             (SELECT setting::bigint FROM pg_settings WHERE name = 'max_connections') AS max_conn, \
-            (SELECT pg_size_pretty(sum(pg_database_size(datname))) FROM pg_database WHERE NOT datistemplate) AS db_size",
+            (SELECT pg_size_pretty(COALESCE(sum(blks_read)::bigint * 8192, 0)) FROM pg_stat_database) AS bytes_recv, \
+            (SELECT pg_size_pretty(COALESCE(sum(blks_hit)::bigint * 8192, 0)) FROM pg_stat_database) AS bytes_sent",
     )
     .fetch_one(pool)
     .await;
 
-    match row {
+    let mut metrics = match row {
         Ok(r) => {
             let uptime_secs: i64 = r.try_get("uptime_secs").unwrap_or(0);
             ServerMetrics {
@@ -63,12 +64,26 @@ pub(super) async fn load_metrics(pool: &PgPool) -> ServerMetrics {
                 active_queries: r.try_get("active").unwrap_or(0),
                 uptime: format_uptime(uptime_secs),
                 total_transactions: r.try_get("total_xact").unwrap_or(0),
+                slow_queries: 0,
                 max_connections: r.try_get("max_conn").unwrap_or(0),
-                database_size: r.try_get("db_size").unwrap_or_default(),
+                bytes_received: r.try_get("bytes_recv").unwrap_or_default(),
+                bytes_sent: r.try_get("bytes_sent").unwrap_or_default(),
             }
         }
         Err(_) => ServerMetrics::default(),
+    };
+
+    // Slow query count — optional, requires pg_stat_statements extension
+    if let Ok(row) = sqlx::query(
+        "SELECT count(*) AS cnt FROM pg_stat_statements WHERE mean_exec_time > 1000",
+    )
+    .fetch_one(pool)
+    .await
+    {
+        metrics.slow_queries = row.try_get("cnt").unwrap_or(0);
     }
+
+    metrics
 }
 
 /// Terminate a backend process by PID.
@@ -79,6 +94,33 @@ pub(super) async fn kill_session(pool: &PgPool, pid: i32) -> crate::error::Resul
         .await
         .map_err(|e| crate::error::AppError::query("pg_terminate_backend", e.to_string()))?;
     Ok(())
+}
+
+/// Load top slow queries from `pg_stat_statements` (requires extension).
+/// Returns empty vec if the extension is not installed.
+pub(super) async fn load_slow_queries(pool: &PgPool) -> Vec<SlowQueryInfo> {
+    // Check if pg_stat_statements extension is available
+    let rows = sqlx::query(
+        "SELECT query, calls, total_exec_time, mean_exec_time, max_exec_time, rows \
+         FROM pg_stat_statements \
+         WHERE mean_exec_time > 100 \
+         ORDER BY mean_exec_time DESC \
+         LIMIT 20",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    rows.iter()
+        .map(|r| SlowQueryInfo {
+            query: r.try_get("query").unwrap_or_default(),
+            calls: r.try_get("calls").unwrap_or(0),
+            total_time_ms: r.try_get("total_exec_time").unwrap_or(0.0),
+            mean_time_ms: r.try_get("mean_exec_time").unwrap_or(0.0),
+            max_time_ms: r.try_get("max_exec_time").unwrap_or(0.0),
+            rows: r.try_get("rows").unwrap_or(0),
+        })
+        .collect()
 }
 
 /// Format seconds into human-readable duration (e.g. "5d 2h 30m").

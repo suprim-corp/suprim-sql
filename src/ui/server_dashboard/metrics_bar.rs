@@ -14,16 +14,16 @@ pub(super) fn render_metrics_bar(ui: &mut egui::Ui, metrics: &ServerMetrics) {
 
     ui.add_space(4.0);
 
-    // 6 equal-width columns spanning full width
-    let cards: [(&str, &str, String); 6] = [
+    // 8 equal-width columns spanning full width
+    let cards: [(&str, &str, String); 8] = [
         (
             egui_phosphor::regular::USERS,
-            "Connected",
+            "Connected Threads",
             metrics.connected_sessions.to_string(),
         ),
         (
             egui_phosphor::regular::LIGHTNING,
-            "Active",
+            "Running Threads",
             metrics.active_queries.to_string(),
         ),
         (
@@ -33,8 +33,13 @@ pub(super) fn render_metrics_bar(ui: &mut egui::Ui, metrics: &ServerMetrics) {
         ),
         (
             egui_phosphor::regular::ARROWS_CLOCKWISE,
-            "Transactions",
+            "Total Queries",
             format_large_number(metrics.total_transactions),
+        ),
+        (
+            egui_phosphor::regular::HOURGLASS,
+            "Slow Queries",
+            metrics.slow_queries.to_string(),
         ),
         (
             egui_phosphor::regular::PLUGS_CONNECTED,
@@ -42,13 +47,18 @@ pub(super) fn render_metrics_bar(ui: &mut egui::Ui, metrics: &ServerMetrics) {
             metrics.max_connections.to_string(),
         ),
         (
-            egui_phosphor::regular::DATABASE,
-            "DB Size",
-            metrics.database_size.clone(),
+            egui_phosphor::regular::ARROW_FAT_DOWN,
+            "Bytes Received",
+            metrics.bytes_received.clone(),
+        ),
+        (
+            egui_phosphor::regular::ARROW_FAT_UP,
+            "Bytes Sent",
+            metrics.bytes_sent.clone(),
         ),
     ];
 
-    ui.columns(6, |cols| {
+    ui.columns(8, |cols| {
         for (i, (icon, label, value)) in cards.iter().enumerate() {
             metric_card(&mut cols[i], icon, label, value);
         }

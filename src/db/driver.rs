@@ -1,7 +1,7 @@
 use crate::{
     db::{
         connection::ConnectionConfig,
-        schema::{ExtensionInfo, ServerMetrics, SessionInfo},
+        schema::{ExtensionInfo, ServerMetrics, SessionInfo, SlowQueryInfo},
         types::{QueryResult, SchemaNode},
     },
     error::Result,
@@ -168,6 +168,12 @@ pub trait DatabaseDriver: Send + Sync + std::fmt::Debug {
     /// Default is a no-op — override for drivers that support session termination.
     async fn kill_session(&self, _pid: i32) -> Result<()> {
         Ok(())
+    }
+
+    /// List slow queries from server statistics (e.g. pg_stat_statements).
+    /// Default returns empty — override for drivers that support query statistics.
+    async fn list_slow_queries(&self) -> Result<Vec<SlowQueryInfo>> {
+        Ok(Vec::new())
     }
 }
 
@@ -375,11 +381,12 @@ pub enum DbEvent {
         source_extensions: Vec<ExtensionInfo>,
         target_extensions: Vec<ExtensionInfo>,
     },
-    /// Dashboard data loaded (sessions + metrics).
+    /// Dashboard data loaded (sessions + metrics + slow queries).
     DashboardLoaded {
         conn_id: Uuid,
         sessions: Vec<SessionInfo>,
         metrics: ServerMetrics,
+        slow_queries: Vec<SlowQueryInfo>,
     },
     /// A session was successfully killed.
     SessionKilled {

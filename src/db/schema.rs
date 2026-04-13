@@ -144,10 +144,31 @@ pub struct ServerMetrics {
     pub uptime: String,
     /// Total number of transactions committed.
     pub total_transactions: i64,
+    /// Number of slow queries (from pg_stat_statements or similar).
+    pub slow_queries: i64,
     /// Maximum allowed connections.
     pub max_connections: i64,
-    /// Database size as a human-readable string (e.g. "2.1 GB").
-    pub database_size: String,
+    /// Total bytes received as a human-readable string.
+    pub bytes_received: String,
+    /// Total bytes sent as a human-readable string.
+    pub bytes_sent: String,
+}
+
+/// A slow query entry from pg_stat_statements.
+#[derive(Debug, Clone)]
+pub struct SlowQueryInfo {
+    /// Normalized query text.
+    pub query: String,
+    /// Number of times the query was called.
+    pub calls: i64,
+    /// Total execution time in milliseconds.
+    pub total_time_ms: f64,
+    /// Mean execution time in milliseconds.
+    pub mean_time_ms: f64,
+    /// Maximum execution time in milliseconds.
+    pub max_time_ms: f64,
+    /// Total number of rows returned.
+    pub rows: i64,
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────

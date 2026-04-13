@@ -1,15 +1,17 @@
-//! Server Dashboard tab — displays active sessions and server metrics.
+//! Server Dashboard tab — displays active sessions, slow queries, and server metrics.
 //!
 //! Submodules:
 //!   - `sessions_table` — renders the Active Sessions table
+//!   - `slow_queries_table` — renders the Slow Queries table
 //!   - `metrics_bar` — renders the Server Metrics cards
 
 mod metrics_bar;
 mod sessions_table;
+mod slow_queries_table;
 
 use eframe::egui;
 use suprim_sql::db::driver::DbCommand;
-use suprim_sql::db::schema::{ServerMetrics, SessionInfo};
+use suprim_sql::db::schema::{ServerMetrics, SessionInfo, SlowQueryInfo};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -18,6 +20,7 @@ pub struct ServerDashboardTab {
     pub conn_id: Uuid,
     sessions: Vec<SessionInfo>,
     metrics: ServerMetrics,
+    slow_queries: Vec<SlowQueryInfo>,
     is_loading: bool,
     /// Auto-refresh interval in seconds.
     refresh_interval: f32,
@@ -33,6 +36,7 @@ impl ServerDashboardTab {
             conn_id,
             sessions: Vec::new(),
             metrics: ServerMetrics::default(),
+            slow_queries: Vec::new(),
             is_loading: true,
             refresh_interval: 5.0,
             last_refresh: std::time::Instant::now(),
@@ -41,9 +45,15 @@ impl ServerDashboardTab {
     }
 
     /// Update dashboard data from DB event.
-    pub fn on_data_loaded(&mut self, sessions: Vec<SessionInfo>, metrics: ServerMetrics) {
+    pub fn on_data_loaded(
+        &mut self,
+        sessions: Vec<SessionInfo>,
+        metrics: ServerMetrics,
+        slow_queries: Vec<SlowQueryInfo>,
+    ) {
         self.sessions = sessions;
         self.metrics = metrics;
+        self.slow_queries = slow_queries;
         self.is_loading = false;
         self.last_refresh = std::time::Instant::now();
     }
@@ -116,21 +126,36 @@ impl ServerDashboardTab {
         ui.separator();
         ui.add_space(4.0);
 
-        // ── Layout: sessions scroll area + pinned metrics at bottom ─────
+        // ── Layout: sessions + slow queries scroll area + pinned metrics at bottom
         // Reserve space for metrics bar at the bottom (~80px)
         const METRICS_H: f32 = 80.0;
-        let sessions_h = (ui.available_height() - METRICS_H - 8.0).max(60.0);
+        let content_h = (ui.available_height() - METRICS_H - 8.0).max(60.0);
 
-        // Active Sessions section (scrollable)
+        // Scrollable content: sessions + slow queries
         let active_count = self.sessions.iter().filter(|s| s.state == "active").count();
-        sessions_table::render_sessions_table(
-            ui,
-            &self.sessions,
-            active_count,
-            self.conn_id,
-            cmd_tx,
-            sessions_h,
-        );
+
+        egui::ScrollArea::vertical()
+            .id_salt("dashboard_scroll")
+            .max_height(content_h)
+            .auto_shrink(false)
+            .show(ui, |ui| {
+                // Active Sessions section
+                sessions_table::render_sessions_table(
+                    ui,
+                    &self.sessions,
+                    active_count,
+                    self.conn_id,
+                    cmd_tx,
+                    content_h * 0.6,
+                );
+
+                ui.add_space(8.0);
+                ui.separator();
+                ui.add_space(4.0);
+
+                // Slow Queries section
+                slow_queries_table::render_slow_queries_table(ui, &self.slow_queries);
+            });
 
         // Push metrics to the bottom
         let gap = (ui.available_height() - METRICS_H).max(0.0);
