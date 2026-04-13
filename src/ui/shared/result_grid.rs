@@ -92,9 +92,13 @@ pub fn render_result_grid(
     let num_cols = result.columns.len();
     let weak = ui.visuals().weak_text_color();
     let selection_fill = ui.visuals().selection.bg_fill;
-    let delete_fill = egui::Color32::from_rgba_premultiplied(220, 50, 50, 30);
-    let edit_fill = egui::Color32::from_rgba_premultiplied(220, 180, 50, 30);
-    let delete_text = egui::Color32::from_rgb(180, 80, 80);
+    let delete_fill = egui::Color32::from_rgba_premultiplied(180, 40, 40, 20);
+    let edit_fill = egui::Color32::from_rgba_premultiplied(220, 180, 50, 25);
+    let delete_text = if ui.visuals().dark_mode {
+        egui::Color32::from_rgb(240, 130, 130)
+    } else {
+        egui::Color32::from_rgb(180, 60, 60)
+    };
 
     // Handle Cmd+C / Ctrl+C to copy selected cell raw value
     if let Some((row, col)) = *selected_cell {
