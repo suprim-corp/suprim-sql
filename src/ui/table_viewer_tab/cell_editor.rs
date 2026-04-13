@@ -5,6 +5,7 @@ use suprim_sql::db::types::DbValue;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
+use super::sql_preview;
 use super::TableViewerTab;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -24,6 +25,8 @@ pub(super) struct CellEditor {
     pub edit_value: String,
     pub is_json: bool,
     pub json_error: Option<String>,
+    /// Whether to show the SQL preview panel below the editor.
+    pub show_sql_preview: bool,
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -65,6 +68,7 @@ pub(super) fn build_cell_editor(
         edit_value: raw,
         is_json,
         json_error: None,
+        show_sql_preview: false,
     })
 }
 
@@ -80,6 +84,10 @@ impl TableViewerTab {
     ) {
         let mut action = CellEditorAction::None;
 
+        // Collect schema/table outside the borrow of cell_editor
+        let schema = self.schema_name.clone();
+        let table = self.table_name.clone();
+
         if let Some(editor) = &mut self.cell_editor {
             let mut open = true;
             let title = if editor.is_json {
@@ -89,6 +97,7 @@ impl TableViewerTab {
             };
             let col_name = editor.column_name.clone();
             let is_json = editor.is_json;
+            let has_preview = editor.show_sql_preview;
             let default_w = if is_json { 520.0 } else { 420.0 };
             let default_h = if is_json { 380.0 } else { 260.0 };
             let min_h = 180.0;
@@ -97,7 +106,7 @@ impl TableViewerTab {
                 .open(&mut open)
                 .resizable([true, true])
                 .default_width(default_w)
-                .default_height(default_h)
+                .default_height(default_h + if has_preview { 120.0 } else { 0.0 })
                 .min_height(min_h)
                 .pivot(egui::Align2::CENTER_CENTER)
                 .default_pos(ui.ctx().content_rect().center())
@@ -105,7 +114,8 @@ impl TableViewerTab {
                     Self::render_editor_header(ui, &col_name, is_json);
                     ui.add_space(4.0);
 
-                    let text_height = (ui.available_height() - 38.0).max(80.0);
+                    let preview_h = if editor.show_sql_preview { 130.0 } else { 0.0 };
+                    let text_height = (ui.available_height() - 38.0 - preview_h).max(80.0);
 
                     if is_json {
                         Self::render_json_editor(ui, &mut editor.edit_value, text_height);
@@ -124,7 +134,59 @@ impl TableViewerTab {
                     }
 
                     ui.add_space(4.0);
-                    Self::render_editor_buttons(ui, editor, is_json, &mut action);
+
+                    // SQL Preview toggle + buttons
+                    ui.horizontal(|ui| {
+                        if ui
+                            .selectable_label(editor.show_sql_preview, "SQL Preview")
+                            .clicked()
+                        {
+                            editor.show_sql_preview = !editor.show_sql_preview;
+                        }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            Self::render_editor_buttons_inline(ui, editor, is_json, &mut action);
+                        });
+                    });
+
+                    // SQL Preview panel
+                    if editor.show_sql_preview {
+                        let changed = editor.edit_value != editor.original_value;
+                        if changed {
+                            // Build preview SQL
+                            let new_val = DbValue::Text(editor.edit_value.clone());
+                            let mut pk = std::collections::HashMap::new();
+                            if let Some(result) = &self.result {
+                                if let Some(row_data) = result.rows.get(editor.row) {
+                                    pk = sql_preview::build_pk_from_row(&result.columns, row_data);
+                                }
+                            }
+                            let preview = sql_preview::preview_update_sql(
+                                &schema,
+                                &table,
+                                &editor.column_name,
+                                &new_val,
+                                &pk,
+                            );
+                            ui.add_space(4.0);
+                            egui::ScrollArea::vertical()
+                                .id_salt("cell_sql_preview")
+                                .max_height(100.0)
+                                .show(ui, |ui| {
+                                    ui.add(
+                                        egui::TextEdit::multiline(&mut preview.as_str())
+                                            .code_editor()
+                                            .desired_width(f32::INFINITY),
+                                    );
+                                });
+                        } else {
+                            ui.add_space(4.0);
+                            ui.label(
+                                egui::RichText::new("No changes to preview")
+                                    .weak()
+                                    .italics(),
+                            );
+                        }
+                    }
                 });
             if !open {
                 action = CellEditorAction::Close;
@@ -138,8 +200,8 @@ impl TableViewerTab {
         }
     }
 
-    /// Build and send an UpdateRow command from the current cell editor state.
-    fn save_cell_edit(&mut self, tab_id: Uuid, cmd_tx: &mpsc::Sender<DbCommand>) {
+    /// Buffer the cell edit into pending changes (does NOT send to DB).
+    fn save_cell_edit(&mut self, _tab_id: Uuid, _cmd_tx: &mpsc::Sender<DbCommand>) {
         let editor = match &self.cell_editor {
             Some(e) => e,
             None => return,
@@ -149,32 +211,35 @@ impl TableViewerTab {
             None => return,
         };
 
-        let mut pk = std::collections::HashMap::new();
-        if let Some(row_data) = result.rows.get(editor.row) {
-            for (i, col) in result.columns.iter().enumerate() {
-                if let Some(val) = row_data.get(i) {
-                    pk.insert(col.name.clone(), val.clone());
-                }
-            }
-        }
+        // Find column index
+        let col_idx = match result
+            .columns
+            .iter()
+            .position(|c| c.name == editor.column_name)
+        {
+            Some(idx) => idx,
+            None => return,
+        };
 
-        let mut changes = std::collections::HashMap::new();
-        changes.insert(
+        // Get original value from the result
+        let original_value = result
+            .rows
+            .get(editor.row)
+            .and_then(|row| row.get(col_idx))
+            .cloned()
+            .unwrap_or(DbValue::Null);
+
+        let new_value = DbValue::Text(editor.edit_value.clone());
+
+        // Buffer into pending changes
+        self.pending.edit_cell(
+            editor.row,
+            col_idx,
             editor.column_name.clone(),
-            DbValue::Text(editor.edit_value.clone()),
+            original_value,
+            new_value,
         );
 
-        let schema_table = format!("\"{}\".\"{}\"", self.schema_name, self.table_name);
-
-        let _ = cmd_tx.try_send(DbCommand::UpdateRow {
-            conn_id: self.conn_id,
-            tab_id,
-            table: schema_table,
-            pk,
-            changes,
-        });
-
         self.cell_editor = None;
-        self.load(tab_id, cmd_tx);
     }
 }

@@ -9,6 +9,16 @@ use crate::error::{AppError, Result};
 
 use super::type_mapping::rows_to_query_result;
 
+/// Quote a table reference for SQL: handles `schema.table` → `"schema"."table"`,
+/// and plain `table` → `"table"`. Strips any existing quotes first.
+fn quote_table(table: &str) -> String {
+    table
+        .split('.')
+        .map(|part| format!("\"{}\"", part.trim_matches('"')))
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
 /// Execute a raw SQL string and return results.
 pub async fn execute(pool: &PgPool, sql: &str) -> Result<QueryResult> {
     let start = Instant::now();
@@ -130,8 +140,8 @@ pub async fn insert_row(
     let placeholders: Vec<String> = (1..=cols.len()).map(|i| format!("${i}")).collect();
 
     let sql = format!(
-        "INSERT INTO \"{}\" ({}) VALUES ({})",
-        table,
+        "INSERT INTO {} ({}) VALUES ({})",
+        quote_table(table),
         cols.iter()
             .map(|c| format!("\"{}\"", c))
             .collect::<Vec<_>>()
@@ -181,8 +191,8 @@ pub async fn update_row(
         .collect();
 
     let sql = format!(
-        "UPDATE \"{}\" SET {} WHERE {}",
-        table,
+        "UPDATE {} SET {} WHERE {}",
+        quote_table(table),
         set_clause.join(", "),
         where_clause.join(" AND ")
     );
@@ -216,8 +226,8 @@ pub async fn delete_row(
         .collect();
 
     let sql = format!(
-        "DELETE FROM \"{}\" WHERE {}",
-        table,
+        "DELETE FROM {} WHERE {}",
+        quote_table(table),
         where_clause.join(" AND ")
     );
 
@@ -256,6 +266,8 @@ fn bind_db_value<'q>(
 
 #[cfg(test)]
 mod tests {
+    use super::quote_table;
+
     #[test]
     fn insert_sql_structure() {
         let cols = vec!["id", "name"];
@@ -324,5 +336,23 @@ mod tests {
             whr.join(" AND ")
         );
         assert_eq!(sql, "UPDATE \"users\" SET name = $1 WHERE id = $2");
+    }
+
+    #[test]
+    fn quote_table_plain() {
+        assert_eq!(quote_table("users"), "\"users\"");
+    }
+
+    #[test]
+    fn quote_table_schema_dot_table() {
+        assert_eq!(quote_table("public.accounts"), "\"public\".\"accounts\"");
+    }
+
+    #[test]
+    fn quote_table_already_quoted() {
+        assert_eq!(
+            quote_table("\"public\".\"accounts\""),
+            "\"public\".\"accounts\""
+        );
     }
 }

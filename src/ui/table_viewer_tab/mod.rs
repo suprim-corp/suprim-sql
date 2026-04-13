@@ -3,17 +3,22 @@ mod cell_actions;
 mod cell_editor;
 mod cell_editor_widgets;
 mod filter_bar;
+mod new_row_editor;
 mod pagination_bar;
+pub(crate) mod pending_changes;
+pub(crate) mod sql_preview;
 
 use eframe::egui;
 use suprim_sql::db::driver::DbCommand;
-use suprim_sql::db::types::QueryResult;
+use suprim_sql::db::types::{DbValue, QueryResult};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::ui::shared::result_grid::{render_result_grid, CellAction};
 use crate::ui::sql_editor::sql_autocomplete::AutocompleteState;
 use cell_editor::{build_cell_editor, CellEditor};
+use new_row_editor::NewRowEditor;
+use pending_changes::PendingChanges;
 
 // ── TableViewerTab ────────────────────────────────────────────────────────────
 
@@ -36,12 +41,24 @@ pub struct TableViewerTab {
     order_clause: String,
     /// Currently selected data cell (row_idx, col_idx) for highlight + copy.
     selected_cell: Option<(usize, usize)>,
+    /// Currently selected entire row (row_idx) — click on row number to select.
+    selected_row: Option<usize>,
     /// Popup cell editor opened by double-click.
     cell_editor: Option<CellEditor>,
+    /// New row editor popup.
+    new_row_editor: Option<NewRowEditor>,
+    /// Deferred actions from toolbar (processed after filter_bar borrow ends).
+    pending_toolbar_delete: bool,
+    pending_undo: bool,
+    pending_execute: bool,
+    /// Batch pending changes — delete/edit/add buffered until Execute.
+    pub(super) pending: PendingChanges,
     /// Autocomplete state for WHERE filter input.
     where_autocomplete: AutocompleteState,
     /// Autocomplete state for ORDER BY filter input.
     order_autocomplete: AutocompleteState,
+    /// Set by event_handler when RowMutated arrives — triggers reload on next frame.
+    pub needs_reload_after_mutation: bool,
 }
 
 impl TableViewerTab {
@@ -61,9 +78,16 @@ impl TableViewerTab {
             where_clause: String::new(),
             order_clause: String::new(),
             selected_cell: None,
+            selected_row: None,
             cell_editor: None,
+            new_row_editor: None,
+            pending_toolbar_delete: false,
+            pending_undo: false,
+            pending_execute: false,
+            pending: PendingChanges::new(),
             where_autocomplete: AutocompleteState::new(),
             order_autocomplete: AutocompleteState::new(),
+            needs_reload_after_mutation: false,
         }
     }
 
@@ -72,6 +96,8 @@ impl TableViewerTab {
         self.result = Some(result);
         self.display_cache = cache;
         self.is_loading = false;
+        // Clear pending changes when fresh data arrives — prevents stale row indices.
+        self.pending.clear();
     }
 
     pub(crate) fn load(&mut self, tab_id: Uuid, cmd_tx: &mpsc::Sender<DbCommand>) {
@@ -105,10 +131,92 @@ impl TableViewerTab {
         self.is_loading = true;
     }
 
+    /// Execute all pending changes — send DELETE/UPDATE/INSERT commands to DB.
+    fn execute_pending_changes(&mut self, tab_id: Uuid, cmd_tx: &mpsc::Sender<DbCommand>) {
+        if !self.pending.has_changes() {
+            return;
+        }
+        let result = match &self.result {
+            Some(r) => r,
+            None => return,
+        };
+        let schema_table = format!("{}.{}", self.schema_name, self.table_name);
+
+        // 1. Deletes
+        for &row_idx in &self.pending.deleted_rows {
+            let mut pk = std::collections::HashMap::new();
+            if let Some(row_data) = result.rows.get(row_idx) {
+                for (i, col) in result.columns.iter().enumerate() {
+                    if let Some(val) = row_data.get(i) {
+                        pk.insert(col.name.clone(), val.clone());
+                    }
+                }
+            }
+            let _ = cmd_tx.try_send(DbCommand::DeleteRow {
+                conn_id: self.conn_id,
+                tab_id,
+                table: schema_table.clone(),
+                pk,
+            });
+        }
+
+        // 2. Edits — group by row to send one UpdateRow per row
+        let mut edits_by_row: std::collections::HashMap<
+            usize,
+            std::collections::HashMap<String, DbValue>,
+        > = std::collections::HashMap::new();
+        for (&(row_idx, _col_idx), edited) in &self.pending.edited_cells {
+            // Skip edits on rows that are also deleted
+            if self.pending.deleted_rows.contains(&row_idx) {
+                continue;
+            }
+            edits_by_row
+                .entry(row_idx)
+                .or_default()
+                .insert(edited.column_name.clone(), edited.new_value.clone());
+        }
+        for (row_idx, changes) in edits_by_row {
+            let mut pk = std::collections::HashMap::new();
+            if let Some(row_data) = result.rows.get(row_idx) {
+                for (i, col) in result.columns.iter().enumerate() {
+                    if let Some(val) = row_data.get(i) {
+                        pk.insert(col.name.clone(), val.clone());
+                    }
+                }
+            }
+            let _ = cmd_tx.try_send(DbCommand::UpdateRow {
+                conn_id: self.conn_id,
+                tab_id,
+                table: schema_table.clone(),
+                pk,
+                changes,
+            });
+        }
+
+        // 3. Inserts
+        for new_row in &self.pending.new_rows {
+            let _ = cmd_tx.try_send(DbCommand::InsertRow {
+                conn_id: self.conn_id,
+                tab_id,
+                table: schema_table.clone(),
+                values: new_row.values.clone(),
+            });
+        }
+
+        self.pending.clear();
+        self.is_loading = true;
+    }
+
     pub fn show(&mut self, ui: &mut egui::Ui, tab_id: Uuid, cmd_tx: &mpsc::Sender<DbCommand>) {
         // Auto-load data on first render.
         if self.needs_initial_load {
             self.needs_initial_load = false;
+            self.load(tab_id, cmd_tx);
+        }
+
+        // Reload after a mutation (delete/update/insert) confirmed by the worker.
+        if self.needs_reload_after_mutation {
+            self.needs_reload_after_mutation = false;
             self.load(tab_id, cmd_tx);
         }
 
@@ -120,6 +228,28 @@ impl TableViewerTab {
 
         ui.vertical(|ui| {
             self.render_filter_bar(ui, tab_id, cmd_tx, bar_bg, bar_stroke_color, hint_color);
+
+            // Handle deferred toolbar actions (after filter_bar borrow ends)
+            if self.pending_toolbar_delete {
+                self.pending_toolbar_delete = false;
+                let row_to_delete = self
+                    .selected_row
+                    .or_else(|| self.selected_cell.map(|(r, _)| r));
+                if let Some(row) = row_to_delete {
+                    self.pending.toggle_delete(row);
+                }
+            }
+
+            if self.pending_undo {
+                self.pending_undo = false;
+                self.pending.undo();
+            }
+
+            if self.pending_execute {
+                self.pending_execute = false;
+                self.execute_pending_changes(tab_id, cmd_tx);
+            }
+
             self.render_pagination_bar(ui, tab_id, cmd_tx, hint_color);
 
             // ── Result grid + context menu ──
@@ -127,8 +257,14 @@ impl TableViewerTab {
             let mut pending_double_click: Option<(usize, usize)> = None;
 
             if let Some(result) = &self.result {
-                let grid_out =
-                    render_result_grid(ui, result, &self.display_cache, &mut self.selected_cell);
+                let grid_out = render_result_grid(
+                    ui,
+                    result,
+                    &self.display_cache,
+                    &mut self.selected_cell,
+                    &mut self.selected_row,
+                    &self.pending,
+                );
                 pending_action = grid_out.action;
                 pending_double_click = grid_out.double_clicked;
             } else if self.is_loading {
@@ -139,7 +275,7 @@ impl TableViewerTab {
 
             // Handle context-menu actions (borrow of self.result is now dropped).
             if let Some((action, row, col)) = pending_action {
-                self.handle_cell_action(ui, &action, row, col, tab_id, cmd_tx);
+                self.handle_cell_action(ui, &action, row, col, tab_id);
             }
 
             // Double-click → open cell editor popup
@@ -153,6 +289,9 @@ impl TableViewerTab {
 
             // ── Cell editor popup ──
             self.render_cell_editor_popup(ui, tab_id, cmd_tx);
+
+            // ── New row editor popup ──
+            self.render_new_row_editor(ui.ctx(), tab_id);
         });
     }
 }

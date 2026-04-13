@@ -11,7 +11,7 @@ mod statusbar;
 mod tab_bar;
 mod tab_manager;
 mod table_editor_tab;
-mod table_viewer_tab;
+pub(crate) mod table_viewer_tab;
 
 pub(crate) use dialog::about_dialog;
 pub use dialog::{

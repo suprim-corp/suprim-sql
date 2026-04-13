@@ -9,6 +9,7 @@ use std::rc::Rc;
 use suprim_sql::db::types::QueryResult;
 
 use super::result_grid_context_menu::render_cell_context_menu;
+use crate::ui::table_viewer_tab::pending_changes::PendingChanges;
 
 // ── Cell context-menu actions ─────────────────────────────────────────────────
 
@@ -80,6 +81,8 @@ pub fn render_result_grid(
     result: &QueryResult,
     display_cache: &[Vec<String>],
     selected_cell: &mut Option<(usize, usize)>,
+    selected_row: &mut Option<usize>,
+    pending: &PendingChanges,
 ) -> GridOutput {
     let mut output = GridOutput {
         double_clicked: None,
@@ -89,6 +92,9 @@ pub fn render_result_grid(
     let num_cols = result.columns.len();
     let weak = ui.visuals().weak_text_color();
     let selection_fill = ui.visuals().selection.bg_fill;
+    let delete_fill = egui::Color32::from_rgba_premultiplied(220, 50, 50, 30);
+    let edit_fill = egui::Color32::from_rgba_premultiplied(220, 180, 50, 30);
+    let delete_text = egui::Color32::from_rgb(180, 80, 80);
 
     // Handle Cmd+C / Ctrl+C to copy selected cell raw value
     if let Some((row, col)) = *selected_cell {
@@ -155,29 +161,68 @@ pub fn render_result_grid(
                 None => return,
             };
 
-            // Row number column
-            row.col(|ui| {
+            // Row number column — click to select entire row
+            let is_deleted = pending.is_row_deleted(row_idx);
+            let (_, row_num_resp) = row.col(|ui| {
+                let is_row_selected = *selected_row == Some(row_idx);
+                if is_deleted {
+                    let rect = ui.max_rect();
+                    ui.painter().rect_filled(rect, 0.0, delete_fill);
+                } else if is_row_selected {
+                    let rect = ui.max_rect();
+                    ui.painter().rect_filled(rect, 0.0, selection_fill);
+                }
                 let row_num = cached_row.first().map(|s| s.as_str()).unwrap_or("");
-                ui.label(egui::RichText::new(row_num).color(weak));
+                let text_color = if is_deleted { delete_text } else { weak };
+                ui.label(egui::RichText::new(row_num).color(text_color));
             });
+            if row_num_resp.clicked() {
+                *selected_row = Some(row_idx);
+                *selected_cell = None; // clear cell selection when row is selected
+            }
 
             // Data columns
             for col_idx in 0..num_cols {
+                let is_cell_edited = pending.is_cell_edited(row_idx, col_idx);
                 let (_, response) = row.col(|ui| {
-                    let is_selected = *selected_cell == Some((row_idx, col_idx));
-                    if is_selected {
+                    let is_cell_selected = *selected_cell == Some((row_idx, col_idx));
+                    let is_row_selected = *selected_row == Some(row_idx);
+                    if is_deleted {
+                        let rect = ui.max_rect();
+                        ui.painter().rect_filled(rect, 0.0, delete_fill);
+                    } else if is_cell_edited {
+                        let rect = ui.max_rect();
+                        ui.painter().rect_filled(rect, 0.0, edit_fill);
+                    } else if is_cell_selected || is_row_selected {
                         let rect = ui.max_rect();
                         ui.painter().rect_filled(rect, 0.0, selection_fill);
                     }
-                    let val = cached_row
-                        .get(col_idx + 1)
-                        .map(|s| s.as_str())
-                        .unwrap_or("");
-                    ui.add(egui::Label::new(val).selectable(false).truncate());
+
+                    // Show edited value if pending, otherwise show original
+                    let display_val =
+                        if let Some(edited) = pending.get_edited_value(row_idx, col_idx) {
+                            edited.new_value.display()
+                        } else {
+                            cached_row
+                                .get(col_idx + 1)
+                                .map(|s| s.as_str())
+                                .unwrap_or("")
+                                .to_string()
+                        };
+
+                    let text = if is_deleted {
+                        egui::RichText::new(&display_val)
+                            .strikethrough()
+                            .color(delete_text)
+                    } else {
+                        egui::RichText::new(&display_val)
+                    };
+                    ui.add(egui::Label::new(text).selectable(false).truncate());
                 });
 
                 if response.clicked() {
                     *selected_cell = Some((row_idx, col_idx));
+                    *selected_row = None; // clear row selection when cell is clicked
                 }
                 if response.double_clicked() {
                     output.double_clicked = Some((row_idx, col_idx));

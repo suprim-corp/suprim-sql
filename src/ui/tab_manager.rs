@@ -215,8 +215,15 @@ impl TabManager {
         }
     }
 
-    pub fn on_row_mutated(&mut self, _tab_id: Uuid, _rows_affected: u64) {
-        // Could refresh the table viewer here.
+    pub fn on_row_mutated(&mut self, tab_id: Uuid, _rows_affected: u64) {
+        for entry in &mut self.tabs {
+            if entry.tab_id == tab_id {
+                if let TabKind::TableViewer(t) = &mut entry.kind {
+                    t.needs_reload_after_mutation = true;
+                }
+                return;
+            }
+        }
     }
 
     /// Notify a tab that its query failed.

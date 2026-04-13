@@ -8,6 +8,7 @@ use uuid::Uuid;
 use super::sql_autocomplete::{self, AutocompleteState};
 use crate::ui::shared::clipboard_formatters;
 use crate::ui::shared::result_grid::{render_result_grid, CellAction};
+use crate::ui::table_viewer_tab::pending_changes::PendingChanges;
 
 pub struct SqlEditorTab {
     pub conn_id: Option<Uuid>,
@@ -24,6 +25,8 @@ pub struct SqlEditorTab {
     last_run_failed: bool,
     /// Currently selected data cell (row_idx, col_idx) for highlight + copy.
     selected_cell: Option<(usize, usize)>,
+    /// Currently selected entire row (row_idx) — click on row number to select.
+    selected_row: Option<usize>,
     /// SQL keyword autocomplete state.
     autocomplete: AutocompleteState,
 }
@@ -40,6 +43,7 @@ impl SqlEditorTab {
             is_running: false,
             last_run_failed: false,
             selected_cell: None,
+            selected_row: None,
             autocomplete: AutocompleteState::new(),
         }
     }
@@ -311,8 +315,15 @@ impl SqlEditorTab {
 
             // Results grid (bottom half)
             if let Some(result) = &self.result {
-                let grid_out =
-                    render_result_grid(ui, result, &self.display_cache, &mut self.selected_cell);
+                let no_pending = PendingChanges::new();
+                let grid_out = render_result_grid(
+                    ui,
+                    result,
+                    &self.display_cache,
+                    &mut self.selected_cell,
+                    &mut self.selected_row,
+                    &no_pending,
+                );
                 // Handle context-menu actions (read-only for SQL editor — only copy actions)
                 if let Some((action, row, col)) = grid_out.action {
                     self.handle_cell_action(ui, &action, row, col);

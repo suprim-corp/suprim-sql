@@ -66,58 +66,55 @@ impl TableViewerTab {
             });
     }
 
-    pub(super) fn render_editor_buttons(
+    /// Same as render_editor_buttons but without horizontal wrapper (for inline use).
+    pub(super) fn render_editor_buttons_inline(
         ui: &mut egui::Ui,
         editor: &mut CellEditor,
         is_json: bool,
         action: &mut CellEditorAction,
     ) {
-        ui.horizontal(|ui| {
-            let changed = editor.edit_value != editor.original_value;
-            if is_json {
-                if ui
-                    .button("Format")
-                    .on_hover_cursor(egui::CursorIcon::PointingHand)
-                    .clicked()
-                {
-                    if let Ok(parsed) =
-                        serde_json::from_str::<serde_json::Value>(&editor.edit_value)
-                    {
-                        editor.edit_value = serde_json::to_string_pretty(&parsed)
-                            .unwrap_or(editor.edit_value.clone());
-                        editor.json_error = None;
-                    } else {
-                        editor.json_error = Some("Invalid JSON — cannot format".into());
-                    }
-                }
-            }
+        let changed = editor.edit_value != editor.original_value;
+        if is_json {
             if ui
-                .add_enabled(changed, egui::Button::new("Save"))
+                .button("Format")
                 .on_hover_cursor(egui::CursorIcon::PointingHand)
                 .clicked()
             {
-                if is_json {
-                    match serde_json::from_str::<serde_json::Value>(&editor.edit_value) {
-                        Ok(_) => {
-                            editor.json_error = None;
-                            *action = CellEditorAction::Save;
-                        }
-                        Err(e) => {
-                            editor.json_error = Some(format!("Invalid JSON: {e}"));
-                        }
-                    }
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&editor.edit_value) {
+                    editor.edit_value =
+                        serde_json::to_string_pretty(&parsed).unwrap_or(editor.edit_value.clone());
+                    editor.json_error = None;
                 } else {
-                    *action = CellEditorAction::Save;
+                    editor.json_error = Some("Invalid JSON — cannot format".into());
                 }
             }
-            if ui
-                .button("Cancel")
-                .on_hover_cursor(egui::CursorIcon::PointingHand)
-                .clicked()
-                || ui.input(|i| i.key_pressed(egui::Key::Escape))
-            {
-                *action = CellEditorAction::Close;
+        }
+        if ui
+            .add_enabled(changed, egui::Button::new("Save"))
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
+            .clicked()
+        {
+            if is_json {
+                match serde_json::from_str::<serde_json::Value>(&editor.edit_value) {
+                    Ok(_) => {
+                        editor.json_error = None;
+                        *action = CellEditorAction::Save;
+                    }
+                    Err(e) => {
+                        editor.json_error = Some(format!("Invalid JSON: {e}"));
+                    }
+                }
+            } else {
+                *action = CellEditorAction::Save;
             }
-        });
+        }
+        if ui
+            .button("Cancel")
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
+            .clicked()
+            || ui.input(|i| i.key_pressed(egui::Key::Escape))
+        {
+            *action = CellEditorAction::Close;
+        }
     }
 }
