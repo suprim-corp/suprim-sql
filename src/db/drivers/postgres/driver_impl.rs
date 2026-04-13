@@ -6,7 +6,7 @@ use async_trait::async_trait;
 
 use crate::db::connection::{ConnectionConfig, DriverParams, DriverType};
 use crate::db::driver::DatabaseDriver;
-use crate::db::schema::ExtensionInfo;
+use crate::db::schema::{ExtensionInfo, ServerMetrics, SessionInfo};
 use crate::db::types::{DbValue, QueryResult, SchemaNode};
 use crate::error::{AppError, Result};
 
@@ -162,5 +162,17 @@ impl DatabaseDriver for PostgresDriver {
 
     fn is_connected(&self) -> bool {
         self.pool.is_some()
+    }
+
+    async fn list_sessions(&self) -> Result<Vec<SessionInfo>> {
+        Ok(super::dashboard_loader::load_sessions(self.pool()?).await)
+    }
+
+    async fn server_metrics(&self) -> Result<ServerMetrics> {
+        Ok(super::dashboard_loader::load_metrics(self.pool()?).await)
+    }
+
+    async fn kill_session(&self, pid: i32) -> Result<()> {
+        super::dashboard_loader::kill_session(self.pool()?, pid).await
     }
 }

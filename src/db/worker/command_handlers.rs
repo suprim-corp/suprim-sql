@@ -172,6 +172,12 @@ impl DbWorker {
                 )
                 .await
             }
+            DbCommand::LoadDashboard { conn_id } => {
+                self.handle_load_dashboard(conn_id).await
+            }
+            DbCommand::KillSession { conn_id, pid } => {
+                self.handle_kill_session(conn_id, pid).await
+            }
             DbCommand::Shutdown => unreachable!("handled in run()"),
         }
     }

@@ -187,5 +187,11 @@ pub fn handle_sidebar_action(action: SidebarAction, ctx: &mut SidebarContext<'_>
         SidebarAction::NewSchema { conn_id, database } => {
             *ctx.input_dialog = Some(InputDialog::new_schema(conn_id, database));
         }
+        SidebarAction::OpenDashboard { conn_id } => {
+            let name = (ctx.conn_name)(conn_id);
+            ctx.tab_manager.open_server_dashboard(conn_id, name);
+            // Send initial data load
+            let _ = ctx.cmd_tx.try_send(DbCommand::LoadDashboard { conn_id });
+        }
     }
 }

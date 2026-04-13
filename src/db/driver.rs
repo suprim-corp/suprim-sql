@@ -1,7 +1,7 @@
 use crate::{
     db::{
         connection::ConnectionConfig,
-        schema::ExtensionInfo,
+        schema::{ExtensionInfo, ServerMetrics, SessionInfo},
         types::{QueryResult, SchemaNode},
     },
     error::Result,
@@ -149,6 +149,26 @@ pub trait DatabaseDriver: Send + Sync + std::fmt::Debug {
         self.execute_on_database(&sql, database).await?;
         Ok(())
     }
+
+    // ── Server Dashboard ─────────────────────────────────────────────────
+
+    /// List active sessions on the server.
+    /// Default returns empty — override for drivers that support session introspection.
+    async fn list_sessions(&self) -> Result<Vec<SessionInfo>> {
+        Ok(Vec::new())
+    }
+
+    /// Get server-level metrics (connections, uptime, etc.).
+    /// Default returns empty metrics — override for drivers with status queries.
+    async fn server_metrics(&self) -> Result<ServerMetrics> {
+        Ok(ServerMetrics::default())
+    }
+
+    /// Terminate a session/process by PID.
+    /// Default is a no-op — override for drivers that support session termination.
+    async fn kill_session(&self, _pid: i32) -> Result<()> {
+        Ok(())
+    }
 }
 
 
@@ -270,6 +290,15 @@ pub enum DbCommand {
         target_database: String,
         target_schema: String,
     },
+    /// Load active sessions and server metrics for the dashboard.
+    LoadDashboard {
+        conn_id: Uuid,
+    },
+    /// Kill (terminate) a session by PID.
+    KillSession {
+        conn_id: Uuid,
+        pid: i32,
+    },
     /// Gracefully shut down the worker
     Shutdown,
 }
@@ -345,5 +374,16 @@ pub enum DbEvent {
         target: SchemaNode,
         source_extensions: Vec<ExtensionInfo>,
         target_extensions: Vec<ExtensionInfo>,
+    },
+    /// Dashboard data loaded (sessions + metrics).
+    DashboardLoaded {
+        conn_id: Uuid,
+        sessions: Vec<SessionInfo>,
+        metrics: ServerMetrics,
+    },
+    /// A session was successfully killed.
+    SessionKilled {
+        conn_id: Uuid,
+        pid: i32,
     },
 }

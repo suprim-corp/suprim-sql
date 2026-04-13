@@ -10,6 +10,7 @@
 //   queries         — execute, execute_with_params, table_data, insert/update/delete
 
 mod connection_url;
+mod dashboard_loader;
 mod driver_impl;
 mod driver_tests;
 mod extension_loader;

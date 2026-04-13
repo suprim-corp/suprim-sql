@@ -256,4 +256,46 @@ impl DbWorker {
             }
         }
     }
+
+    pub(super) async fn handle_load_dashboard(&self, conn_id: Uuid) {
+        let driver = match self.connections.get(&conn_id) {
+            Some(d) => d,
+            None => {
+                self.send_error(conn_id, None, "Not connected".into()).await;
+                return;
+            }
+        };
+        let sessions = driver.list_sessions().await.unwrap_or_default();
+        let metrics = driver.server_metrics().await.unwrap_or_default();
+        let _ = self
+            .event_tx
+            .send(DbEvent::DashboardLoaded {
+                conn_id,
+                sessions,
+                metrics,
+            })
+            .await;
+    }
+
+    pub(super) async fn handle_kill_session(&self, conn_id: Uuid, pid: i32) {
+        let driver = match self.connections.get(&conn_id) {
+            Some(d) => d,
+            None => {
+                self.send_error(conn_id, None, "Not connected".into()).await;
+                return;
+            }
+        };
+        match driver.kill_session(pid).await {
+            Ok(()) => {
+                let _ = self
+                    .event_tx
+                    .send(DbEvent::SessionKilled { conn_id, pid })
+                    .await;
+            }
+            Err(e) => {
+                self.send_error(conn_id, None, format!("Failed to kill session: {e}"))
+                    .await;
+            }
+        }
+    }
 }

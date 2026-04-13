@@ -170,6 +170,19 @@ impl App {
                         );
                     }
                 }
+                DbEvent::DashboardLoaded {
+                    conn_id,
+                    sessions,
+                    metrics,
+                } => {
+                    self.tab_manager
+                        .on_dashboard_loaded(conn_id, sessions, metrics);
+                }
+                DbEvent::SessionKilled { conn_id, pid } => {
+                    self.status = format!("Session PID {} terminated", pid);
+                    // Trigger a dashboard refresh
+                    let _ = self.cmd_tx.try_send(DbCommand::LoadDashboard { conn_id });
+                }
             }
         }
         had_events

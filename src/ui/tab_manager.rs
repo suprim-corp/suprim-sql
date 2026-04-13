@@ -7,6 +7,7 @@ use suprim_sql::db::types::QueryResult;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
+use super::server_dashboard::ServerDashboardTab;
 use super::shared::result_grid::build_display_cache;
 use super::sql_editor::SqlEditorTab;
 use super::tab_bar::render_tab_bar;
@@ -19,6 +20,7 @@ enum TabKind {
     SqlEditor(SqlEditorTab),
     TableViewer(TableViewerTab),
     TableEditor(TableEditorTab),
+    ServerDashboard(ServerDashboardTab),
 }
 
 // ── Tab entry ────────────────────────────────────────────────────────────────
@@ -35,6 +37,7 @@ impl TabEntry {
             TabKind::SqlEditor(_) => egui_phosphor::regular::TERMINAL_WINDOW,
             TabKind::TableViewer(_) => egui_phosphor::regular::TABLE,
             TabKind::TableEditor(_) => egui_phosphor::regular::PENCIL_SIMPLE,
+            TabKind::ServerDashboard(_) => egui_phosphor::regular::GAUGE,
         };
         let name = match &self.kind {
             TabKind::SqlEditor(_) => "Query".to_string(),
@@ -46,6 +49,7 @@ impl TabEntry {
                     format!("Edit: {}", truncate_str(&t.table_name, 14))
                 }
             }
+            TabKind::ServerDashboard(_) => "Dashboard".to_string(),
         };
         let conn = truncate_str(&self.conn_name, 20);
         format!("{icon} {name} [{conn}]")
@@ -176,6 +180,27 @@ impl TabManager {
         self.active_tab = Some(tab_id);
     }
 
+    /// Open a Server Dashboard tab for a connection.
+    /// Reuses an existing dashboard tab if one is already open for this connection.
+    pub fn open_server_dashboard(&mut self, conn_id: Uuid, conn_name: String) {
+        // Reuse existing dashboard tab for this connection
+        for entry in &self.tabs {
+            if let TabKind::ServerDashboard(d) = &entry.kind {
+                if d.conn_id == conn_id {
+                    self.active_tab = Some(entry.tab_id);
+                    return;
+                }
+            }
+        }
+        let tab_id = Uuid::new_v4();
+        self.tabs.push(TabEntry {
+            tab_id,
+            kind: TabKind::ServerDashboard(ServerDashboardTab::new(conn_id)),
+            conn_name,
+        });
+        self.active_tab = Some(tab_id);
+    }
+
     pub fn on_query_result(&mut self, tab_id: Uuid, result: QueryResult) {
         for entry in &mut self.tabs {
             if entry.tab_id == tab_id {
@@ -183,7 +208,7 @@ impl TabManager {
                 match &mut entry.kind {
                     TabKind::SqlEditor(t) => t.set_result(result, cache),
                     TabKind::TableViewer(t) => t.set_result(result, cache),
-                    TabKind::TableEditor(_) => {} // editor doesn't receive query results
+                    TabKind::TableEditor(_) | TabKind::ServerDashboard(_) => {}
                 }
                 return;
             }
@@ -212,6 +237,7 @@ impl TabManager {
             TabKind::SqlEditor(t) => t.is_running,
             TabKind::TableViewer(t) => t.is_loading,
             TabKind::TableEditor(_) => false,
+            TabKind::ServerDashboard(_) => false, // dashboard uses its own repaint timer
         })
     }
 
@@ -222,6 +248,7 @@ impl TabManager {
                 TabKind::SqlEditor(t) => t.conn_id,
                 TabKind::TableViewer(t) => Some(t.conn_id),
                 TabKind::TableEditor(t) => Some(t.conn_id),
+                TabKind::ServerDashboard(t) => Some(t.conn_id),
             };
             tab_conn != Some(conn_id)
         });
@@ -229,6 +256,23 @@ impl TabManager {
         if let Some(active) = self.active_tab {
             if !self.tabs.iter().any(|t| t.tab_id == active) {
                 self.active_tab = self.tabs.last().map(|t| t.tab_id);
+            }
+        }
+    }
+
+    /// Update a dashboard tab with fresh data from the DB worker.
+    pub fn on_dashboard_loaded(
+        &mut self,
+        conn_id: Uuid,
+        sessions: Vec<suprim_sql::db::schema::SessionInfo>,
+        metrics: suprim_sql::db::schema::ServerMetrics,
+    ) {
+        for entry in &mut self.tabs {
+            if let TabKind::ServerDashboard(d) = &mut entry.kind {
+                if d.conn_id == conn_id {
+                    d.on_data_loaded(sessions, metrics);
+                    return;
+                }
             }
         }
     }
@@ -278,6 +322,7 @@ impl TabManager {
                         TabKind::SqlEditor(t) => t.show(ui, tab_id, cmd_tx),
                         TabKind::TableViewer(t) => t.show(ui, tab_id, cmd_tx),
                         TabKind::TableEditor(t) => t.show(ui, tab_id, cmd_tx),
+                        TabKind::ServerDashboard(t) => t.show(ui, cmd_tx),
                     }
                     break;
                 }

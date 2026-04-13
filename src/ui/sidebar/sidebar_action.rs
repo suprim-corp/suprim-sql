@@ -107,4 +107,8 @@ pub enum SidebarAction {
         conn_id: Uuid,
         database: String,
     },
+    /// Open the server dashboard tab.
+    OpenDashboard {
+        conn_id: Uuid,
+    },
 }

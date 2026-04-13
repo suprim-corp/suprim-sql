@@ -227,6 +227,14 @@ fn render_context_menu(
             *action = Some(SidebarAction::NewDatabase { conn_id });
             ui.close();
         }
+        if ui
+            .button("Server Dashboard")
+            .on_hover_cursor(CursorIcon::PointingHand)
+            .clicked()
+        {
+            *action = Some(SidebarAction::OpenDashboard { conn_id });
+            ui.close();
+        }
         ui.separator();
         if ui
             .button("Filter Databases...")
