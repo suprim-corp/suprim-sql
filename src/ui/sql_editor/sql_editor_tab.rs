@@ -55,6 +55,16 @@ impl SqlEditorTab {
         self.last_run_failed = false;
     }
 
+    /// Returns the current SQL text in the editor.
+    pub fn sql_text(&self) -> &str {
+        &self.sql_text
+    }
+
+    /// Replace the editor's SQL text (used by history panel "load into editor").
+    pub fn set_sql_text(&mut self, sql: &str) {
+        self.sql_text = sql.to_string();
+    }
+
     /// Called when the query execution failed.
     pub fn on_error(&mut self) {
         self.is_running = false;

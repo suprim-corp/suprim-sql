@@ -91,6 +91,14 @@ impl TableViewerTab {
         }
     }
 
+    pub fn where_clause_text(&self) -> &str {
+        &self.where_clause
+    }
+
+    pub fn order_clause_text(&self) -> &str {
+        &self.order_clause
+    }
+
     pub fn set_result(&mut self, result: QueryResult, cache: Vec<Vec<String>>) {
         self.total_count = result.total_count;
         self.result = Some(result);

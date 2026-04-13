@@ -4,6 +4,7 @@
 use eframe::egui;
 use suprim_sql::db::driver::DbCommand;
 use suprim_sql::db::types::{DatabaseNode, SchemaTree};
+use suprim_sql::storage::QueryHistoryEntry;
 
 use crate::app::App;
 
@@ -58,6 +59,22 @@ impl App {
                 DbEvent::QueryResult { tab_id, result } => {
                     let row_count = result.rows.len();
                     let millis = result.execution_time.as_millis();
+                    // Record to query history
+                    if let Some((sql, conn_name, database)) =
+                        self.tab_manager.get_tab_query_info(tab_id)
+                    {
+                        self.history.add(QueryHistoryEntry {
+                            sql,
+                            conn_name,
+                            database,
+                            timestamp: chrono::Utc::now(),
+                            execution_time_ms: millis as u64,
+                            row_count,
+                            rows_affected: result.rows_affected,
+                            success: true,
+                            error_message: None,
+                        });
+                    }
                     self.tab_manager.on_query_result(tab_id, result);
                     self.status =
                         format!("Query complete \u{2014} {row_count} rows  ({millis} ms)");
@@ -139,6 +156,22 @@ impl App {
                     message,
                 } => {
                     if let Some(tid) = tab_id {
+                        // Record failed query to history
+                        if let Some((sql, conn_name, database)) =
+                            self.tab_manager.get_tab_query_info(tid)
+                        {
+                            self.history.add(QueryHistoryEntry {
+                                sql,
+                                conn_name,
+                                database,
+                                timestamp: chrono::Utc::now(),
+                                execution_time_ms: 0,
+                                row_count: 0,
+                                rows_affected: 0,
+                                success: false,
+                                error_message: Some(message.clone()),
+                            });
+                        }
                         self.tab_manager.on_tab_error(tid);
                     }
                     // If error has conn_id but no tab_id, it's a connection-level error
@@ -217,6 +250,9 @@ impl App {
                     for conn_id in self.sidebar.active_connection_ids() {
                         let _ = self.cmd_tx.try_send(DbCommand::ListDatabases { conn_id });
                     }
+                }
+                MenuAction::QueryHistory => {
+                    self.show_history = !self.show_history;
                 }
                 MenuAction::DataTransfer
                 | MenuAction::DataGeneration

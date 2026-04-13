@@ -238,6 +238,46 @@ impl TabManager {
         }
     }
 
+    /// Get query info for any tab type (SQL editor or Table viewer).
+    /// Returns (sql_text, conn_name, database) for history recording.
+    pub fn get_tab_query_info(&self, tab_id: Uuid) -> Option<(String, String, Option<String>)> {
+        for entry in &self.tabs {
+            if entry.tab_id == tab_id {
+                match &entry.kind {
+                    TabKind::SqlEditor(t) => {
+                        return Some((
+                            t.sql_text().to_string(),
+                            entry.conn_name.clone(),
+                            t.database.clone(),
+                        ));
+                    }
+                    TabKind::TableViewer(t) => {
+                        let sql = build_table_viewer_sql(t);
+                        return Some((sql, entry.conn_name.clone(), Some(t.database.clone())));
+                    }
+                    _ => return None,
+                }
+            }
+        }
+        None
+    }
+
+    /// Load SQL text into the active SQL editor tab.
+    /// Returns false if no active SQL editor tab exists.
+    pub fn load_sql_into_active_editor(&mut self, sql: &str) -> bool {
+        if let Some(active_id) = self.active_tab {
+            for entry in &mut self.tabs {
+                if entry.tab_id == active_id {
+                    if let TabKind::SqlEditor(t) = &mut entry.kind {
+                        t.set_sql_text(sql);
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
     /// Returns true if any tab is currently waiting for a DB response.
     pub fn any_tab_loading(&self) -> bool {
         self.tabs.iter().any(|entry| match &entry.kind {
@@ -337,4 +377,16 @@ impl TabManager {
             }
         }
     }
+}
+
+/// Build a representative SQL string from TableViewerTab state.
+fn build_table_viewer_sql(t: &TableViewerTab) -> String {
+    let mut sql = format!("SELECT * FROM \"{}\".\"{}\"", t.schema_name, t.table_name);
+    if !t.where_clause_text().is_empty() {
+        sql.push_str(&format!(" WHERE {}", t.where_clause_text()));
+    }
+    if !t.order_clause_text().is_empty() {
+        sql.push_str(&format!(" ORDER BY {}", t.order_clause_text()));
+    }
+    sql
 }

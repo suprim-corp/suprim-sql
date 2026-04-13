@@ -14,6 +14,12 @@ impl App {
     pub(crate) fn render_ui(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
 
+        // ── Global keyboard shortcuts ───────────────────────────────────
+        let toggle_history = ui.input(|i| i.key_pressed(egui::Key::Y) && i.modifiers.command);
+        if toggle_history {
+            self.show_history = !self.show_history;
+        }
+
         // ── Custom title bar (macOS only) ───────────────────────────────
         #[cfg(target_os = "macos")]
         {
@@ -32,6 +38,32 @@ impl App {
         egui::Panel::bottom("status_bar").show_inside(ui, |ui| {
             self.statusbar.show(ui, &self.status);
         });
+
+        // ── Query History panel (bottom, above status bar) ──────────────
+        if self.show_history {
+            egui::Panel::bottom("history_panel")
+                .resizable(true)
+                .default_size(200.0)
+                .min_size(120.0)
+                .max_size(400.0)
+                .show_inside(ui, |ui| {
+                    let output = crate::ui::query_history::render_history_panel(
+                        ui,
+                        &mut self.history,
+                        &mut self.history_search,
+                    );
+                    if let Some(sql) = output.load_sql {
+                        self.tab_manager.load_sql_into_active_editor(&sql);
+                        self.show_history = false;
+                    }
+                    if output.clear_all {
+                        self.history.clear();
+                    }
+                    if output.close {
+                        self.show_history = false;
+                    }
+                });
+        }
 
         // ── Sidebar (left) ──────────────────────────────────────────────
         egui::Panel::left("sidebar")
@@ -189,6 +221,14 @@ impl App {
                         for conn_id in self.sidebar.active_connection_ids() {
                             let _ = self.cmd_tx.try_send(DbCommand::ListDatabases { conn_id });
                         }
+                        ui.close();
+                    }
+                    if ui
+                        .button("Query History")
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .clicked()
+                    {
+                        self.show_history = !self.show_history;
                         ui.close();
                     }
                 });

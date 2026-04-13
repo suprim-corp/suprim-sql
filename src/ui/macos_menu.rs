@@ -24,6 +24,7 @@ pub enum MenuAction {
     Quit,
     NewSqlTab,
     ReloadDatabases,
+    QueryHistory,
     DataTransfer,
     DataGeneration,
     DataDictionary,
@@ -127,7 +128,10 @@ pub fn install_native_menu() -> NativeMenu {
         "View",
         &tx,
         &mut handlers,
-        &[("Reload Databases", MenuAction::ReloadDatabases, "r")],
+        &[
+            ("Reload Databases", MenuAction::ReloadDatabases, "r"),
+            ("Query History", MenuAction::QueryHistory, "y"),
+        ],
     );
     menubar.addItem(&view_menu);
 

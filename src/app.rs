@@ -1,6 +1,6 @@
 use eframe::egui;
 use suprim_sql::db::driver::{DbCommand, DbEvent};
-use suprim_sql::storage::AppConfig;
+use suprim_sql::storage::{AppConfig, QueryHistoryStore};
 use tokio::sync::mpsc;
 
 use crate::ui::{
@@ -42,6 +42,15 @@ pub struct App {
     /// Input dialog for New Database / New Schema (None = closed).
     pub(crate) input_dialog: Option<InputDialog>,
 
+    /// Query history store — persisted to disk.
+    pub(crate) history: QueryHistoryStore,
+
+    /// Whether the query history panel is open.
+    pub(crate) show_history: bool,
+
+    /// Search query for the history panel.
+    pub(crate) history_search: String,
+
     /// Native macOS menu bar channel + retained handler objects.
     #[cfg(target_os = "macos")]
     pub(crate) native_menu: crate::ui::macos_menu::NativeMenu,
@@ -61,6 +70,7 @@ impl App {
 
         // Load saved connections from disk.
         let config = AppConfig::load();
+        let history = QueryHistoryStore::load();
 
         let mut sidebar = Sidebar::new();
         sidebar.init_from_config(&config.connections);
@@ -79,6 +89,9 @@ impl App {
             delete_connection_dialog: None,
             pending_delete_conn: None,
             input_dialog: None,
+            history,
+            show_history: false,
+            history_search: String::new(),
             #[cfg(target_os = "macos")]
             native_menu,
         }

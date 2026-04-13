@@ -3,6 +3,7 @@ pub(crate) mod custom_title_bar;
 pub(crate) mod dialog;
 #[cfg(target_os = "macos")]
 pub mod macos_menu;
+pub(crate) mod query_history;
 mod server_dashboard;
 pub(crate) mod shared;
 mod sidebar;
