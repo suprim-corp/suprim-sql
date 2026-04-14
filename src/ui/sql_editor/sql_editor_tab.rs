@@ -65,6 +65,17 @@ impl SqlEditorTab {
         self.sql_text = sql.to_string();
     }
 
+    /// Format/prettify the SQL text using sqlformat.
+    fn format_sql(&mut self) {
+        let options = sqlformat::FormatOptions {
+            indent: sqlformat::Indent::Spaces(2),
+            uppercase: Some(true),
+            lines_between_queries: 2,
+            ..Default::default()
+        };
+        self.sql_text = sqlformat::format(&self.sql_text, &sqlformat::QueryParams::None, &options);
+    }
+
     /// Called when the query execution failed.
     pub fn on_error(&mut self) {
         self.is_running = false;
@@ -112,6 +123,13 @@ impl SqlEditorTab {
                 self.is_running = true;
                 self.last_run_failed = false;
             }
+        }
+
+        // Shift+⌘+F (or Ctrl+Shift+F) keyboard shortcut to format SQL.
+        let shift_cmd_f =
+            ui.input(|i| i.key_pressed(egui::Key::F) && i.modifiers.command && i.modifiers.shift);
+        if shift_cmd_f && !self.sql_text.trim().is_empty() {
+            self.format_sql();
         }
 
         ui.vertical(|ui| {
@@ -162,6 +180,22 @@ impl SqlEditorTab {
                             .color(egui::Color32::from_rgb(220, 60, 60))
                             .size(18.0),
                     );
+                }
+
+                // Format SQL button
+                ui.separator();
+                let fmt_enabled = !self.sql_text.trim().is_empty();
+                let fmt_btn = egui::Button::new(egui::RichText::new(format!(
+                    "{} Format",
+                    egui_phosphor::regular::MAGIC_WAND
+                )));
+                if ui
+                    .add_enabled(fmt_enabled, fmt_btn)
+                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                    .on_hover_text("Format SQL (⇧⌘F)")
+                    .clicked()
+                {
+                    self.format_sql();
                 }
 
                 // Database picker — lets user choose which database to execute against.
