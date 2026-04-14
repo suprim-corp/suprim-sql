@@ -30,15 +30,15 @@ pub struct TableViewerTab {
     result: Option<QueryResult>,
     /// Pre-computed display strings for each cell — avoids per-frame allocations.
     display_cache: Vec<Vec<String>>,
-    page: usize,
-    page_size: usize,
+    pub(crate) page: usize,
+    pub(crate) page_size: usize,
     /// Total row count from the DB (for pagination display).
     total_count: Option<u64>,
     pub is_loading: bool,
     /// True until the first load is dispatched (auto-load on open).
     needs_initial_load: bool,
-    where_clause: String,
-    order_clause: String,
+    pub(crate) where_clause: String,
+    pub(crate) order_clause: String,
     /// Currently selected data cell (row_idx, col_idx) for highlight + copy.
     selected_cell: Option<(usize, usize)>,
     /// Currently selected entire row (row_idx) — click on row number to select.

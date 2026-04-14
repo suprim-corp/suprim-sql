@@ -184,6 +184,22 @@ impl Sidebar {
         }
     }
 
+    /// Mark a connection so it auto-expands once connected (workspace restore).
+    pub fn mark_needs_expand(&mut self, conn_id: Uuid) {
+        if let Some(entry) = self.find_mut(conn_id) {
+            entry.needs_expand = true;
+        }
+    }
+
+    /// Return IDs of all currently connected connections (for workspace persistence).
+    pub fn connected_ids(&self) -> Vec<Uuid> {
+        self.connections
+            .iter()
+            .filter(|c| c.status == ConnectionStatus::Connected)
+            .map(|c| c.conn_id)
+            .collect()
+    }
+
     // ─── Rendering ──────────────────────────────────────────────────────
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> Option<SidebarAction> {

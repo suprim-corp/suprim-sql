@@ -23,11 +23,11 @@ pub struct ServerDashboardTab {
     slow_queries: Vec<SlowQueryInfo>,
     is_loading: bool,
     /// Auto-refresh interval in seconds.
-    refresh_interval: f32,
+    pub(crate) refresh_interval: f32,
     /// Time of last data load (for auto-refresh).
     last_refresh: std::time::Instant,
     /// Whether auto-refresh is enabled.
-    auto_refresh: bool,
+    pub(crate) auto_refresh: bool,
 }
 
 impl ServerDashboardTab {

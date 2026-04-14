@@ -1,6 +1,6 @@
 use eframe::egui;
 use suprim_sql::db::driver::{DbCommand, DbEvent};
-use suprim_sql::storage::{AppConfig, QueryHistoryStore};
+use suprim_sql::storage::{AppConfig, QueryHistoryStore, WorkspaceState};
 use tokio::sync::mpsc;
 
 use crate::ui::{
@@ -51,6 +51,9 @@ pub struct App {
     /// Search query for the history panel.
     pub(crate) history_search: String,
 
+    /// Connection IDs to auto-reconnect from saved workspace.
+    pub(crate) restore_connected_ids: Vec<uuid::Uuid>,
+
     /// Native macOS menu bar channel + retained handler objects.
     #[cfg(target_os = "macos")]
     pub(crate) native_menu: crate::ui::macos_menu::NativeMenu,
@@ -75,11 +78,19 @@ impl App {
         let mut sidebar = Sidebar::new();
         sidebar.init_from_config(&config.connections);
 
+        // Restore workspace (open tabs) from last session.
+        let workspace = WorkspaceState::load();
+        let mut tab_manager = TabManager::new();
+        let restore_active = workspace.active_tab;
+        let connected_ids = workspace.connected_ids.clone();
+        let show_history = workspace.show_history;
+        tab_manager.restore_from(workspace.tabs, restore_active);
+
         Self {
             cmd_tx,
             event_rx,
             sidebar,
-            tab_manager: TabManager::new(),
+            tab_manager,
             statusbar: StatusBar::new(),
             connection_dialog: None,
             status: "Ready".to_string(),
@@ -90,17 +101,47 @@ impl App {
             pending_delete_conn: None,
             input_dialog: None,
             history,
-            show_history: false,
+            show_history,
             history_search: String::new(),
+            restore_connected_ids: connected_ids,
             #[cfg(target_os = "macos")]
             native_menu,
         }
+    }
+
+    /// Save current workspace state (tabs + UI preferences) to disk.
+    pub(crate) fn save_workspace(&self) {
+        let (tabs, active_tab) = self.tab_manager.snapshot();
+        let connected_ids: Vec<uuid::Uuid> = self.sidebar.connected_ids();
+        let ws = WorkspaceState {
+            tabs,
+            active_tab,
+            connected_ids,
+            show_history: self.show_history,
+        };
+        ws.save();
     }
 }
 
 impl eframe::App for App {
     /// Process DB events (called before rendering each frame).
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Auto-reconnect connections from saved workspace (first frame only).
+        if !self.restore_connected_ids.is_empty() {
+            let ids = std::mem::take(&mut self.restore_connected_ids);
+            for conn_id in ids {
+                if let Some(cfg) = self.config.connections.iter().find(|c| c.id == conn_id) {
+                    tracing::info!("Workspace restore: reconnecting {}", cfg.name);
+                    self.sidebar.on_connecting(conn_id);
+                    self.sidebar.mark_needs_expand(conn_id);
+                    let _ = self.cmd_tx.try_send(DbCommand::Connect {
+                        config: cfg.clone(),
+                    });
+                }
+            }
+            ctx.request_repaint();
+        }
+
         let had_events = self.process_events();
         if had_events {
             ctx.request_repaint();
@@ -117,5 +158,9 @@ impl eframe::App for App {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.render_ui(ui);
+    }
+
+    fn on_exit(&mut self) {
+        self.save_workspace();
     }
 }
