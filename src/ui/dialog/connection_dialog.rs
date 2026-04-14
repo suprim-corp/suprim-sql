@@ -1,8 +1,8 @@
 /// Connection dialog — modal UI for creating or editing a database connection.
 /// Config building and validation logic is in `connection_dialog_config.rs`.
 use eframe::egui;
+use suprim_sql::db::commands::DbCommand;
 use suprim_sql::db::connection::ConnectionConfig;
-use suprim_sql::db::driver::DbCommand;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -12,7 +12,7 @@ use super::connection_dialog_config::{build_config, extract_fields, DbType, Dial
 pub enum DialogResult {
     Pending,
     Cancelled,
-    Confirmed(ConnectionConfig),
+    Confirmed(Box<ConnectionConfig>),
 }
 
 /// Test connection state.
@@ -359,7 +359,7 @@ impl ConnectionDialog {
                     {
                         match build_config(&self.fields()) {
                             Ok(config) => {
-                                result = DialogResult::Confirmed(config);
+                                result = DialogResult::Confirmed(Box::new(config));
                                 self.error = None;
                             }
                             Err(e) => self.error = Some(e),

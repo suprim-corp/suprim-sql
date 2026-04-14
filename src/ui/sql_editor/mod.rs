@@ -1,4 +1,5 @@
 pub(crate) mod sql_autocomplete;
+mod sql_editor_autocomplete;
 pub(crate) mod sql_editor_tab;
 pub(crate) mod sql_highlighter;
 

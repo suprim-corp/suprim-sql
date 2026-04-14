@@ -1,7 +1,7 @@
 /// Connection lifecycle handlers: connect, test connect, and disconnect.
 use uuid::Uuid;
 
-use crate::db::driver::DbEvent;
+use crate::db::commands::DbEvent;
 use crate::db::factory::DbFactory;
 use crate::db::ssh_tunnel::SshTunnel;
 

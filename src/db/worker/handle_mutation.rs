@@ -1,7 +1,7 @@
 /// Row mutation handlers: insert, update, delete.
 use uuid::Uuid;
 
-use crate::db::driver::DbEvent;
+use crate::db::commands::DbEvent;
 
 use super::DbWorker;
 

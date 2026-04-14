@@ -6,6 +6,7 @@ use eframe::egui;
 
 use crate::ui::dialog::tool::structure_sync::types::CompareState;
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn render_bottom_bar(
     ui: &mut egui::Ui,
     compare_state: &CompareState,
@@ -30,18 +31,17 @@ pub(crate) fn render_bottom_bar(
         let show_copy = matches!(compare_state, CompareState::Done | CompareState::Preview)
             && !ddl_script.is_empty();
 
-        if show_copy {
-            if ui
+        if show_copy
+            && ui
                 .button(format!(
                     "{}  Copy Script",
                     egui_phosphor::regular::CLIPBOARD_TEXT
                 ))
                 .on_hover_cursor(egui::CursorIcon::PointingHand)
                 .clicked()
-            {
-                ui.ctx().copy_text(ddl_script.to_owned());
-                *status = Some("Script copied to clipboard".into());
-            }
+        {
+            ui.ctx().copy_text(ddl_script.to_owned());
+            *status = Some("Script copied to clipboard".into());
         }
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

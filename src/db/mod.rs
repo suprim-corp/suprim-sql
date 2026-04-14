@@ -1,3 +1,4 @@
+pub mod commands;
 pub mod connection;
 pub mod driver;
 pub mod drivers;
@@ -9,8 +10,9 @@ pub mod types;
 pub mod values;
 pub mod worker;
 
+pub use commands::{DbCommand, DbEvent};
 pub use connection::{ConnectionConfig, DriverParams, DriverType, SshConfig, TlsConfig};
-pub use driver::{DatabaseDriver, DbCommand, DbEvent};
+pub use driver::DatabaseDriver;
 pub use factory::DbFactory;
 pub use worker::DbWorker;
 pub use schema::{ExtensionInfo, ServerMetrics, SessionInfo, SlowQueryInfo};

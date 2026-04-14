@@ -3,7 +3,7 @@
 /// - `handle_connection.rs` — connect / disconnect
 /// - `handle_query.rs` — execute, list databases/schemas, load schema detail, load table data
 /// - `handle_mutation.rs` — insert / update / delete row
-use crate::db::driver::DbCommand;
+use crate::db::commands::DbCommand;
 
 use super::DbWorker;
 

@@ -51,6 +51,7 @@ pub(super) fn render_materialized_views_folder(
 }
 
 /// Shared renderer for Views and Materialized Views folders.
+#[allow(clippy::too_many_arguments)]
 fn render_view_like_folder(
     ui: &mut egui::Ui,
     conn_id: Uuid,

@@ -1,7 +1,7 @@
 /// Handles `SidebarAction` dispatches — maps sidebar UI actions to DbCommands
 /// or application state changes. Extracted from `app.rs` to isolate sidebar
 /// action routing from core application wiring.
-use suprim_sql::db::driver::DbCommand;
+use suprim_sql::db::commands::DbCommand;
 use suprim_sql::storage::AppConfig;
 use tokio::sync::mpsc;
 

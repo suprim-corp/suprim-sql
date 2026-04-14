@@ -32,13 +32,16 @@ pub(crate) fn mod_key() -> &'static str {
     }
 }
 
+/// Shared alias for the cell action reference used in context menus.
+pub(crate) type CellActionRef = Rc<RefCell<Option<(CellAction, usize, usize)>>>;
+
 /// Render the context-menu items for a cell.
 pub(crate) fn render_cell_context_menu(
     ui: &mut egui::Ui,
     row: usize,
     col: usize,
     is_null: bool,
-    action_ref: &Rc<RefCell<Option<(CellAction, usize, usize)>>>,
+    action_ref: &CellActionRef,
 ) {
     let m = mod_key();
 

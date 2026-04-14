@@ -45,10 +45,8 @@ pub(super) fn render_tables_folder(
 
                 let (toggle_resp, header_resp, _body_resp) = state
                     .show_header(ui, |ui| {
-                        let resp = ui
-                            .selectable_label(false, &tbl_label)
-                            .on_hover_cursor(CursorIcon::PointingHand);
-                        resp
+                        ui.selectable_label(false, &tbl_label)
+                            .on_hover_cursor(CursorIcon::PointingHand)
                     })
                     .body(|ui| {
                         table_detail_renderer::render_table_detail(

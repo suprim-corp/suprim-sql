@@ -1,7 +1,7 @@
 /// Read-only query handlers: execute, list databases/schemas, load schema detail, load table data.
 use uuid::Uuid;
 
-use crate::db::driver::DbEvent;
+use crate::db::commands::DbEvent;
 
 use super::DbWorker;
 

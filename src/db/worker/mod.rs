@@ -12,7 +12,8 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::db::driver::{DbCommand, DbEvent, DatabaseDriver};
+use crate::db::commands::{DbCommand, DbEvent};
+use crate::db::driver::DatabaseDriver;
 use crate::db::ssh_tunnel::SshTunnel;
 
 /// Asynchronous worker that owns all DB connections and processes commands

@@ -2,9 +2,8 @@
 /// SqlEditorTab / TableViewerTab / TableEditorTab implementations.
 /// Tab bar rendering is delegated to `tab_bar.rs`.
 use eframe::egui;
-use suprim_sql::db::driver::DbCommand;
+use suprim_sql::db::commands::DbCommand;
 use suprim_sql::db::types::QueryResult;
-use suprim_sql::storage::TabSnapshot;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -17,19 +16,19 @@ use super::table_viewer_tab::TableViewerTab;
 
 // ── Tab kinds ────────────────────────────────────────────────────────────────
 
-enum TabKind {
+pub(super) enum TabKind {
     SqlEditor(SqlEditorTab),
-    TableViewer(TableViewerTab),
+    TableViewer(Box<TableViewerTab>),
     TableEditor(TableEditorTab),
     ServerDashboard(ServerDashboardTab),
 }
 
 // ── Tab entry ────────────────────────────────────────────────────────────────
 
-struct TabEntry {
-    tab_id: Uuid,
-    kind: TabKind,
-    conn_name: String,
+pub(super) struct TabEntry {
+    pub(super) tab_id: Uuid,
+    pub(super) kind: TabKind,
+    pub(super) conn_name: String,
 }
 
 impl TabEntry {
@@ -78,8 +77,8 @@ fn truncate_str(s: &str, max: usize) -> String {
 // ── TabManager ───────────────────────────────────────────────────────────────
 
 pub struct TabManager {
-    tabs: Vec<TabEntry>,
-    active_tab: Option<Uuid>,
+    pub(super) tabs: Vec<TabEntry>,
+    pub(super) active_tab: Option<Uuid>,
 }
 
 impl TabManager {
@@ -88,118 +87,6 @@ impl TabManager {
             tabs: Vec::new(),
             active_tab: None,
         }
-    }
-
-    pub fn open_sql_tab(
-        &mut self,
-        conn_id: Option<Uuid>,
-        conn_name: String,
-        database: Option<String>,
-        databases: Vec<String>,
-    ) {
-        let tab_id = Uuid::new_v4();
-        self.tabs.push(TabEntry {
-            tab_id,
-            kind: TabKind::SqlEditor(SqlEditorTab::new(conn_id, database, databases)),
-            conn_name,
-        });
-        self.active_tab = Some(tab_id);
-    }
-
-    pub fn open_table_viewer(
-        &mut self,
-        conn_id: Uuid,
-        conn_name: String,
-        database: String,
-        schema_name: String,
-        table_name: String,
-    ) {
-        // If a viewer for this exact table is already open, just activate it.
-        for entry in &self.tabs {
-            if let TabKind::TableViewer(t) = &entry.kind {
-                if t.conn_id == conn_id
-                    && t.database == database
-                    && t.schema_name == schema_name
-                    && t.table_name == table_name
-                {
-                    self.active_tab = Some(entry.tab_id);
-                    return;
-                }
-            }
-        }
-
-        let tab_id = Uuid::new_v4();
-        self.tabs.push(TabEntry {
-            tab_id,
-            kind: TabKind::TableViewer(TableViewerTab::new(
-                conn_id,
-                database,
-                schema_name,
-                table_name,
-            )),
-            conn_name,
-        });
-        self.active_tab = Some(tab_id);
-    }
-
-    pub fn open_table_editor(
-        &mut self,
-        conn_id: Uuid,
-        conn_name: String,
-        database: String,
-        schema_name: String,
-        table: &suprim_sql::db::types::TableNode,
-        schema_functions: Vec<String>,
-    ) {
-        let tab_id = Uuid::new_v4();
-        let mut editor = TableEditorTab::new(conn_id, database, schema_name, table);
-        editor.schema_functions = schema_functions;
-        self.tabs.push(TabEntry {
-            tab_id,
-            kind: TabKind::TableEditor(editor),
-            conn_name,
-        });
-        self.active_tab = Some(tab_id);
-    }
-
-    pub fn open_new_table_editor(
-        &mut self,
-        conn_id: Uuid,
-        conn_name: String,
-        database: String,
-        schema_name: String,
-        schema_functions: Vec<String>,
-    ) {
-        let tab_id = Uuid::new_v4();
-        let mut editor = TableEditorTab::new_empty(conn_id, database, schema_name);
-        editor.schema_functions = schema_functions;
-        self.tabs.push(TabEntry {
-            tab_id,
-            kind: TabKind::TableEditor(editor),
-            conn_name,
-        });
-        self.active_tab = Some(tab_id);
-    }
-
-    /// Open a Server Dashboard tab for a connection.
-    /// Reuses an existing dashboard tab if one is already open for this connection.
-    pub fn open_server_dashboard(&mut self, conn_id: Uuid, conn_name: String) {
-        // Reuse existing dashboard tab for this connection
-        for entry in &self.tabs {
-            if let TabKind::ServerDashboard(d) = &entry.kind {
-                if d.conn_id == conn_id {
-                    self.active_tab = Some(entry.tab_id);
-                    return;
-                }
-            }
-        }
-        let tab_id = Uuid::new_v4();
-        self.tabs.push(TabEntry {
-            tab_id,
-            kind: TabKind::ServerDashboard(ServerDashboardTab::new(conn_id)),
-            conn_name,
-        });
-        self.active_tab = Some(tab_id);
     }
 
     pub fn on_query_result(&mut self, tab_id: Uuid, result: QueryResult) {
@@ -305,140 +192,6 @@ impl TabManager {
             if !self.tabs.iter().any(|t| t.tab_id == active) {
                 self.active_tab = self.tabs.last().map(|t| t.tab_id);
             }
-        }
-    }
-
-    /// Update a dashboard tab with fresh data from the DB worker.
-    pub fn on_dashboard_loaded(
-        &mut self,
-        conn_id: Uuid,
-        sessions: Vec<suprim_sql::db::schema::SessionInfo>,
-        metrics: suprim_sql::db::schema::ServerMetrics,
-        slow_queries: Vec<suprim_sql::db::schema::SlowQueryInfo>,
-    ) {
-        for entry in &mut self.tabs {
-            if let TabKind::ServerDashboard(d) = &mut entry.kind {
-                if d.conn_id == conn_id {
-                    d.on_data_loaded(sessions, metrics, slow_queries);
-                    return;
-                }
-            }
-        }
-    }
-
-    /// Create a snapshot of all open tabs for workspace persistence.
-    pub fn snapshot(&self) -> (Vec<TabSnapshot>, Option<Uuid>) {
-        let tabs: Vec<TabSnapshot> = self
-            .tabs
-            .iter()
-            .filter_map(|entry| {
-                let conn_name = entry.conn_name.clone();
-                match &entry.kind {
-                    TabKind::SqlEditor(t) => Some(TabSnapshot::SqlEditor {
-                        tab_id: entry.tab_id,
-                        conn_id: t.conn_id,
-                        conn_name,
-                        database: t.database.clone(),
-                        sql_text: t.sql_text().to_string(),
-                    }),
-                    TabKind::TableViewer(t) => Some(TabSnapshot::TableViewer {
-                        tab_id: entry.tab_id,
-                        conn_id: t.conn_id,
-                        conn_name,
-                        database: t.database.clone(),
-                        schema_name: t.schema_name.clone(),
-                        table_name: t.table_name.clone(),
-                        where_clause: t.where_clause.clone(),
-                        order_clause: t.order_clause.clone(),
-                        page: t.page,
-                        page_size: t.page_size,
-                    }),
-                    TabKind::ServerDashboard(d) => Some(TabSnapshot::ServerDashboard {
-                        tab_id: entry.tab_id,
-                        conn_id: d.conn_id,
-                        conn_name,
-                        refresh_interval: d.refresh_interval,
-                        auto_refresh: d.auto_refresh,
-                    }),
-                    // TableEditor tabs contain unsaved design — skip to avoid data loss ambiguity
-                    TabKind::TableEditor(_) => None,
-                }
-            })
-            .collect();
-        (tabs, self.active_tab)
-    }
-
-    /// Restore tabs from a workspace snapshot.
-    /// Tabs whose connection is missing from config are silently skipped.
-    pub fn restore_from(&mut self, snapshots: Vec<TabSnapshot>, active_tab: Option<Uuid>) {
-        for snap in snapshots {
-            let entry = match snap {
-                TabSnapshot::SqlEditor {
-                    tab_id,
-                    conn_id,
-                    conn_name,
-                    database,
-                    sql_text,
-                } => {
-                    let mut tab = SqlEditorTab::new(conn_id, database.clone(), Vec::new());
-                    tab.set_sql_text(&sql_text);
-                    TabEntry {
-                        tab_id,
-                        kind: TabKind::SqlEditor(tab),
-                        conn_name,
-                    }
-                }
-                TabSnapshot::TableViewer {
-                    tab_id,
-                    conn_id,
-                    conn_name,
-                    database,
-                    schema_name,
-                    table_name,
-                    where_clause,
-                    order_clause,
-                    page,
-                    page_size,
-                } => {
-                    let mut tab = TableViewerTab::new(conn_id, database, schema_name, table_name);
-                    tab.where_clause = where_clause;
-                    tab.order_clause = order_clause;
-                    tab.page = page;
-                    tab.page_size = page_size;
-                    // Will auto-load data once connection is established
-                    TabEntry {
-                        tab_id,
-                        kind: TabKind::TableViewer(tab),
-                        conn_name,
-                    }
-                }
-                TabSnapshot::ServerDashboard {
-                    tab_id,
-                    conn_id,
-                    conn_name,
-                    refresh_interval,
-                    auto_refresh,
-                } => {
-                    let mut tab = ServerDashboardTab::new(conn_id);
-                    tab.refresh_interval = refresh_interval;
-                    tab.auto_refresh = auto_refresh;
-                    TabEntry {
-                        tab_id,
-                        kind: TabKind::ServerDashboard(tab),
-                        conn_name,
-                    }
-                }
-            };
-            self.tabs.push(entry);
-        }
-        // Set active tab (if it exists in restored tabs)
-        if let Some(id) = active_tab {
-            if self.tabs.iter().any(|t| t.tab_id == id) {
-                self.active_tab = Some(id);
-            }
-        }
-        if self.active_tab.is_none() {
-            self.active_tab = self.tabs.first().map(|t| t.tab_id);
         }
     }
 

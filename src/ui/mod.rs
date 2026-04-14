@@ -11,6 +11,8 @@ pub(crate) mod sql_editor;
 mod statusbar;
 mod tab_bar;
 mod tab_manager;
+mod tab_opener;
+mod tab_snapshot;
 mod table_editor_tab;
 pub(crate) mod table_viewer_tab;
 

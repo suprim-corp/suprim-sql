@@ -1,5 +1,5 @@
 use super::*;
-use crate::db::driver::{DbCommand, DbEvent};
+use crate::db::commands::{DbCommand, DbEvent};
 use std::collections::HashMap;
 use uuid::Uuid;
 

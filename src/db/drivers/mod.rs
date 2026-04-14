@@ -1,4 +1,4 @@
-/// Database driver implementations — one submodule per engine.
+//! Database driver implementations — one submodule per engine.
 
 pub mod postgres;
 

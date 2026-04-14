@@ -5,7 +5,7 @@ mod detail_sections;
 mod sql_generator;
 
 use eframe::egui;
-use suprim_sql::db::driver::DbCommand;
+use suprim_sql::db::commands::DbCommand;
 use suprim_sql::db::types::{ForeignKeyNode, IndexNode, TableNode};
 use tokio::sync::mpsc;
 use uuid::Uuid;

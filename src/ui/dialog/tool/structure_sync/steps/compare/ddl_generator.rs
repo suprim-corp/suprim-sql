@@ -56,6 +56,7 @@ pub(crate) fn generate_ddl(
     lines.join("\n")
 }
 
+#[allow(clippy::too_many_arguments)]
 fn generate_entry_ddl(
     schema: &str,
     entry: &DiffEntry,
@@ -294,7 +295,7 @@ fn generate_entry_ddl(
                 .functions
                 .iter()
                 .find(|f| f.signature == *name)
-                .map_or(false, |f| f.is_procedure);
+                .is_some_and(|f| f.is_procedure);
             let kind = if is_proc { "PROCEDURE" } else { "FUNCTION" };
             lines.push(format!(
                 "DROP {kind} IF EXISTS \"{schema}\".{name} CASCADE;"

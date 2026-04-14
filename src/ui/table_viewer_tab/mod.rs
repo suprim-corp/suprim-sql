@@ -7,9 +7,10 @@ mod new_row_editor;
 mod pagination_bar;
 pub(crate) mod pending_changes;
 pub(crate) mod sql_preview;
+mod toolbar;
 
 use eframe::egui;
-use suprim_sql::db::driver::DbCommand;
+use suprim_sql::db::commands::DbCommand;
 use suprim_sql::db::types::{DbValue, QueryResult};
 use tokio::sync::mpsc;
 use uuid::Uuid;

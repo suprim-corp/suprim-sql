@@ -150,14 +150,12 @@ pub fn handle_auto_pair(
 
     // Don't auto-pair quotes if the character before the typed one is alphanumeric
     // (e.g. typing apostrophe in "don't" shouldn't pair).
-    if typed_char == '\'' || typed_char == '"' {
-        if cursor_cpos >= 2 {
-            // The char at cursor_cpos - 2 is the one before the just-typed char.
-            let before_char = sql_text.chars().nth(cursor_cpos - 2);
-            if let Some(ch) = before_char {
-                if ch.is_alphanumeric() || ch == '_' {
-                    return false;
-                }
+    if (typed_char == '\'' || typed_char == '"') && cursor_cpos >= 2 {
+        // The char at cursor_cpos - 2 is the one before the just-typed char.
+        let before_char = sql_text.chars().nth(cursor_cpos - 2);
+        if let Some(ch) = before_char {
+            if ch.is_alphanumeric() || ch == '_' {
+                return false;
             }
         }
     }

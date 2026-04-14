@@ -286,7 +286,7 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
         let col_name: String = r.try_get("column_name").unwrap_or_default();
         let is_pk = pk_set
             .get(&tbl)
-            .map_or(false, |s| s.contains(&col_name));
+            .is_some_and(|s| s.contains(&col_name));
         col_map.entry(tbl).or_default().push(ColumnNode {
             id: uuid::Uuid::new_v4(),
             name: col_name,

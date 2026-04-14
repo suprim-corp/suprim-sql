@@ -1,6 +1,6 @@
 /// Pagination bar — page navigation with prev/next buttons and row count.
 use eframe::egui;
-use suprim_sql::db::driver::DbCommand;
+use suprim_sql::db::commands::DbCommand;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 

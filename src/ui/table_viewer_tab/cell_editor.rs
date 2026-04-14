@@ -1,6 +1,6 @@
 /// Cell editor popup — inline editing for a single cell value with JSON support.
 use eframe::egui;
-use suprim_sql::db::driver::DbCommand;
+use suprim_sql::db::commands::DbCommand;
 use suprim_sql::db::types::DbValue;
 use tokio::sync::mpsc;
 use uuid::Uuid;

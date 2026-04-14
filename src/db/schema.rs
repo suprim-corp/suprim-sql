@@ -1,5 +1,5 @@
-/// Schema tree model — sidebar data structure for database/schema/table browsing.
-/// Separated from value types (`values.rs`) since these serve different concerns.
+//! Schema tree model — sidebar data structure for database/schema/table browsing.
+//! Separated from value types (`values.rs`) since these serve different concerns.
 
 /// Full schema tree — root of the sidebar model
 #[derive(Debug, Clone, Default)]

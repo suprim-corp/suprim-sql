@@ -179,6 +179,7 @@ fn build_info_rows(
     tgt_conn: Option<&ConnInfo>,
     target: &Endpoint,
 ) -> Vec<(&'static str, String, String)> {
+    #[allow(clippy::type_complexity)]
     let keys: &[(&str, Box<dyn Fn(Option<&ConnInfo>, &Endpoint) -> String>)] = &[
         (
             "Database Type",

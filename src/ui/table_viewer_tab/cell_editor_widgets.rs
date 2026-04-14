@@ -74,19 +74,18 @@ impl TableViewerTab {
         action: &mut CellEditorAction,
     ) {
         let changed = editor.edit_value != editor.original_value;
-        if is_json {
-            if ui
+        if is_json
+            && ui
                 .button("Format")
                 .on_hover_cursor(egui::CursorIcon::PointingHand)
                 .clicked()
-            {
-                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&editor.edit_value) {
-                    editor.edit_value =
-                        serde_json::to_string_pretty(&parsed).unwrap_or(editor.edit_value.clone());
-                    editor.json_error = None;
-                } else {
-                    editor.json_error = Some("Invalid JSON — cannot format".into());
-                }
+        {
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&editor.edit_value) {
+                editor.edit_value =
+                    serde_json::to_string_pretty(&parsed).unwrap_or(editor.edit_value.clone());
+                editor.json_error = None;
+            } else {
+                editor.json_error = Some("Invalid JSON — cannot format".into());
             }
         }
         if ui

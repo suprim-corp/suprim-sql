@@ -112,9 +112,7 @@ pub fn render_columns_grid(
                 });
                 // Length / Precision
                 row.col(|ui| {
-                    let needs_param = PG_TYPES_WITH_PARAMS
-                        .iter()
-                        .any(|&t| t == col.db_type.as_str());
+                    let needs_param = PG_TYPES_WITH_PARAMS.contains(&col.db_type.as_str());
                     if needs_param {
                         ui.add(
                             egui::TextEdit::singleline(&mut col.type_param)

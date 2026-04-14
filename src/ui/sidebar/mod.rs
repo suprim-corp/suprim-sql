@@ -1,4 +1,5 @@
 mod connection_entry;
+mod context_menus;
 mod database_picker;
 mod schema_renderer;
 mod sequences_folder_renderer;
@@ -17,6 +18,15 @@ use suprim_sql::db::types::{SchemaNode, SchemaTree};
 use uuid::Uuid;
 
 pub use sidebar_action::SidebarAction;
+
+/// Connection info entry for dialog dropdowns: (conn_id, label, databases_with_schemas, server_version, connected).
+pub type ConnListEntry = (
+    Uuid,
+    String,
+    Vec<(String, Vec<String>)>,
+    Option<String>,
+    bool,
+);
 
 /// The left-hand schema / connection browser panel.
 pub struct Sidebar {
@@ -44,18 +54,10 @@ impl Sidebar {
         self.connections.iter().map(|c| c.conn_id).collect()
     }
 
-    /// Returns a list of (conn_id, label, databases_with_schemas) for all active connections.
+    /// Returns a list of connection info entries for all active connections.
     /// Each database entry is (db_name, vec_of_schema_names).
     /// Used by dialogs that need connection/database/schema dropdowns.
-    pub fn connection_list(
-        &self,
-    ) -> Vec<(
-        Uuid,
-        String,
-        Vec<(String, Vec<String>)>,
-        Option<String>,
-        bool,
-    )> {
+    pub fn connection_list(&self) -> Vec<ConnListEntry> {
         self.connections
             .iter()
             .map(|c| {

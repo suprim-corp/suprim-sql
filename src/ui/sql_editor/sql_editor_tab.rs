@@ -1,11 +1,11 @@
 /// SQL Editor tab — interactive query execution and result display.
 use eframe::egui;
-use suprim_sql::db::driver::DbCommand;
+use suprim_sql::db::commands::DbCommand;
 use suprim_sql::db::types::QueryResult;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use super::sql_autocomplete::{self, AutocompleteState};
+use super::sql_autocomplete::AutocompleteState;
 use crate::ui::shared::clipboard_formatters;
 use crate::ui::shared::result_grid::{render_result_grid, CellAction};
 use crate::ui::table_viewer_tab::pending_changes::PendingChanges;
@@ -16,7 +16,7 @@ pub struct SqlEditorTab {
     pub database: Option<String>,
     /// Available databases for the connection (drives the database picker).
     pub databases: Vec<String>,
-    sql_text: String,
+    pub(crate) sql_text: String,
     result: Option<QueryResult>,
     /// Pre-computed display strings for each cell — avoids per-frame allocations.
     display_cache: Vec<Vec<String>>,
@@ -28,7 +28,7 @@ pub struct SqlEditorTab {
     /// Currently selected entire row (row_idx) — click on row number to select.
     selected_row: Option<usize>,
     /// SQL keyword autocomplete state.
-    autocomplete: AutocompleteState,
+    pub(crate) autocomplete: AutocompleteState,
 }
 
 impl SqlEditorTab {
@@ -233,127 +233,10 @@ impl SqlEditorTab {
 
             ui.separator();
 
-            // SQL text editor (top half)
+            // SQL text editor (top half) — syntax highlighting + autocomplete
             let available = ui.available_height();
             let editor_height = (available * 0.4).max(80.0);
-
-            // Collect input events BEFORE rendering the editor (needed for auto-pair).
-            let input_events: Vec<egui::Event> = ui.input(|i| i.events.clone());
-
-            // Phase 0: Consume autocomplete navigation keys BEFORE TextEdit
-            // so Enter/Tab/Arrow don't reach the editor.
-            sql_autocomplete::consume_autocomplete_keys(ui, &mut self.autocomplete);
-
-            let text_edit_id = egui::Id::new("sql_editor_textedit");
-            let dark_mode = ui.visuals().dark_mode;
-            let mono_font = egui::FontId::monospace(14.0);
-            let mut layouter = |ui: &egui::Ui, text: &dyn egui::TextBuffer, _wrap_width: f32| {
-                let job = super::sql_highlighter::sql_layout_job(
-                    text.as_str(),
-                    mono_font.clone(),
-                    dark_mode,
-                );
-                ui.fonts_mut(|f| f.layout_job(job))
-            };
-            let scroll_out = egui::ScrollArea::vertical()
-                .id_salt("sql_editor_scroll")
-                .max_height(editor_height)
-                .show(ui, |ui| {
-                    egui::TextEdit::multiline(&mut self.sql_text)
-                        .id(text_edit_id)
-                        .font(egui::TextStyle::Monospace)
-                        .desired_rows(10)
-                        .desired_width(f32::INFINITY)
-                        .hint_text("SELECT …")
-                        .layouter(&mut layouter)
-                        .show(ui)
-                });
-
-            let te_output = scroll_out.inner;
-
-            // --- Auto-pair: insert matching close bracket ---
-            // CCursor.index is a *character* offset (not byte offset).
-            let cursor_char_pos = te_output.cursor_range.map(|cr| cr.primary.index);
-
-            if te_output.response.changed() {
-                if let Some(pos) = cursor_char_pos {
-                    if sql_autocomplete::handle_auto_pair(
-                        &mut self.sql_text,
-                        Some(pos),
-                        &input_events,
-                    ) {
-                        // Move cursor back between the pair (re-set cursor position).
-                        if let Some(mut state) =
-                            egui::TextEdit::load_state(ui.ctx(), te_output.response.id)
-                        {
-                            let cc = egui::text::CCursor::new(pos);
-                            state
-                                .cursor
-                                .set_char_range(Some(egui::text::CCursorRange::one(cc)));
-                            state.store(ui.ctx(), te_output.response.id);
-                        }
-                    }
-                }
-            }
-
-            // --- Keyword autocomplete ---
-            let has_focus = te_output.response.has_focus();
-            if has_focus {
-                if let Some(pos) = cursor_char_pos {
-                    sql_autocomplete::update_autocomplete(
-                        &mut self.autocomplete,
-                        &self.sql_text,
-                        pos,
-                        &[], // SQL editor: no extra column suggestions
-                    );
-                }
-
-                // Compute cursor screen position from galley for popup anchoring.
-                let cursor_screen_pos = cursor_char_pos.map(|char_pos| {
-                    let ccursor = egui::text::CCursor::new(char_pos);
-                    let galley_offset = te_output.galley.pos_from_cursor(ccursor);
-                    // galley_offset is relative to galley_pos; shift to screen coords.
-                    // Place popup one line below the cursor.
-                    let line_height = te_output
-                        .galley
-                        .rows
-                        .first()
-                        .map(|r| r.rect().height())
-                        .unwrap_or(16.0);
-                    egui::pos2(
-                        te_output.galley_pos.x + galley_offset.min.x,
-                        te_output.galley_pos.y + galley_offset.min.y + line_height,
-                    )
-                });
-
-                if let Some(accepted) = sql_autocomplete::show_autocomplete_popup(
-                    ui,
-                    &mut self.autocomplete,
-                    text_edit_id,
-                    cursor_screen_pos,
-                ) {
-                    let new_cursor = sql_autocomplete::apply_suggestion(
-                        &mut self.sql_text,
-                        accepted.prefix_char_start,
-                        accepted.prefix_char_len,
-                        &accepted.replacement,
-                    );
-                    // Update cursor position after replacement.
-                    if let Some(mut state) =
-                        egui::TextEdit::load_state(ui.ctx(), te_output.response.id)
-                    {
-                        let cc = egui::text::CCursor::new(new_cursor);
-                        state
-                            .cursor
-                            .set_char_range(Some(egui::text::CCursorRange::one(cc)));
-                        state.store(ui.ctx(), te_output.response.id);
-                    }
-                    // Re-focus the editor.
-                    te_output.response.request_focus();
-                }
-            } else {
-                self.autocomplete.close();
-            }
+            self.render_editor_area(ui, editor_height);
 
             ui.separator();
 

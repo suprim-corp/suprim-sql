@@ -1,5 +1,6 @@
 mod app;
 mod app_ui;
+mod dialog_handlers;
 mod event_handler;
 mod sidebar_action_handler;
 mod ui;

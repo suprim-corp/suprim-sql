@@ -1,6 +1,6 @@
-/// Default value suggestions for column editor, organized by type context.
-///
-/// Returns built-in suggestions (type-aware) merged with custom schema functions.
+//! Default value suggestions for column editor, organized by type context.
+//!
+//! Returns built-in suggestions (type-aware) merged with custom schema functions.
 
 /// Built-in PostgreSQL default suggestions grouped by base type.
 /// Returns suggestions relevant to the given column type.
@@ -76,10 +76,10 @@ pub fn filtered_suggestions(
 
     // Schema functions (formatted as `function_name()`)
     for func in schema_functions {
-        if lower_input.is_empty() || func.to_lowercase().contains(&lower_input) {
-            if !results.iter().any(|r| r == func) {
-                results.push(func.clone());
-            }
+        if (lower_input.is_empty() || func.to_lowercase().contains(&lower_input))
+            && !results.iter().any(|r| r == func)
+        {
+            results.push(func.clone());
         }
     }
 

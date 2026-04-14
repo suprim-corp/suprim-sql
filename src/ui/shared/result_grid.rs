@@ -112,7 +112,7 @@ pub fn render_result_grid(
     }
 
     // Shared cell for collecting context-menu actions from inside closures.
-    let pending_action: Rc<RefCell<Option<(CellAction, usize, usize)>>> =
+    let pending_action: super::result_grid_context_menu::CellActionRef =
         Rc::new(RefCell::new(None));
 
     // Pre-compute null status for context menu display.

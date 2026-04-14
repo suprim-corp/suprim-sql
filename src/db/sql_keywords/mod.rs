@@ -1,5 +1,5 @@
-/// SQL language knowledge — keyword, type, function, and constant sets.
-/// Used by the syntax highlighter, autocomplete popup, and other consumers.
+//! SQL language knowledge — keyword, type, function, and constant sets.
+//! Used by the syntax highlighter, autocomplete popup, and other consumers.
 
 mod constants;
 mod functions;

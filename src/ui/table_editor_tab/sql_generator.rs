@@ -1,5 +1,5 @@
 /// SQL generation and execution for table editor changes.
-use suprim_sql::db::driver::DbCommand;
+use suprim_sql::db::commands::DbCommand;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -100,7 +100,7 @@ pub fn execute_changes(
     tab_id: Uuid,
     database: &str,
     sql: &str,
-    columns: &mut Vec<EditableColumn>,
+    columns: &mut [EditableColumn],
     cmd_tx: &mpsc::Sender<DbCommand>,
 ) -> String {
     if sql.starts_with("-- No") {

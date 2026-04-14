@@ -1,5 +1,5 @@
 use eframe::egui;
-use suprim_sql::db::driver::{DbCommand, DbEvent};
+use suprim_sql::db::commands::{DbCommand, DbEvent};
 use suprim_sql::storage::{AppConfig, QueryHistoryStore, WorkspaceState};
 use tokio::sync::mpsc;
 

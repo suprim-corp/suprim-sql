@@ -4,7 +4,7 @@
 
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
-use suprim_sql::db::driver::DbCommand;
+use suprim_sql::db::commands::DbCommand;
 use suprim_sql::db::schema::SessionInfo;
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -108,8 +108,8 @@ pub(super) fn render_sessions_table(
             });
             // Kill button
             row.col(|ui| {
-                if session.state == "active" {
-                    if ui
+                if session.state == "active"
+                    && ui
                         .button(
                             egui::RichText::new(egui_phosphor::regular::X_CIRCLE)
                                 .size(13.0)
@@ -118,12 +118,11 @@ pub(super) fn render_sessions_table(
                         .on_hover_cursor(egui::CursorIcon::PointingHand)
                         .on_hover_text(format!("Kill PID {}", session.pid))
                         .clicked()
-                    {
-                        let _ = cmd_tx.try_send(DbCommand::KillSession {
-                            conn_id,
-                            pid: session.pid,
-                        });
-                    }
+                {
+                    let _ = cmd_tx.try_send(DbCommand::KillSession {
+                        conn_id,
+                        pid: session.pid,
+                    });
                 }
             });
         });
