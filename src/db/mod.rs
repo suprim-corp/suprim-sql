@@ -4,6 +4,7 @@ pub mod drivers;
 pub mod factory;
 pub mod schema;
 pub mod sql_keywords;
+pub mod ssh_tunnel;
 pub mod types;
 pub mod values;
 pub mod worker;

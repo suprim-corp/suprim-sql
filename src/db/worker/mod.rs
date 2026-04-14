@@ -13,6 +13,7 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::db::driver::{DbCommand, DbEvent, DatabaseDriver};
+use crate::db::ssh_tunnel::SshTunnel;
 
 /// Asynchronous worker that owns all DB connections and processes commands
 /// from the UI thread via a channel.
@@ -24,6 +25,8 @@ pub struct DbWorker {
     pub(crate) event_tx: mpsc::Sender<DbEvent>,
     /// Active connections keyed by conn_id
     pub(crate) connections: HashMap<Uuid, Box<dyn DatabaseDriver>>,
+    /// Active SSH tunnels keyed by conn_id (dropped on disconnect)
+    pub(crate) tunnels: HashMap<Uuid, SshTunnel>,
 }
 
 impl DbWorker {
@@ -44,6 +47,7 @@ impl DbWorker {
                 cmd_rx,
                 event_tx,
                 connections: HashMap::new(),
+                tunnels: HashMap::new(),
             },
         )
     }

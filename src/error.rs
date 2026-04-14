@@ -33,11 +33,20 @@ pub enum AppError {
     #[error("Not connected")]
     NotConnected,
 
+    #[error("SSH error: {0}")]
+    Ssh(String),
+
     #[error("Operation cancelled")]
     Cancelled,
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;
+
+impl From<russh::Error> for AppError {
+    fn from(e: russh::Error) -> Self {
+        AppError::Ssh(e.to_string())
+    }
+}
 
 impl AppError {
     pub fn driver(driver: DriverType, err: impl std::error::Error + Send + Sync + 'static) -> Self {

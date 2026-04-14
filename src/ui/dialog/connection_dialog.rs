@@ -45,6 +45,14 @@ pub struct ConnectionDialog {
     // MongoDB-specific
     mongodb_uri: String,
 
+    // SSH tunnel fields
+    ssh_enabled: bool,
+    ssh_host: String,
+    ssh_port: String,
+    ssh_user: String,
+    ssh_key_path: String,
+    ssh_password: String,
+
     error: Option<String>,
     test_status: TestStatus,
 }
@@ -63,6 +71,12 @@ impl ConnectionDialog {
             password: String::new(),
             sqlite_path: String::new(),
             mongodb_uri: "mongodb://localhost:27017".to_string(),
+            ssh_enabled: false,
+            ssh_host: String::new(),
+            ssh_port: "22".to_string(),
+            ssh_user: String::new(),
+            ssh_key_path: String::new(),
+            ssh_password: String::new(),
             error: None,
             test_status: TestStatus::Idle,
         }
@@ -82,6 +96,12 @@ impl ConnectionDialog {
             password: f.password,
             sqlite_path: f.sqlite_path,
             mongodb_uri: f.mongodb_uri,
+            ssh_enabled: f.ssh_enabled,
+            ssh_host: f.ssh_host,
+            ssh_port: f.ssh_port,
+            ssh_user: f.ssh_user,
+            ssh_key_path: f.ssh_key_path,
+            ssh_password: f.ssh_password,
             error: None,
             test_status: TestStatus::Idle,
         }
@@ -99,6 +119,12 @@ impl ConnectionDialog {
             password: &self.password,
             sqlite_path: &self.sqlite_path,
             mongodb_uri: &self.mongodb_uri,
+            ssh_enabled: self.ssh_enabled,
+            ssh_host: &self.ssh_host,
+            ssh_port: &self.ssh_port,
+            ssh_user: &self.ssh_user,
+            ssh_key_path: &self.ssh_key_path,
+            ssh_password: &self.ssh_password,
         }
     }
 
@@ -165,56 +191,110 @@ impl ConnectionDialog {
 
                 ui.separator();
 
-                // Type-specific fields
+                // Type-specific fields + SSH tunnel (single grid for alignment)
                 egui::Grid::new("conn_fields")
                     .num_columns(2)
                     .spacing([8.0, 6.0])
-                    .show(ui, |ui| match &self.db_type {
-                        DbType::Sqlite => {
-                            ui.label("File path:");
-                            ui.horizontal(|ui| {
-                                ui.text_edit_singleline(&mut self.sqlite_path);
-                                if ui
-                                    .small_button("Browse\u{2026}")
-                                    .on_hover_cursor(egui::CursorIcon::PointingHand)
-                                    .clicked()
-                                {
-                                    if let Some(path) = rfd::FileDialog::new()
-                                        .add_filter("SQLite", &["db", "sqlite", "sqlite3"])
-                                        .pick_file()
+                    .show(ui, |ui| {
+                        match &self.db_type {
+                            DbType::Sqlite => {
+                                ui.label("File path:");
+                                ui.horizontal(|ui| {
+                                    ui.text_edit_singleline(&mut self.sqlite_path);
+                                    if ui
+                                        .small_button("Browse\u{2026}")
+                                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                        .clicked()
                                     {
-                                        self.sqlite_path = path.to_string_lossy().to_string();
+                                        if let Some(path) = rfd::FileDialog::new()
+                                            .add_filter("SQLite", &["db", "sqlite", "sqlite3"])
+                                            .pick_file()
+                                        {
+                                            self.sqlite_path = path.to_string_lossy().to_string();
+                                        }
                                     }
+                                });
+                                ui.end_row();
+                            }
+                            DbType::MongoDB => {
+                                ui.label("URI:");
+                                ui.text_edit_singleline(&mut self.mongodb_uri);
+                                ui.end_row();
+                            }
+                            _ => {
+                                ui.label("Host:");
+                                ui.text_edit_singleline(&mut self.host);
+                                ui.end_row();
+
+                                ui.label("Port:");
+                                ui.text_edit_singleline(&mut self.port);
+                                ui.end_row();
+
+                                if !matches!(self.db_type, DbType::Redis) {
+                                    ui.label("Database:");
+                                    ui.text_edit_singleline(&mut self.database);
+                                    ui.end_row();
+
+                                    ui.label("Username:");
+                                    ui.text_edit_singleline(&mut self.username);
+                                    ui.end_row();
+
+                                    ui.label("Password:");
+                                    ui.add(
+                                        egui::TextEdit::singleline(&mut self.password)
+                                            .password(true),
+                                    );
+                                    ui.end_row();
                                 }
-                            });
-                            ui.end_row();
+                            }
                         }
-                        DbType::MongoDB => {
-                            ui.label("URI:");
-                            ui.text_edit_singleline(&mut self.mongodb_uri);
-                            ui.end_row();
-                        }
-                        _ => {
-                            ui.label("Host:");
-                            ui.text_edit_singleline(&mut self.host);
+
+                        // SSH Tunnel fields (inside same grid for column alignment)
+                        if !matches!(self.db_type, DbType::Sqlite) {
+                            // Checkbox spans full row
+                            ui.label("");
+                            ui.checkbox(&mut self.ssh_enabled, "SSH Tunnel");
                             ui.end_row();
 
-                            ui.label("Port:");
-                            ui.text_edit_singleline(&mut self.port);
-                            ui.end_row();
-
-                            if !matches!(self.db_type, DbType::Redis) {
-                                ui.label("Database:");
-                                ui.text_edit_singleline(&mut self.database);
+                            if self.ssh_enabled {
+                                ui.label("SSH Host:");
+                                ui.text_edit_singleline(&mut self.ssh_host);
                                 ui.end_row();
 
-                                ui.label("Username:");
-                                ui.text_edit_singleline(&mut self.username);
+                                ui.label("SSH Port:");
+                                ui.text_edit_singleline(&mut self.ssh_port);
                                 ui.end_row();
 
-                                ui.label("Password:");
+                                ui.label("SSH User:");
+                                ui.text_edit_singleline(&mut self.ssh_user);
+                                ui.end_row();
+
+                                ui.label("Key File:");
+                                ui.horizontal(|ui| {
+                                    ui.text_edit_singleline(&mut self.ssh_key_path);
+                                    if ui
+                                        .small_button("Browse\u{2026}")
+                                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                        .clicked()
+                                    {
+                                        if let Some(path) = rfd::FileDialog::new()
+                                            .set_directory(
+                                                dirs_next::home_dir()
+                                                    .map(|h| h.join(".ssh"))
+                                                    .unwrap_or_default(),
+                                            )
+                                            .pick_file()
+                                        {
+                                            self.ssh_key_path = path.to_string_lossy().to_string();
+                                        }
+                                    }
+                                });
+                                ui.end_row();
+
+                                ui.label("SSH Password:");
                                 ui.add(
-                                    egui::TextEdit::singleline(&mut self.password).password(true),
+                                    egui::TextEdit::singleline(&mut self.ssh_password)
+                                        .password(true),
                                 );
                                 ui.end_row();
                             }
