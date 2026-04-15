@@ -42,9 +42,11 @@ impl App {
 
         // ── Status bar (bottom) ─────────────────────────────────────────
         let tier_name = self.gate.tier_name().to_string();
-        egui::Panel::bottom("status_bar").show_inside(ui, |ui| {
-            self.statusbar.show(ui, &self.status, &tier_name);
-        });
+        egui::Panel::bottom("status_bar")
+            .exact_size(26.0)
+            .show_inside(ui, |ui| {
+                self.statusbar.show(ui, &self.status, &tier_name);
+            });
 
         // ── Query History panel (bottom, above status bar) ──────────────
         if self.show_history {

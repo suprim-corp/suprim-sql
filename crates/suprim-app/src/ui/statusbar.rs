@@ -9,10 +9,11 @@ impl StatusBar {
     }
 
     pub fn show(&self, ui: &mut egui::Ui, status: &str, tier_name: &str) {
-        ui.horizontal(|ui| {
+        let bar_h = ui.available_height();
+
+        ui.horizontal_centered(|ui| {
             ui.label(status);
 
-            // Push tier badge to the right
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let (icon, label, text_color, bg_color) = match tier_name {
                     "Premium" => (
@@ -33,19 +34,37 @@ impl StatusBar {
                     ),
                 };
 
-                egui::Frame::new()
-                    .fill(bg_color)
-                    .inner_margin(egui::Margin::symmetric(8, 2))
-                    .corner_radius(4.0)
-                    .show(ui, |ui| {
-                        let text = egui::RichText::new(format!("{icon} {label}")).color(text_color);
-                        let resp = ui.label(text);
-                        if tier_name == "Free" {
-                            resp.on_hover_text(
-                                "Free plan — 5 connections max. Upgrade to Premium for unlimited.",
-                            );
-                        }
-                    });
+                let badge_text = format!("{icon} {label}");
+                let font_id = egui::FontId::proportional(12.0);
+                let galley = ui.painter().layout_no_wrap(badge_text, font_id, text_color);
+                let pad_h: f32 = 8.0;
+                let pad_v: f32 = 2.0;
+                let badge_w = galley.size().x + pad_h * 2.0;
+                let badge_h = galley.size().y + pad_v * 2.0;
+
+                // Allocate full bar height so rect vertical center = bar center
+                let (rect, resp) =
+                    ui.allocate_exact_size(egui::vec2(badge_w, bar_h), egui::Sense::hover());
+
+                // Pill centered vertically in the bar
+                let center_y = rect.min.y + bar_h / 2.0;
+                let pill = egui::Rect::from_center_size(
+                    egui::pos2(rect.center().x, center_y),
+                    egui::vec2(badge_w, badge_h),
+                );
+
+                ui.painter().rect_filled(pill, 4.0, bg_color);
+                ui.painter().galley(
+                    egui::pos2(pill.left() + pad_h, pill.top() + pad_v),
+                    galley,
+                    text_color,
+                );
+
+                if tier_name == "Free" {
+                    resp.on_hover_text(
+                        "Free plan — 5 connections max. Upgrade to Premium for unlimited.",
+                    );
+                }
             });
         });
     }

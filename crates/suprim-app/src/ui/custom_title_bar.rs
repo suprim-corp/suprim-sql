@@ -8,8 +8,7 @@
 use eframe::egui::{self, CursorIcon, RichText, Sense};
 
 /// Height of the custom title bar in points.
-/// macOS traffic lights are ~14pt tall, centered in a ~28pt title bar.
-const TITLE_BAR_HEIGHT: f32 = 28.0;
+const TITLE_BAR_HEIGHT: f32 = 36.0;
 
 /// Left padding to avoid overlapping macOS traffic-light buttons.
 const TRAFFIC_LIGHT_PADDING: f32 = 70.0;
@@ -58,7 +57,7 @@ pub fn show_title_bar(ui: &mut egui::Ui, tier_name: &str) -> TitleBarAction {
                     let hamburger = ui
                         .add(
                             egui::Button::new(
-                                RichText::new(egui_phosphor::regular::LIST).size(20.0),
+                                RichText::new(egui_phosphor::regular::LIST).size(24.0),
                             )
                             .frame(false),
                         )
@@ -80,7 +79,7 @@ pub fn show_title_bar(ui: &mut egui::Ui, tier_name: &str) -> TitleBarAction {
                     let bell = ui
                         .add(
                             egui::Button::new(
-                                RichText::new(egui_phosphor::regular::BELL).size(20.0),
+                                RichText::new(egui_phosphor::regular::BELL).size(24.0),
                             )
                             .frame(false),
                         )
@@ -112,7 +111,7 @@ pub fn show_title_bar(ui: &mut egui::Ui, tier_name: &str) -> TitleBarAction {
                     };
 
                     let badge_text = format!("{icon} {label}");
-                    let font_id = egui::FontId::proportional(10.0);
+                    let font_id = egui::FontId::proportional(14.0);
                     let galley = ui.painter().layout_no_wrap(badge_text, font_id, text_color);
                     let pad_h: f32 = 8.0; // horizontal padding
                     let pad_v: f32 = 2.0; // vertical padding

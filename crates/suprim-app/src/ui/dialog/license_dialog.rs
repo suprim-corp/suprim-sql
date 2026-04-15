@@ -65,7 +65,7 @@ impl LicenseDialog {
             .collapsible(false)
             .resizable(false)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .fixed_size([380.0, 300.0]);
+            .fixed_size([440.0, 340.0]);
 
         #[cfg(target_os = "macos")]
         {
@@ -124,9 +124,9 @@ impl LicenseDialog {
                 *is_open = false;
             }
             let remaining = ui.available_width();
-            let title_w = title.len() as f32 * 7.0;
+            let title_w = title.len() as f32 * 8.5;
             ui.add_space((remaining - title_w).max(0.0) / 2.0);
-            ui.label(egui::RichText::new(title).size(13.0).weak());
+            ui.label(egui::RichText::new(title).size(15.0).weak());
         });
         ui.separator();
     }
@@ -159,36 +159,39 @@ impl LicenseDialog {
                 egui::RichText::new(format!("{tier_icon}  {tier_label}"))
                     .color(tier_color)
                     .strong()
-                    .size(16.0),
+                    .size(18.0),
             );
         });
 
-        ui.add_space(12.0);
+        ui.add_space(16.0);
 
         // Account info
         egui::Grid::new("account_info")
             .num_columns(2)
-            .spacing([8.0, 8.0])
+            .spacing([12.0, 10.0])
             .show(ui, |ui| {
-                ui.label(egui::RichText::new("Email:").weak());
-                ui.label(self.current_email.as_deref().unwrap_or("—"));
+                ui.label(egui::RichText::new("Email:").weak().size(14.0));
+                ui.label(
+                    egui::RichText::new(self.current_email.as_deref().unwrap_or("—")).size(14.0),
+                );
                 ui.end_row();
 
-                ui.label(egui::RichText::new("Plan:").weak());
+                ui.label(egui::RichText::new("Plan:").weak().size(14.0));
                 ui.label(
                     egui::RichText::new(&self.tier_name)
                         .color(tier_color)
-                        .strong(),
+                        .strong()
+                        .size(14.0),
                 );
                 ui.end_row();
             });
 
-        ui.add_space(12.0);
+        ui.add_space(16.0);
 
         // Premium features or upgrade CTA
         if self.tier_name == "Premium" {
-            ui.label(egui::RichText::new("Included:").weak().size(11.0));
-            ui.add_space(4.0);
+            ui.label(egui::RichText::new("Included:").weak().size(13.0));
+            ui.add_space(6.0);
             for feature in [
                 "Unlimited connections",
                 "MongoDB & MSSQL drivers",
@@ -199,9 +202,9 @@ impl LicenseDialog {
                     ui.label(
                         egui::RichText::new(egui_phosphor::regular::CHECK)
                             .color(egui::Color32::from_rgb(76, 175, 80))
-                            .size(12.0),
+                            .size(14.0),
                     );
-                    ui.label(egui::RichText::new(feature).size(12.0));
+                    ui.label(egui::RichText::new(feature).size(14.0));
                 });
             }
         } else {
@@ -212,14 +215,15 @@ impl LicenseDialog {
                         egui_phosphor::regular::ARROW_UP
                     ))
                     .weak()
-                    .size(11.0),
+                    .size(13.0),
                 );
             });
-            ui.add_space(4.0);
+            ui.add_space(6.0);
             if ui
                 .add(
                     egui::Button::new(
                         egui::RichText::new(format!("{}  Upgrade", egui_phosphor::regular::CROWN))
+                            .size(14.0)
                             .color(egui::Color32::from_rgb(100, 60, 0)),
                     )
                     .fill(egui::Color32::from_rgb(255, 200, 80)),
@@ -233,9 +237,9 @@ impl LicenseDialog {
         }
 
         // Footer
-        ui.add_space(8.0);
+        ui.add_space(10.0);
         ui.separator();
-        ui.add_space(4.0);
+        ui.add_space(6.0);
 
         ui.horizontal(|ui| {
             if ui
@@ -245,6 +249,7 @@ impl LicenseDialog {
                             "{}  Sign Out",
                             egui_phosphor::regular::SIGN_OUT
                         ))
+                        .size(14.0)
                         .color(egui::Color32::from_rgb(220, 60, 60)),
                     )
                     .frame(false),
@@ -257,7 +262,7 @@ impl LicenseDialog {
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
-                    .button("Close")
+                    .button(egui::RichText::new("Close").size(14.0))
                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                     .clicked()
                 {
@@ -276,36 +281,38 @@ impl LicenseDialog {
         is_open: &mut bool,
     ) {
         ui.vertical_centered(|ui| {
-            ui.label(egui::RichText::new("Sign in to your SuprimSQL account").size(13.0));
+            ui.label(egui::RichText::new("Sign in to your SuprimSQL account").size(16.0));
         });
 
-        ui.add_space(16.0);
+        ui.add_space(20.0);
 
         // Form
-        let field_width = 280.0;
+        let field_width = 300.0;
         egui::Grid::new("sign_in_form")
             .num_columns(2)
-            .spacing([8.0, 10.0])
+            .spacing([12.0, 14.0])
             .show(ui, |ui| {
-                ui.label("Email:");
+                ui.label(egui::RichText::new("Email:").size(14.0));
                 ui.add(
                     egui::TextEdit::singleline(&mut self.email)
                         .desired_width(field_width)
+                        .font(egui::TextStyle::Body)
                         .hint_text("your@email.com"),
                 );
                 ui.end_row();
 
-                ui.label("Password:");
+                ui.label(egui::RichText::new("Password:").size(14.0));
                 ui.add(
                     egui::TextEdit::singleline(&mut self.password)
                         .desired_width(field_width)
+                        .font(egui::TextStyle::Body)
                         .hint_text("••••••••")
                         .password(true),
                 );
                 ui.end_row();
             });
 
-        ui.add_space(4.0);
+        ui.add_space(6.0);
 
         // Links row
         ui.horizontal(|ui| {
@@ -313,7 +320,7 @@ impl LicenseDialog {
                 .add(
                     egui::Label::new(
                         egui::RichText::new("Forgot password?")
-                            .size(11.0)
+                            .size(13.0)
                             .color(egui::Color32::from_rgb(100, 160, 255)),
                     )
                     .sense(egui::Sense::click()),
@@ -330,7 +337,7 @@ impl LicenseDialog {
                     .add(
                         egui::Label::new(
                             egui::RichText::new("Create account")
-                                .size(11.0)
+                                .size(13.0)
                                 .color(egui::Color32::from_rgb(100, 160, 255)),
                         )
                         .sense(egui::Sense::click()),
@@ -344,21 +351,21 @@ impl LicenseDialog {
             });
         });
 
-        ui.add_space(4.0);
+        ui.add_space(6.0);
 
         // Error message
         if let Some(err) = &self.error {
             ui.label(
                 egui::RichText::new(err)
                     .color(egui::Color32::from_rgb(220, 60, 60))
-                    .size(11.0),
+                    .size(13.0),
             );
             ui.add_space(4.0);
         }
 
-        ui.add_space(8.0);
+        ui.add_space(10.0);
         ui.separator();
-        ui.add_space(4.0);
+        ui.add_space(6.0);
 
         // Buttons
         ui.horizontal(|ui| {
@@ -373,6 +380,7 @@ impl LicenseDialog {
                                 "{}  Sign In",
                                 egui_phosphor::regular::SIGN_IN
                             ))
+                            .size(14.0)
                             .color(egui::Color32::WHITE),
                         )
                         .fill(egui::Color32::from_rgb(59, 130, 246)),
@@ -387,7 +395,7 @@ impl LicenseDialog {
                 }
 
                 if ui
-                    .button("Cancel")
+                    .button(egui::RichText::new("Cancel").size(14.0))
                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                     .clicked()
                 {
