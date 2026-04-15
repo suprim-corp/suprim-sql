@@ -1,18 +1,19 @@
 //! Premium feature bridge — runtime feature gating for Open Core model.
 //!
 //! Defines the `PremiumGate` trait used throughout the app for feature gating.
-//! The free-tier stub (`FreeTierGate`) is always available.
-//! The actual premium implementation lives in the `suprim-premium` private crate
-//! and is wired in via `main.rs` when built with `--features premium`.
+//! The development stub (`DevGate`) is always available — it imposes no limits.
+//! The actual premium implementation (with license enforcement and limits)
+//! lives in the `suprim-premium` private crate and is wired in via `main.rs`
+//! when built with `--features premium`.
 
 use crate::db::connection::{ConnectionConfig, DriverType};
 use crate::db::driver::DatabaseDriver;
 use crate::error::Result;
 
-/// Trait for premium feature gating — implemented by both the free stub
+/// Trait for premium feature gating — implemented by both the dev stub
 /// and the real `suprim-premium` crate.
 pub trait PremiumGate: Send + Sync + std::fmt::Debug {
-    /// Display name for the current tier ("Free" / "Premium").
+    /// Display name for the current tier (e.g. "Free", "Premium", "Development").
     fn tier_name(&self) -> &str;
 
     /// Check if a driver type is allowed on the current tier.
@@ -25,13 +26,13 @@ pub trait PremiumGate: Send + Sync + std::fmt::Debug {
     /// is not a premium driver (fall through to built-in factory).
     fn create_driver(&self, config: &ConnectionConfig) -> Option<Result<Box<dyn DatabaseDriver>>>;
 
-    /// Maximum number of connections allowed, or `None` for unlimited (Premium).
+    /// Maximum number of connections allowed, or `None` for unlimited.
     fn connection_limit(&self) -> Option<usize>;
 
     /// Whether the gate has a license key that needs online validation.
     fn needs_validation(&self) -> bool;
 
-    /// Validate the license online (async). No-op for free tier.
+    /// Validate the license online (async). No-op for dev gate.
     fn validate_online(
         &mut self,
     ) -> std::pin::Pin<
@@ -39,37 +40,24 @@ pub trait PremiumGate: Send + Sync + std::fmt::Debug {
     >;
 }
 
-// ── Free tier stub (always compiled) ──────────────────────────────────────────
-
-const FREE_MAX_CONNECTIONS: usize = 5;
+// ── Development stub (always compiled) ────────────────────────────────────────
+// No enforcement, no limits. Used when premium crate is not linked.
+// All limits and license logic live exclusively in the private `suprim-premium` crate.
 
 #[derive(Debug)]
-pub struct FreeTierGate;
+pub struct DevGate;
 
-impl PremiumGate for FreeTierGate {
+impl PremiumGate for DevGate {
     fn tier_name(&self) -> &str {
-        "Free"
+        "Development"
     }
 
-    fn can_use_driver(&self, driver: &DriverType) -> std::result::Result<(), String> {
-        match driver {
-            DriverType::MongoDB => Err("MongoDB requires Premium plan. Upgrade to unlock.".into()),
-            DriverType::Mssql => {
-                Err("SQL Server requires Premium plan. Upgrade to unlock.".into())
-            }
-            _ => Ok(()),
-        }
+    fn can_use_driver(&self, _driver: &DriverType) -> std::result::Result<(), String> {
+        Ok(())
     }
 
-    fn can_add_connection(&self, current_count: usize) -> std::result::Result<(), String> {
-        if current_count >= FREE_MAX_CONNECTIONS {
-            Err(format!(
-                "Free plan supports up to {} connections. Upgrade to Premium for unlimited.",
-                FREE_MAX_CONNECTIONS
-            ))
-        } else {
-            Ok(())
-        }
+    fn can_add_connection(&self, _current_count: usize) -> std::result::Result<(), String> {
+        Ok(())
     }
 
     fn create_driver(
@@ -80,7 +68,7 @@ impl PremiumGate for FreeTierGate {
     }
 
     fn connection_limit(&self) -> Option<usize> {
-        Some(FREE_MAX_CONNECTIONS)
+        None
     }
 
     fn needs_validation(&self) -> bool {
@@ -96,9 +84,9 @@ impl PremiumGate for FreeTierGate {
     }
 }
 
-/// Create the free tier gate (used when premium feature is not enabled).
+/// Create the development gate (used when premium feature is not enabled).
 pub fn create_free_gate() -> Box<dyn PremiumGate> {
-    Box::new(FreeTierGate)
+    Box::new(DevGate)
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -108,40 +96,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn free_gate_tier_name() {
-        let gate = FreeTierGate;
-        assert_eq!(gate.tier_name(), "Free");
+    fn dev_gate_tier_name() {
+        let gate = DevGate;
+        assert_eq!(gate.tier_name(), "Development");
     }
 
     #[test]
-    fn free_gate_allows_postgres() {
-        let gate = FreeTierGate;
+    fn dev_gate_allows_all_drivers() {
+        let gate = DevGate;
         assert!(gate.can_use_driver(&DriverType::Postgres).is_ok());
+        assert!(gate.can_use_driver(&DriverType::MongoDB).is_ok());
+        assert!(gate.can_use_driver(&DriverType::Mssql).is_ok());
     }
 
     #[test]
-    fn free_gate_blocks_mongodb() {
-        let gate = FreeTierGate;
-        assert!(gate.can_use_driver(&DriverType::MongoDB).is_err());
-    }
-
-    #[test]
-    fn free_gate_blocks_mssql() {
-        let gate = FreeTierGate;
-        assert!(gate.can_use_driver(&DriverType::Mssql).is_err());
-    }
-
-    #[test]
-    fn free_gate_connection_limit() {
-        let gate = FreeTierGate;
+    fn dev_gate_unlimited_connections() {
+        let gate = DevGate;
         assert!(gate.can_add_connection(0).is_ok());
-        assert!(gate.can_add_connection(4).is_ok());
-        assert!(gate.can_add_connection(5).is_err());
+        assert!(gate.can_add_connection(100).is_ok());
+        assert!(gate.connection_limit().is_none());
     }
 
     #[test]
-    fn free_gate_no_premium_drivers() {
-        let gate = FreeTierGate;
+    fn dev_gate_no_premium_drivers() {
+        let gate = DevGate;
         let config = ConnectionConfig::new(
             "test",
             crate::db::connection::DriverParams::Postgres {
@@ -156,8 +134,8 @@ mod tests {
     }
 
     #[test]
-    fn free_gate_no_validation_needed() {
-        let gate = FreeTierGate;
+    fn dev_gate_no_validation_needed() {
+        let gate = DevGate;
         assert!(!gate.needs_validation());
     }
 }

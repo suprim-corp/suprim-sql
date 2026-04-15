@@ -1,12 +1,12 @@
 use super::*;
 use crate::db::commands::{DbCommand, DbEvent};
-use crate::premium::FreeTierGate;
+use crate::premium::DevGate;
 use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
     fn test_gate() -> Arc<dyn crate::premium::PremiumGate> {
-        Arc::new(FreeTierGate)
+        Arc::new(DevGate)
     }
 
     // ── Channel construction ──────────────────────────────────────────────────

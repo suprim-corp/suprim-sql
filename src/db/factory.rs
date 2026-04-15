@@ -38,7 +38,7 @@ impl DbFactory {
 mod tests {
     use super::*;
     use crate::db::connection::{ConnectionConfig, DriverParams};
-    use crate::premium::FreeTierGate;
+    use crate::premium::DevGate;
 
     #[test]
     fn create_postgres_driver_ok() {
@@ -52,7 +52,7 @@ mod tests {
                 password_key: "key".into(),
             },
         );
-        let gate = FreeTierGate;
+        let gate = DevGate;
         let driver = DbFactory::create(&config, &gate);
         assert!(driver.is_ok());
         assert_eq!(driver.unwrap().driver_type(), DriverType::Postgres);
@@ -66,7 +66,7 @@ mod tests {
                 path: "/tmp/test.db".into(),
             },
         );
-        let gate = FreeTierGate;
+        let gate = DevGate;
         assert!(DbFactory::create(&config, &gate).is_err());
     }
 
@@ -82,12 +82,12 @@ mod tests {
                 password_key: "key".into(),
             },
         );
-        let gate = FreeTierGate;
+        let gate = DevGate;
         assert!(DbFactory::create(&config, &gate).is_err());
     }
 
     #[test]
-    fn create_mongodb_blocked_on_free() {
+    fn create_mongodb_not_available_without_premium() {
         let config = ConnectionConfig::new(
             "test",
             DriverParams::MongoDB {
@@ -95,9 +95,14 @@ mod tests {
                 password_key: None,
             },
         );
-        let gate = FreeTierGate;
+        let gate = DevGate;
         let result = DbFactory::create(&config, &gate);
+        // DevGate passes the gate check, but no MongoDB driver is compiled in
+        // (lives in the premium crate). Falls through to "not yet available".
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Premium"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("not yet available"));
     }
 }
