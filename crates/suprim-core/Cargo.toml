@@ -13,6 +13,7 @@ sqlite   = ["sqlx/sqlite"]
 postgres = ["sqlx/postgres"]
 mysql    = ["sqlx/mysql"]
 redis    = ["dep:redis"]
+ui       = ["dep:egui"]
 
 # ---------------------------------------------------------
 # Dependencies
@@ -59,6 +60,9 @@ reqwest = { version = "0.13", features = ["json", "rustls"], default-features = 
 
 # Logging
 tracing = "0.1"
+
+# UI (optional — only needed when premium crate needs ToolDialog trait)
+egui = { version = "0.34", optional = true }
 
 # ---------------------------------------------------------
 # Dev / Test dependencies

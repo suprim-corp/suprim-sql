@@ -23,9 +23,16 @@ impl App {
         #[cfg(target_os = "macos")]
         {
             use crate::ui::custom_title_bar::{self, TitleBarAction};
-            let title_action = custom_title_bar::show_title_bar(ui);
-            if title_action == TitleBarAction::AboutClicked {
-                self.show_about = true;
+            let tier_name = self.gate.tier_name();
+            let title_action = custom_title_bar::show_title_bar(ui, tier_name);
+            match title_action {
+                TitleBarAction::AboutClicked => {
+                    self.show_about = true;
+                }
+                TitleBarAction::LicenseClicked => {
+                    self.open_license_dialog();
+                }
+                _ => {}
             }
         }
 
@@ -163,16 +170,16 @@ impl App {
             }
             // Send compare request
             if let Some(req) = result.compare_request {
-                let _ = self
-                    .cmd_tx
-                    .try_send(suprim_core::db::commands::DbCommand::CompareSchemas {
-                        source_conn_id: req.source_conn_id,
-                        source_database: req.source_database,
-                        source_schema: req.source_schema,
-                        target_conn_id: req.target_conn_id,
-                        target_database: req.target_database,
-                        target_schema: req.target_schema,
-                    });
+                let _ =
+                    self.cmd_tx
+                        .try_send(suprim_core::db::commands::DbCommand::CompareSchemas {
+                            source_conn_id: req.source_conn_id,
+                            source_database: req.source_database,
+                            source_schema: req.source_schema,
+                            target_conn_id: req.target_conn_id,
+                            target_database: req.target_database,
+                            target_schema: req.target_schema,
+                        });
             }
             if !result.open {
                 self.structure_sync_dialog = None;
@@ -255,8 +262,7 @@ impl App {
                         .on_hover_cursor(egui::CursorIcon::PointingHand)
                         .clicked()
                     {
-                        let tier = self.gate.tier_name().to_string();
-                        self.license_dialog = Some(crate::ui::LicenseDialog::new(&tier));
+                        self.open_license_dialog();
                         ui.close();
                     }
                 });

@@ -119,17 +119,22 @@ impl App {
         }
     }
 
-    /// Shows the license activation dialog and handles its result.
+    /// Shows the account dialog and handles its result.
     pub(crate) fn render_license_dialog(&mut self, ctx: &egui::Context) {
         let Some(dialog) = &mut self.license_dialog else {
             return;
         };
         match dialog.show(ctx) {
             crate::ui::LicenseDialogResult::Pending => {}
-            crate::ui::LicenseDialogResult::Activate { key, email } => {
-                // TODO: wire to gate.activate(key, email) when premium feature is available
-                let _ = (key, email);
-                self.status = "License activation requires Premium build.".to_string();
+            crate::ui::LicenseDialogResult::SignIn { email, password } => {
+                // TODO: wire to auth API when server is ready
+                let _ = (email, password);
+                self.status = "Sign in requires the auth server.".to_string();
+                self.license_dialog = None;
+            }
+            crate::ui::LicenseDialogResult::SignOut => {
+                // TODO: wire to gate.sign_out() when server is ready
+                self.status = "Sign out requires the auth server.".to_string();
                 self.license_dialog = None;
             }
             crate::ui::LicenseDialogResult::Cancelled => {
@@ -147,8 +152,7 @@ impl App {
             crate::ui::UpgradePromptResult::Pending => {}
             crate::ui::UpgradePromptResult::OpenLicenseDialog => {
                 self.upgrade_prompt = None;
-                let tier = self.gate.tier_name().to_string();
-                self.license_dialog = Some(crate::ui::LicenseDialog::new(&tier));
+                self.open_license_dialog();
             }
             crate::ui::UpgradePromptResult::Dismissed => {
                 self.upgrade_prompt = None;

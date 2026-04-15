@@ -1,7 +1,12 @@
-.PHONY: run build release bundle bundle-sign dmg dmg-sign test coverage lint fix clean
+.PHONY: run dev build release bundle bundle-sign dmg dmg-sign test coverage lint fix clean
 
+# Run with premium (license enforced) — same as shipped binary
 run:
 	clear && cargo run --bin SuprimSQL
+
+# Dev mode — premium with license bypass for testing
+dev:
+	clear && cargo run --bin SuprimSQL --features dev-test
 
 build:
 	cargo build --bin SuprimSQL

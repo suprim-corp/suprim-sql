@@ -15,7 +15,7 @@ const TITLE_BAR_HEIGHT: f32 = 28.0;
 const TRAFFIC_LIGHT_PADDING: f32 = 70.0;
 
 /// Render the custom title bar at the top of the window.
-pub fn show_title_bar(ui: &mut egui::Ui) -> TitleBarAction {
+pub fn show_title_bar(ui: &mut egui::Ui, tier_name: &str) -> TitleBarAction {
     let mut action = TitleBarAction::None;
 
     // Reposition traffic lights to vertically center within our title bar.
@@ -34,7 +34,9 @@ pub fn show_title_bar(ui: &mut egui::Ui) -> TitleBarAction {
                 ui.add_space(TRAFFIC_LIGHT_PADDING);
 
                 // ── Drag area fills the middle ──
-                let available = ui.available_width() - 56.0; // reserve for 2 icon buttons
+                // Reserve space for right icons: badge(~90) + bell(28) + hamburger(28) + spacing
+                let right_reserve = 160.0;
+                let available = ui.available_width() - right_reserve;
                 let (_drag_rect, drag_resp) = ui.allocate_exact_size(
                     egui::vec2(available.max(0.0), TITLE_BAR_HEIGHT),
                     Sense::click_and_drag(),
@@ -48,9 +50,11 @@ pub fn show_title_bar(ui: &mut egui::Ui) -> TitleBarAction {
                         .send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
                 }
 
-                // ── Right: notification bell + hamburger ──
+                // ── Right: tier badge + notification bell + hamburger ──
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.add_space(8.0); // right edge padding
+
+                    // Hamburger menu
                     let hamburger = ui
                         .add(
                             egui::Button::new(
@@ -60,7 +64,6 @@ pub fn show_title_bar(ui: &mut egui::Ui) -> TitleBarAction {
                         )
                         .on_hover_cursor(CursorIcon::PointingHand);
 
-                    // Popup menu below hamburger button
                     egui::Popup::menu(&hamburger).show(|ui| {
                         ui.set_min_width(180.0);
                         if ui
@@ -73,6 +76,7 @@ pub fn show_title_bar(ui: &mut egui::Ui) -> TitleBarAction {
                         }
                     });
 
+                    // Notification bell
                     let bell = ui
                         .add(
                             egui::Button::new(
@@ -84,6 +88,66 @@ pub fn show_title_bar(ui: &mut egui::Ui) -> TitleBarAction {
                     if bell.clicked() {
                         action = TitleBarAction::NotificationClicked;
                     }
+
+                    ui.add_space(4.0);
+
+                    // ── Tier badge (painter-based for precise vertical centering) ──
+                    let (icon, label, text_color, bg_color) = match tier_name {
+                        "Premium" => (
+                            egui_phosphor::regular::CROWN,
+                            "Premium",
+                            egui::Color32::from_rgb(100, 60, 0),
+                            egui::Color32::from_rgb(255, 200, 80),
+                        ),
+                        _ => (
+                            egui_phosphor::regular::LOCK_SIMPLE,
+                            "Free",
+                            ui.visuals().weak_text_color(),
+                            if ui.visuals().dark_mode {
+                                egui::Color32::from_rgba_premultiplied(255, 255, 255, 15)
+                            } else {
+                                egui::Color32::from_rgba_premultiplied(0, 0, 0, 12)
+                            },
+                        ),
+                    };
+
+                    let badge_text = format!("{icon} {label}");
+                    let font_id = egui::FontId::proportional(10.0);
+                    let galley = ui.painter().layout_no_wrap(badge_text, font_id, text_color);
+                    let pad_h: f32 = 8.0; // horizontal padding
+                    let pad_v: f32 = 2.0; // vertical padding
+                    let badge_w = galley.size().x + pad_h * 2.0;
+                    let badge_h = galley.size().y + pad_v * 2.0;
+
+                    // Allocate space for the badge, let layout handle horizontal positioning
+                    let (badge_rect, badge_resp) = ui
+                        .allocate_exact_size(egui::vec2(badge_w, TITLE_BAR_HEIGHT), Sense::click());
+
+                    // Center the pill vertically within the title bar height
+                    let pill_rect = egui::Rect::from_center_size(
+                        badge_rect.center(),
+                        egui::vec2(badge_w, badge_h),
+                    );
+
+                    let painter = ui.painter();
+                    painter.rect_filled(pill_rect, 4.0, bg_color);
+                    painter.galley(
+                        egui::pos2(pill_rect.left() + pad_h, pill_rect.top() + pad_v),
+                        galley,
+                        text_color,
+                    );
+
+                    if badge_resp.clicked() {
+                        action = TitleBarAction::LicenseClicked;
+                    }
+                    let hover_text = if tier_name == "Premium" {
+                        "Premium plan active"
+                    } else {
+                        "Free plan — click to manage license"
+                    };
+                    badge_resp
+                        .on_hover_text(hover_text)
+                        .on_hover_cursor(CursorIcon::PointingHand);
                 });
             });
         });
@@ -97,4 +161,5 @@ pub enum TitleBarAction {
     None,
     NotificationClicked,
     AboutClicked,
+    LicenseClicked,
 }

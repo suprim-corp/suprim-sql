@@ -38,6 +38,17 @@ pub trait PremiumGate: Send + Sync + std::fmt::Debug {
     ) -> std::pin::Pin<
         Box<dyn std::future::Future<Output = std::result::Result<(), String>> + Send + '_>,
     >;
+
+    /// Signed-in user email, or `None` if not signed in.
+    fn user_email(&self) -> Option<&str>;
+
+    /// Create a Structure Sync dialog as a trait object.
+    /// Returns `None` for free/dev builds (feature not available).
+    #[cfg(feature = "ui")]
+    fn create_structure_sync(
+        &self,
+        connections: Vec<crate::sync_types::ConnInfo>,
+    ) -> Option<Box<dyn crate::sync_types::ToolDialog>>;
 }
 
 // ── Development stub (always compiled) ────────────────────────────────────────
@@ -81,6 +92,18 @@ impl PremiumGate for DevGate {
         Box<dyn std::future::Future<Output = std::result::Result<(), String>> + Send + '_>,
     > {
         Box::pin(async { Ok(()) })
+    }
+
+    fn user_email(&self) -> Option<&str> {
+        None
+    }
+
+    #[cfg(feature = "ui")]
+    fn create_structure_sync(
+        &self,
+        _connections: Vec<crate::sync_types::ConnInfo>,
+    ) -> Option<Box<dyn crate::sync_types::ToolDialog>> {
+        None // Structure Sync not available in dev/free builds
     }
 }
 

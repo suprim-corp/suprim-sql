@@ -9,14 +9,15 @@ name = "SuprimSQL"
 path = "src/main.rs"
 
 [features]
-default = []
-premium = ["dep:suprim-premium"]
+default = ["premium"]
+premium  = ["dep:suprim-premium"]
+dev-test = ["suprim-premium/dev-test"]
 
 [dependencies]
 # The core library crate
-suprim-core = { path = "../suprim-core" }
+suprim-core = { path = "../suprim-core", features = ["ui"] }
 
-# Premium private crate (optional — only when submodule present + feature enabled)
+# Premium crate — enabled by default, compiled from private submodule
 suprim-premium = { path = "../../premium", optional = true }
 
 # Async runtime

@@ -34,8 +34,7 @@ pub struct App {
     pub(crate) show_about: bool,
 
     /// Structure Synchronization dialog (None = closed).
-    pub(crate) structure_sync_dialog:
-        Option<crate::ui::dialog::tool::structure_sync::StructureSyncDialog>,
+    pub(crate) structure_sync_dialog: Option<Box<dyn suprim_core::sync_types::ToolDialog>>,
 
     /// Delete connection confirmation dialog (None = closed).
     pub(crate) delete_connection_dialog: Option<DeleteConnectionDialog>,
@@ -136,6 +135,17 @@ impl App {
             show_history: self.show_history,
         };
         ws.save();
+    }
+
+    /// Open the account dialog — shows account info if signed in, sign-in form otherwise.
+    pub(crate) fn open_license_dialog(&mut self) {
+        let tier = self.gate.tier_name().to_string();
+        let email = self.gate.user_email().map(|s| s.to_string());
+        if let Some(email) = email.as_deref() {
+            self.license_dialog = Some(crate::ui::LicenseDialog::with_info(&tier, Some(email)));
+        } else {
+            self.license_dialog = Some(crate::ui::LicenseDialog::new(&tier));
+        }
     }
 }
 

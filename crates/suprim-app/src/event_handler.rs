@@ -259,8 +259,7 @@ impl App {
                     self.show_history = !self.show_history;
                 }
                 MenuAction::License => {
-                    let tier = self.gate.tier_name().to_string();
-                    self.license_dialog = Some(crate::ui::LicenseDialog::new(&tier));
+                    self.open_license_dialog();
                 }
                 MenuAction::DataTransfer
                 | MenuAction::DataGeneration
@@ -270,10 +269,8 @@ impl App {
                     self.status = format!("{action:?} — coming soon");
                 }
                 MenuAction::StructureSynchronization => {
-                    use crate::ui::dialog::tool::structure_sync::{
-                        ConnInfo, ConnMeta, DbInfo, StructureSyncDialog,
-                    };
                     use suprim_core::db::connection::DriverParams;
+                    use suprim_core::sync_types::{ConnInfo, ConnMeta, DbInfo};
 
                     // Build ConnInfo from active (connected) connections only
                     let conns: Vec<ConnInfo> = self
@@ -326,7 +323,15 @@ impl App {
                             }
                         })
                         .collect();
-                    self.structure_sync_dialog = Some(StructureSyncDialog::new(conns));
+
+                    if let Some(dialog) = self.gate.create_structure_sync(conns) {
+                        self.structure_sync_dialog = Some(dialog);
+                    } else {
+                        // Premium feature not available — show upgrade prompt
+                        self.upgrade_prompt = Some(crate::ui::UpgradePrompt::new(
+                            "Structure Synchronization is a Premium feature.",
+                        ));
+                    }
                 }
             }
             ctx.request_repaint();
