@@ -25,6 +25,7 @@ pub enum MenuAction {
     NewSqlTab,
     ReloadDatabases,
     QueryHistory,
+    License,
     DataTransfer,
     DataGeneration,
     DataDictionary,
@@ -158,6 +159,16 @@ pub fn install_native_menu() -> NativeMenu {
         ],
     );
     menubar.addItem(&tools_menu);
+
+    // ── License menu ──
+    let license_menu = build_submenu(
+        mtm,
+        "License",
+        &tx,
+        &mut handlers,
+        &[("License\u{2026}", MenuAction::License, "l")],
+    );
+    menubar.addItem(&license_menu);
 
     app.setMainMenu(Some(&menubar));
 

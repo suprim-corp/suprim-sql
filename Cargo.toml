@@ -12,13 +12,12 @@ path = "src/main.rs"
 # Features — disable unused DB drivers at compile time
 # ---------------------------------------------------------
 [features]
-default = ["sqlite", "postgres", "mysql", "redis", "mongodb", "mssql"]
+default = ["sqlite", "postgres", "mysql", "redis"]
 sqlite   = ["sqlx/sqlite"]
 postgres = ["sqlx/postgres"]
 mysql    = ["sqlx/mysql"]
 redis    = ["dep:redis"]
-mongodb  = ["dep:mongodb"]
-mssql    = ["dep:tiberius", "dep:tokio-util"]
+premium  = []
 
 # ---------------------------------------------------------
 # Dependencies
@@ -38,9 +37,6 @@ egui-notify = "0.21"
 # Database
 sqlx       = { version = "0.9.0-alpha.1", features = ["runtime-tokio", "tls-rustls", "postgres", "mysql", "sqlite", "chrono", "uuid", "macros", "json"] }
 redis      = { version = "1", features = ["tokio-comp", "aio"], optional = true }
-mongodb    = { version = "3", optional = true }
-tiberius   = { version = "0.11", features = ["tds73", "chrono"], optional = true }
-tokio-util = { version = "0.7", features = ["compat"], optional = true }
 
 # Serialization
 serde      = { version = "1", features = ["derive"] }

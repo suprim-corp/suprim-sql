@@ -8,6 +8,7 @@ mod handle_query;
 mod tests;
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -15,6 +16,7 @@ use uuid::Uuid;
 use crate::db::commands::{DbCommand, DbEvent};
 use crate::db::driver::DatabaseDriver;
 use crate::db::ssh_tunnel::SshTunnel;
+use crate::premium::PremiumGate;
 
 /// Asynchronous worker that owns all DB connections and processes commands
 /// from the UI thread via a channel.
@@ -28,6 +30,8 @@ pub struct DbWorker {
     pub(crate) connections: HashMap<Uuid, Box<dyn DatabaseDriver>>,
     /// Active SSH tunnels keyed by conn_id (dropped on disconnect)
     pub(crate) tunnels: HashMap<Uuid, SshTunnel>,
+    /// License/premium gate for feature gating (shared with UI thread).
+    pub(crate) gate: Arc<dyn PremiumGate>,
 }
 
 impl DbWorker {
@@ -38,6 +42,7 @@ impl DbWorker {
     pub fn new(
         cmd_capacity: usize,
         event_capacity: usize,
+        gate: Arc<dyn PremiumGate>,
     ) -> (mpsc::Sender<DbCommand>, mpsc::Receiver<DbEvent>, Self) {
         let (cmd_tx, cmd_rx) = mpsc::channel(cmd_capacity);
         let (event_tx, event_rx) = mpsc::channel(event_capacity);
@@ -49,6 +54,7 @@ impl DbWorker {
                 event_tx,
                 connections: HashMap::new(),
                 tunnels: HashMap::new(),
+                gate,
             },
         )
     }
@@ -57,8 +63,9 @@ impl DbWorker {
     pub fn spawn(
         cmd_capacity: usize,
         event_capacity: usize,
+        gate: Arc<dyn PremiumGate>,
     ) -> (mpsc::Sender<DbCommand>, mpsc::Receiver<DbEvent>) {
-        let (cmd_tx, event_rx, worker) = Self::new(cmd_capacity, event_capacity);
+        let (cmd_tx, event_rx, worker) = Self::new(cmd_capacity, event_capacity, gate);
         tokio::spawn(async move {
             worker.run().await;
         });

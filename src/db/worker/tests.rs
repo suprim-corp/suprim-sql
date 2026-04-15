@@ -1,13 +1,19 @@
 use super::*;
 use crate::db::commands::{DbCommand, DbEvent};
+use crate::premium::FreeTierGate;
 use std::collections::HashMap;
+use std::sync::Arc;
 use uuid::Uuid;
+
+    fn test_gate() -> Arc<dyn crate::premium::PremiumGate> {
+        Arc::new(FreeTierGate)
+    }
 
     // ── Channel construction ──────────────────────────────────────────────────
 
     #[test]
     fn new_returns_channels_and_worker() {
-        let (cmd_tx, _event_rx, _worker) = DbWorker::new(32, 32);
+        let (cmd_tx, _event_rx, _worker) = DbWorker::new(32, 32, test_gate());
         let _ = cmd_tx;
     }
 
@@ -15,7 +21,7 @@ use uuid::Uuid;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn shutdown_stops_worker() {
-        let (cmd_tx, _event_rx) = DbWorker::spawn(8, 8);
+        let (cmd_tx, _event_rx) = DbWorker::spawn(8, 8, test_gate());
         cmd_tx.send(DbCommand::Shutdown).await.unwrap();
         drop(cmd_tx);
     }
@@ -24,7 +30,7 @@ use uuid::Uuid;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn execute_unknown_conn_returns_error() {
-        let (cmd_tx, mut event_rx) = DbWorker::spawn(8, 8);
+        let (cmd_tx, mut event_rx) = DbWorker::spawn(8, 8, test_gate());
 
         let conn_id = Uuid::new_v4();
         let tab_id = Uuid::new_v4();
@@ -51,7 +57,7 @@ use uuid::Uuid;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn list_databases_unknown_conn_returns_error() {
-        let (cmd_tx, mut event_rx) = DbWorker::spawn(8, 8);
+        let (cmd_tx, mut event_rx) = DbWorker::spawn(8, 8, test_gate());
         let conn_id = Uuid::new_v4();
         cmd_tx
             .send(DbCommand::ListDatabases { conn_id })
@@ -71,7 +77,7 @@ use uuid::Uuid;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn insert_unknown_conn_returns_error() {
-        let (cmd_tx, mut event_rx) = DbWorker::spawn(8, 8);
+        let (cmd_tx, mut event_rx) = DbWorker::spawn(8, 8, test_gate());
         let conn_id = Uuid::new_v4();
         let tab_id = Uuid::new_v4();
         cmd_tx
@@ -95,7 +101,7 @@ use uuid::Uuid;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn update_unknown_conn_returns_error() {
-        let (cmd_tx, mut event_rx) = DbWorker::spawn(8, 8);
+        let (cmd_tx, mut event_rx) = DbWorker::spawn(8, 8, test_gate());
         let conn_id = Uuid::new_v4();
         let tab_id = Uuid::new_v4();
         cmd_tx
@@ -120,7 +126,7 @@ use uuid::Uuid;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn delete_unknown_conn_returns_error() {
-        let (cmd_tx, mut event_rx) = DbWorker::spawn(8, 8);
+        let (cmd_tx, mut event_rx) = DbWorker::spawn(8, 8, test_gate());
         let conn_id = Uuid::new_v4();
         let tab_id = Uuid::new_v4();
         cmd_tx
@@ -144,7 +150,7 @@ use uuid::Uuid;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn load_table_data_unknown_conn_returns_error() {
-        let (cmd_tx, mut event_rx) = DbWorker::spawn(8, 8);
+        let (cmd_tx, mut event_rx) = DbWorker::spawn(8, 8, test_gate());
         let conn_id = Uuid::new_v4();
         let tab_id = Uuid::new_v4();
         cmd_tx

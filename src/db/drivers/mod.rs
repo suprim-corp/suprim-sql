@@ -6,5 +6,5 @@ pub mod postgres;
 // pub mod sqlite;
 // pub mod mysql;
 // pub mod redis;
-// pub mod mongodb;
-// pub mod mssql;
+//
+// MongoDB and MSSQL drivers are in the private suprim-premium crate.

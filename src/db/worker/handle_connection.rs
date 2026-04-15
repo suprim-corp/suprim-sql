@@ -35,7 +35,7 @@ impl DbWorker {
             None
         };
 
-        let mut driver = match DbFactory::create(&tunnel_config) {
+        let mut driver = match DbFactory::create(&tunnel_config, self.gate.as_ref()) {
             Ok(d) => d,
             Err(e) => {
                 self.send_error(conn_id, None, e.to_string()).await;
@@ -116,7 +116,7 @@ impl DbWorker {
             None
         };
 
-        let mut driver = match DbFactory::create(&tunnel_config) {
+        let mut driver = match DbFactory::create(&tunnel_config, self.gate.as_ref()) {
             Ok(d) => d,
             Err(e) => {
                 let _ = self

@@ -1,10 +1,13 @@
 use eframe::egui;
+use std::sync::Arc;
 use suprim_sql::db::commands::{DbCommand, DbEvent};
+use suprim_sql::premium::PremiumGate;
 use suprim_sql::storage::{AppConfig, QueryHistoryStore, WorkspaceState};
 use tokio::sync::mpsc;
 
 use crate::ui::{
-    ConnectionDialog, DeleteConnectionDialog, InputDialog, Sidebar, StatusBar, TabManager,
+    ConnectionDialog, DeleteConnectionDialog, InputDialog, LicenseDialog, Sidebar, StatusBar,
+    TabManager, UpgradePrompt,
 };
 
 /// Main application state — owned by the eframe runtime on the UI thread.
@@ -54,6 +57,15 @@ pub struct App {
     /// Connection IDs to auto-reconnect from saved workspace.
     pub(crate) restore_connected_ids: Vec<uuid::Uuid>,
 
+    /// Premium gate — feature gating (free vs premium).
+    pub(crate) gate: Arc<dyn PremiumGate>,
+
+    /// License activation dialog (None = closed).
+    pub(crate) license_dialog: Option<LicenseDialog>,
+
+    /// Upgrade prompt dialog (None = closed).
+    pub(crate) upgrade_prompt: Option<UpgradePrompt>,
+
     /// Native macOS menu bar channel + retained handler objects.
     #[cfg(target_os = "macos")]
     pub(crate) native_menu: crate::ui::macos_menu::NativeMenu,
@@ -64,6 +76,7 @@ impl App {
         cc: &eframe::CreationContext<'_>,
         cmd_tx: mpsc::Sender<DbCommand>,
         event_rx: mpsc::Receiver<DbEvent>,
+        license: Arc<dyn PremiumGate>,
         #[cfg(target_os = "macos")] native_menu: crate::ui::macos_menu::NativeMenu,
     ) -> Self {
         // Register Phosphor icon font so all UI components can use it.
@@ -104,6 +117,9 @@ impl App {
             show_history,
             history_search: String::new(),
             restore_connected_ids: connected_ids,
+            gate: license,
+            license_dialog: None,
+            upgrade_prompt: None,
             #[cfg(target_os = "macos")]
             native_menu,
         }

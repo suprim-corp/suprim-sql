@@ -34,8 +34,9 @@ impl App {
         self.render_menu_bar(ui, &ctx);
 
         // ── Status bar (bottom) ─────────────────────────────────────────
+        let tier_name = self.gate.tier_name().to_string();
         egui::Panel::bottom("status_bar").show_inside(ui, |ui| {
-            self.statusbar.show(ui, &self.status);
+            self.statusbar.show(ui, &self.status, &tier_name);
         });
 
         // ── Query History panel (bottom, above status bar) ──────────────
@@ -70,7 +71,8 @@ impl App {
             .default_size(220.0)
             .min_size(160.0)
             .show_inside(ui, |ui| {
-                let action = self.sidebar.show(ui);
+                let conn_limit = self.gate.connection_limit();
+                let action = self.sidebar.show(ui, conn_limit);
                 if let Some(act) = action {
                     // Handle Connect specially — needs sidebar mutation.
                     if let SidebarAction::Connect { conn_id } = &act {
@@ -94,6 +96,8 @@ impl App {
                             delete_connection_dialog: &mut self.delete_connection_dialog,
                             pending_delete_conn: &mut self.pending_delete_conn,
                             input_dialog: &mut self.input_dialog,
+                            upgrade_prompt: &mut self.upgrade_prompt,
+                            gate: self.gate.as_ref(),
                             conn_name: Box::new(|id| sidebar.conn_name(id)),
                         };
                         handle_sidebar_action(act, &mut ctx);
@@ -119,6 +123,12 @@ impl App {
 
         // ── Input dialog (New Database / New Schema) ─────────────────────
         self.render_input_dialog(&ctx);
+
+        // ── License activation dialog (modal) ────────────────────────────
+        self.render_license_dialog(&ctx);
+
+        // ── Upgrade prompt dialog (modal) ────────────────────────────────
+        self.render_upgrade_prompt(&ctx);
 
         // ── Structure Sync dialog (modal) ───────────────────────────────
         if let Some(dialog) = &mut self.structure_sync_dialog {
@@ -181,7 +191,13 @@ impl App {
                         .on_hover_cursor(egui::CursorIcon::PointingHand)
                         .clicked()
                     {
-                        self.connection_dialog = Some(crate::ui::ConnectionDialog::new());
+                        if let Err(msg) =
+                            self.gate.can_add_connection(self.config.connections.len())
+                        {
+                            self.upgrade_prompt = Some(crate::ui::UpgradePrompt::new(&msg));
+                        } else {
+                            self.connection_dialog = Some(crate::ui::ConnectionDialog::new());
+                        }
                         ui.close();
                     }
                     ui.separator();
@@ -218,7 +234,9 @@ impl App {
                         .clicked()
                     {
                         for conn_id in self.sidebar.active_connection_ids() {
-                            let _ = self.cmd_tx.try_send(DbCommand::ListDatabases { conn_id });
+                            let _ = self.cmd_tx.try_send(
+                                suprim_sql::db::commands::DbCommand::ListDatabases { conn_id },
+                            );
                         }
                         ui.close();
                     }
@@ -228,6 +246,17 @@ impl App {
                         .clicked()
                     {
                         self.show_history = !self.show_history;
+                        ui.close();
+                    }
+                });
+                ui.menu_button("License", |ui| {
+                    if ui
+                        .button("License\u{2026}")
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .clicked()
+                    {
+                        let tier = self.gate.tier_name().to_string();
+                        self.license_dialog = Some(crate::ui::LicenseDialog::new(&tier));
                         ui.close();
                     }
                 });

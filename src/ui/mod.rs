@@ -19,7 +19,8 @@ pub(crate) mod table_viewer_tab;
 pub(crate) use dialog::about_dialog;
 pub use dialog::{
     ConnectionDialog, DeleteConnectionDialog, DeleteConnectionResult, DialogResult, InputDialog,
-    InputDialogKind, InputDialogResult,
+    InputDialogKind, InputDialogResult, LicenseDialog, LicenseDialogResult, UpgradePrompt,
+    UpgradePromptResult,
 };
 pub use sidebar::{Sidebar, SidebarAction};
 pub use statusbar::StatusBar;

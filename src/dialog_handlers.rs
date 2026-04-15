@@ -18,6 +18,24 @@ impl App {
                 crate::ui::DialogResult::Confirmed(config) => {
                     let config = *config;
                     let is_edit = self.config.connections.iter().any(|c| c.id == config.id);
+
+                    // ── License gate: check driver tier ─────────────────────
+                    if let Err(msg) = self.gate.can_use_driver(&config.driver_type()) {
+                        self.upgrade_prompt = Some(crate::ui::UpgradePrompt::new(&msg));
+                        self.connection_dialog = None;
+                        return;
+                    }
+                    // ── License gate: check connection limit (new only) ─────
+                    if !is_edit {
+                        if let Err(msg) =
+                            self.gate.can_add_connection(self.config.connections.len())
+                        {
+                            self.upgrade_prompt = Some(crate::ui::UpgradePrompt::new(&msg));
+                            self.connection_dialog = None;
+                            return;
+                        }
+                    }
+
                     if is_edit {
                         let _ = self
                             .cmd_tx
@@ -97,6 +115,43 @@ impl App {
             }
             crate::ui::InputDialogResult::Cancelled => {
                 self.input_dialog = None;
+            }
+        }
+    }
+
+    /// Shows the license activation dialog and handles its result.
+    pub(crate) fn render_license_dialog(&mut self, ctx: &egui::Context) {
+        let Some(dialog) = &mut self.license_dialog else {
+            return;
+        };
+        match dialog.show(ctx) {
+            crate::ui::LicenseDialogResult::Pending => {}
+            crate::ui::LicenseDialogResult::Activate { key, email } => {
+                // TODO: wire to gate.activate(key, email) when premium feature is available
+                let _ = (key, email);
+                self.status = "License activation requires Premium build.".to_string();
+                self.license_dialog = None;
+            }
+            crate::ui::LicenseDialogResult::Cancelled => {
+                self.license_dialog = None;
+            }
+        }
+    }
+
+    /// Shows the upgrade prompt dialog and handles its result.
+    pub(crate) fn render_upgrade_prompt(&mut self, ctx: &egui::Context) {
+        let Some(prompt) = &self.upgrade_prompt else {
+            return;
+        };
+        match prompt.show(ctx) {
+            crate::ui::UpgradePromptResult::Pending => {}
+            crate::ui::UpgradePromptResult::OpenLicenseDialog => {
+                self.upgrade_prompt = None;
+                let tier = self.gate.tier_name().to_string();
+                self.license_dialog = Some(crate::ui::LicenseDialog::new(&tier));
+            }
+            crate::ui::UpgradePromptResult::Dismissed => {
+                self.upgrade_prompt = None;
             }
         }
     }

@@ -11,7 +11,7 @@ pub fn show_about_dialog(ctx: &egui::Context) -> bool {
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size([300.0, 160.0])
+        .fixed_size([320.0, 200.0])
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(12.0);
@@ -19,7 +19,8 @@ pub fn show_about_dialog(ctx: &egui::Context) -> bool {
                 ui.add_space(4.0);
                 ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
                 ui.add_space(4.0);
-                ui.label("A modern SQL client for PostgreSQL");
+                ui.label("A modern, native SQL client");
+                ui.label("PostgreSQL · SQLite · MySQL · Redis");
                 ui.add_space(12.0);
                 if ui
                     .button("Close")

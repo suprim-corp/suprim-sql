@@ -204,7 +204,32 @@ impl Sidebar {
 
     // ─── Rendering ──────────────────────────────────────────────────────
 
-    pub fn show(&mut self, ui: &mut egui::Ui) -> Option<SidebarAction> {
+    /// Render the sidebar. `connection_limit` is `Some(max)` for free tier, `None` for unlimited.
+    pub fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        connection_limit: Option<usize>,
+    ) -> Option<SidebarAction> {
+        // Connection count header
+        let count = self.connections.len();
+        ui.horizontal(|ui| {
+            let header = match connection_limit {
+                Some(max) => format!(
+                    "{} Connections ({}/{})",
+                    egui_phosphor::regular::PLUGS_CONNECTED,
+                    count,
+                    max
+                ),
+                None => format!(
+                    "{} Connections ({})",
+                    egui_phosphor::regular::PLUGS_CONNECTED,
+                    count
+                ),
+            };
+            ui.label(egui::RichText::new(header).size(12.0).weak());
+        });
+        ui.add_space(2.0);
+
         sidebar_renderer::render_connections(ui, &mut self.connections)
     }
 

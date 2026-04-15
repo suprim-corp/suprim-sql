@@ -230,7 +230,11 @@ impl App {
         while let Ok(action) = self.native_menu.rx.try_recv() {
             match action {
                 MenuAction::NewConnection => {
-                    self.connection_dialog = Some(crate::ui::ConnectionDialog::new());
+                    if let Err(msg) = self.gate.can_add_connection(self.config.connections.len()) {
+                        self.upgrade_prompt = Some(crate::ui::UpgradePrompt::new(&msg));
+                    } else {
+                        self.connection_dialog = Some(crate::ui::ConnectionDialog::new());
+                    }
                 }
                 MenuAction::Quit => {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -253,6 +257,10 @@ impl App {
                 }
                 MenuAction::QueryHistory => {
                     self.show_history = !self.show_history;
+                }
+                MenuAction::License => {
+                    let tier = self.gate.tier_name().to_string();
+                    self.license_dialog = Some(crate::ui::LicenseDialog::new(&tier));
                 }
                 MenuAction::DataTransfer
                 | MenuAction::DataGeneration

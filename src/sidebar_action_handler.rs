@@ -5,7 +5,11 @@ use suprim_sql::db::commands::DbCommand;
 use suprim_sql::storage::AppConfig;
 use tokio::sync::mpsc;
 
-use crate::ui::{ConnectionDialog, DeleteConnectionDialog, InputDialog, SidebarAction, TabManager};
+use suprim_sql::premium::PremiumGate;
+
+use crate::ui::{
+    ConnectionDialog, DeleteConnectionDialog, InputDialog, SidebarAction, TabManager, UpgradePrompt,
+};
 
 /// Sidebar context passed to the handler so it can mutate application state
 /// without needing a full `&mut App`.
@@ -17,6 +21,8 @@ pub struct SidebarContext<'a> {
     pub delete_connection_dialog: &'a mut Option<DeleteConnectionDialog>,
     pub pending_delete_conn: &'a mut Option<uuid::Uuid>,
     pub input_dialog: &'a mut Option<InputDialog>,
+    pub upgrade_prompt: &'a mut Option<UpgradePrompt>,
+    pub gate: &'a dyn PremiumGate,
     /// Closure to look up a connection name by id (delegates to sidebar).
     pub conn_name: Box<dyn Fn(uuid::Uuid) -> String + 'a>,
 }
@@ -28,7 +34,12 @@ pub fn handle_sidebar_action(action: SidebarAction, ctx: &mut SidebarContext<'_>
         // Connect is handled directly in app_ui.rs (needs sidebar mutation).
         SidebarAction::Connect { .. } => {}
         SidebarAction::NewConnection => {
-            *ctx.connection_dialog = Some(ConnectionDialog::new());
+            // Check connection limit before opening dialog
+            if let Err(msg) = ctx.gate.can_add_connection(ctx.config.connections.len()) {
+                *ctx.upgrade_prompt = Some(UpgradePrompt::new(&msg));
+            } else {
+                *ctx.connection_dialog = Some(ConnectionDialog::new());
+            }
         }
         SidebarAction::EditConnection { conn_id } => {
             if let Some(cfg) = ctx.config.connections.iter().find(|c| c.id == conn_id) {

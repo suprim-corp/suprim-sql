@@ -6,7 +6,9 @@ mod sidebar_action_handler;
 mod ui;
 
 use eframe::egui;
+use std::sync::Arc;
 use suprim_sql::db::worker::DbWorker;
+use suprim_sql::premium;
 
 fn main() {
     // Initialize tracing
@@ -22,8 +24,27 @@ fn main() {
     // Keep the runtime alive for the whole app lifetime.
     let _rt_guard = rt.enter();
 
+    // Create the premium gate (real license manager or free stub).
+    let mut gate = premium::create_free_gate();
+    if gate.needs_validation() {
+        let validate_result = rt.block_on(async {
+            tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                gate.validate_online(),
+            )
+            .await
+        });
+        match validate_result {
+            Ok(Ok(_)) => tracing::info!("License validated: {}", gate.tier_name()),
+            Ok(Err(e)) => tracing::warn!("License validation failed: {}", e),
+            Err(_) => tracing::warn!("License validation timed out (offline grace applies)"),
+        }
+    }
+    tracing::info!("Running as {} tier", gate.tier_name());
+    let gate: Arc<dyn premium::PremiumGate> = Arc::from(gate);
+
     // Spawn the DB worker inside the runtime.
-    let (cmd_tx, event_rx) = DbWorker::spawn(32, 64);
+    let (cmd_tx, event_rx) = DbWorker::spawn(32, 64, Arc::clone(&gate));
 
     // Load app icon from embedded PNG bytes.
     let icon = eframe::icon_data::from_png_bytes(include_bytes!("../assets/icons/icon.png"))
@@ -62,6 +83,7 @@ fn main() {
                 cc,
                 cmd_tx,
                 event_rx,
+                gate,
                 #[cfg(target_os = "macos")]
                 native_menu,
             )))
