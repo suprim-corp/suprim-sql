@@ -1,0 +1,77 @@
+[package]
+name = "suprim-app"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.92"
+
+[[bin]]
+name = "SuprimSQL"
+path = "src/main.rs"
+
+[features]
+default = []
+premium = ["dep:suprim-premium"]
+
+[dependencies]
+# The public library crate
+suprim-sql = { path = "../.." }
+
+# Premium private crate (optional — only when submodule present + feature enabled)
+suprim-premium = { path = "../../premium", optional = true }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# UI
+egui        = "0.34"
+egui_extras = { version = "0.34", features = ["image"] }
+eframe      = { version = "0.34", features = ["default_fonts", "persistence"] }
+egui_plot   = "0.34"
+egui_dock   = "0.18"
+egui-notify = "0.21"
+egui-phosphor = { version = "0.12.0", features = ["regular"] }
+egui_code_editor = "0.2"
+
+# Serialization
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Types & utils
+uuid   = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+dirs-next = "2"
+
+# File dialogs
+rfd = "0.17"
+
+# AI
+async-openai = "0.34"
+
+# Logging
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# SQL formatting (needed by sql_highlighter in UI)
+sqlformat = "0.5"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2            = "0.6"
+objc2-app-kit    = { version = "0.3", features = ["NSApplication", "NSMenu", "NSMenuItem", "NSEvent", "NSResponder", "NSWindow", "NSButton", "NSControl", "NSView"] }
+objc2-foundation = { version = "0.3", features = ["NSString", "NSThread"] }
+
+[dev-dependencies]
+egui_kittest = { version = "0.34", features = ["wgpu", "snapshot"] }
+insta    = "1"
+proptest = "1"
+
+[package.metadata.bundle]
+name = "SuprimSQL"
+identifier = "com.suprim.sql"
+icon = ["../../assets/icons/icon.icns", "../../assets/icons/icon.ico", "../../assets/icons/128x128.png", "../../assets/icons/128x128@2x.png", "../../assets/icons/64x64.png", "../../assets/icons/32x32.png"]
+version = "0.1.0"
+copyright = "Copyright © 2025 Suprim. All rights reserved."
+category = "public.app-category.developer-tools"
+short_description = "A modern PostgreSQL client"
+long_description = "SuprimSQL is a native, high-performance PostgreSQL client built with Rust and egui."
+osx_minimum_system_version = "12.0"
+osx_info_plist_exts = ["../../assets/macos/Info.plist.extra"]

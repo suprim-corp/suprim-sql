@@ -1,12 +1,12 @@
+[workspace]
+members = [".", "crates/suprim-app"]
+resolver = "2"
+
 [package]
 name = "suprim-sql"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.92"
-
-[[bin]]
-name = "SuprimSQL"
-path = "src/main.rs"
 
 # ---------------------------------------------------------
 # Features — disable unused DB drivers at compile time
@@ -17,22 +17,13 @@ sqlite   = ["sqlx/sqlite"]
 postgres = ["sqlx/postgres"]
 mysql    = ["sqlx/mysql"]
 redis    = ["dep:redis"]
-premium  = []
 
 # ---------------------------------------------------------
-# Dependencies
+# Dependencies (lib only — no UI deps here)
 # ---------------------------------------------------------
 [dependencies]
 # Async runtime
 tokio = { version = "1", features = ["full"] }
-
-# UI
-egui        = "0.34"
-egui_extras = { version = "0.34", features = ["image"] }
-eframe      = { version = "0.34", features = ["default_fonts", "persistence"] }
-egui_plot   = "0.34"
-egui_dock   = "0.18"
-egui-notify = "0.21"
 
 # Database
 sqlx       = { version = "0.9.0-alpha.1", features = ["runtime-tokio", "tls-rustls", "postgres", "mysql", "sqlite", "chrono", "uuid", "macros", "json"] }
@@ -61,72 +52,30 @@ base64  = "0.22"
 # OS keychain
 keyring = "4.0.0-rc.3"
 
-# File dialogs
-rfd = "0.17"
-
 # SSH tunnel
 russh = "0.60"
 
-# AI
-async-openai = "0.34"
+# Async
 async-trait  = "0.1"
 
-# HTTP (updater, AI)
+# HTTP (license validation)
 reqwest = { version = "0.13", features = ["json", "rustls"], default-features = false }
 
 # Logging
-tracing            = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-egui-phosphor = { version = "0.12.0", features = ["regular"] }
-egui_code_editor = "0.2"
-
-# Native macOS menu bar
-[target.'cfg(target_os = "macos")'.dependencies]
-objc2            = "0.6"
-objc2-app-kit    = { version = "0.3", features = ["NSApplication", "NSMenu", "NSMenuItem", "NSEvent", "NSResponder", "NSWindow", "NSButton", "NSControl", "NSView"] }
-objc2-foundation = { version = "0.3", features = ["NSString", "NSThread"] }
+tracing = "0.1"
 
 # ---------------------------------------------------------
 # Dev / Test dependencies
 # ---------------------------------------------------------
 [dev-dependencies]
-# Mocking
 mockall = "0.14"
-
-# Async test runtime
 tokio = { version = "1", features = ["full"] }
-
-# Testcontainers
 testcontainers         = "0.27"
 testcontainers-modules = { version = "0.15", features = ["postgres", "mysql", "redis", "mongo", "mssql_server"] }
-
-# UI testing
-egui_kittest = { version = "0.34", features = ["wgpu", "snapshot"] }
-
-# Snapshot & property testing
-insta    = "1"
-proptest = "1"
-
-# Temp files for SQLite tests
 tempfile = "3"
 
 # ---------------------------------------------------------
-# macOS / Linux / Windows app bundle (cargo-bundle)
-# ---------------------------------------------------------
-[package.metadata.bundle]
-name = "SuprimSQL"
-identifier = "com.suprim.sql"
-icon = ["assets/icons/icon.icns", "assets/icons/icon.ico", "assets/icons/128x128.png", "assets/icons/128x128@2x.png", "assets/icons/64x64.png", "assets/icons/32x32.png"]
-version = "0.1.0"
-copyright = "Copyright © 2025 Suprim. All rights reserved."
-category = "public.app-category.developer-tools"
-short_description = "A modern PostgreSQL client"
-long_description = "SuprimSQL is a native, high-performance PostgreSQL client built with Rust and egui. Features include SQL editing with syntax highlighting, table management, structure synchronization, and more."
-osx_minimum_system_version = "12.0"
-osx_info_plist_exts = ["assets/macos/Info.plist.extra"]
-
-# ---------------------------------------------------------
-# Build profiles
+# Build profiles (shared across workspace)
 # ---------------------------------------------------------
 [profile.dev]
 opt-level = 0

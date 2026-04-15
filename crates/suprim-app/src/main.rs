@@ -25,6 +25,9 @@ fn main() {
     let _rt_guard = rt.enter();
 
     // Create the premium gate (real license manager or free stub).
+    #[cfg(feature = "premium")]
+    let mut gate: Box<dyn premium::PremiumGate> = Box::new(suprim_premium::PremiumLicense::load());
+    #[cfg(not(feature = "premium"))]
     let mut gate = premium::create_free_gate();
     if gate.needs_validation() {
         let validate_result = rt.block_on(async {
@@ -47,7 +50,7 @@ fn main() {
     let (cmd_tx, event_rx) = DbWorker::spawn(32, 64, Arc::clone(&gate));
 
     // Load app icon from embedded PNG bytes.
-    let icon = eframe::icon_data::from_png_bytes(include_bytes!("../assets/icons/icon.png"))
+    let icon = eframe::icon_data::from_png_bytes(include_bytes!("../../../assets/icons/icon.png"))
         .expect("Failed to decode app icon");
 
     let mut viewport = egui::ViewportBuilder::default()
