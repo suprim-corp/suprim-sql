@@ -9,6 +9,7 @@ use crate::db::driver::DatabaseDriver;
 use crate::db::schema::{ExtensionInfo, ServerMetrics, SessionInfo, SlowQueryInfo};
 use crate::db::types::{DbValue, QueryResult, SchemaNode};
 use crate::error::{AppError, Result};
+use crate::storage::credential;
 
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 
@@ -25,14 +26,13 @@ impl DatabaseDriver for PostgresDriver {
                 user,
                 password_key,
             } => {
-                // In production, retrieve password from keychain using password_key.
-                // For now, treat password_key as the actual password for testability.
+                let decrypted = credential::decrypt(password_key);
                 (
                     host.as_str(),
                     *port,
                     database.as_str(),
                     user.as_str(),
-                    password_key.as_str(),
+                    decrypted,
                 )
             }
             _ => return Err(AppError::connection("PostgresDriver requires Postgres params")),
@@ -43,7 +43,7 @@ impl DatabaseDriver for PostgresDriver {
             .port(port)
             .database(database)
             .username(user)
-            .password(password);
+            .password(&password);
 
         // Store base connection options (without database) for cross-db pool creation.
         self.connect_opts = Some(
@@ -51,7 +51,7 @@ impl DatabaseDriver for PostgresDriver {
                 .host(host)
                 .port(port)
                 .username(user)
-                .password(password),
+                .password(&password),
         );
 
         let pool = PgPoolOptions::new()

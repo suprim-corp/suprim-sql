@@ -24,13 +24,13 @@ suprim-premium = { path = "../../premium", optional = true }
 tokio = { version = "1", features = ["full"] }
 
 # UI
-egui        = "0.34"
-egui_extras = { version = "0.34", features = ["image"] }
-eframe      = { version = "0.34", features = ["default_fonts", "persistence"] }
+egui        = "0.34.1"
+egui_extras = { version = "0.34.1", features = ["image"] }
+eframe      = { version = "0.34.1", features = ["default_fonts", "persistence"] }
 egui_plot   = "0.34"
 egui_dock   = "0.18"
-egui-notify = "0.21"
-egui-phosphor = { version = "0.12.0", features = ["regular"] }
+egui-notify = "0.22"
+egui-phosphor = { version = "0.12", features = ["regular"] }
 egui_code_editor = "0.2"
 
 # Serialization
@@ -61,7 +61,7 @@ objc2-app-kit    = { version = "0.3", features = ["NSApplication", "NSMenu", "NS
 objc2-foundation = { version = "0.3", features = ["NSString", "NSThread"] }
 
 [dev-dependencies]
-egui_kittest = { version = "0.34", features = ["wgpu", "snapshot"] }
+egui_kittest = { version = "0.34.1", features = ["wgpu", "snapshot"] }
 insta    = "1"
 proptest = "1"
 

@@ -42,9 +42,11 @@ anyhow    = "1"
 dirs-next = "2"
 
 # Crypto (AES-256-GCM for config encryption)
-aes-gcm = "0.11.0-rc.3"
-rand    = "0.10"
-base64  = "0.22"
+aes-gcm     = "0.11.0-rc.3"
+rand        = "0.10"
+base64      = "0.22"
+sha2        = "0.11"
+machine-uid = "0.5"
 
 # OS keychain
 keyring = "4.0.0-rc.3"
@@ -62,7 +64,7 @@ reqwest = { version = "0.13", features = ["json", "rustls"], default-features = 
 tracing = "0.1"
 
 # UI (optional — only needed when premium crate needs ToolDialog trait)
-egui = { version = "0.34", optional = true }
+egui = { version = "0.34.1", optional = true }
 
 # ---------------------------------------------------------
 # Dev / Test dependencies

@@ -11,6 +11,7 @@ use crate::db::types::{
     ColumnMeta, ColumnNode, DatabaseNode, DbValue, QueryResult, SchemaNode, SchemaTree, TableNode,
 };
 use crate::error::{AppError, Result};
+use crate::storage::credential;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -220,7 +221,8 @@ impl DatabaseDriver for RedisDriver {
             _ => return Err(AppError::connection("RedisDriver requires Redis params")),
         };
 
-        let url = build_redis_url(host, port, db_index, password_key);
+        let decrypted_pw = password_key.map(|pw| credential::decrypt(pw));
+        let url = build_redis_url(host, port, db_index, decrypted_pw.as_deref());
         let client =
             Client::open(url.as_str()).map_err(|e| AppError::connection(e.to_string()))?;
 

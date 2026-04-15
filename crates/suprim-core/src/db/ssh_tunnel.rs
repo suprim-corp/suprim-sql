@@ -65,9 +65,8 @@ impl SshTunnel {
                 .authenticate_publickey(&ssh.user, key_with_alg)
                 .await?
         } else if let Some(password) = &ssh.password_key {
-            // password_key currently stores the plaintext password
-            // TODO: integrate with OS keychain via keyring crate
-            session.authenticate_password(&ssh.user, password).await?
+            let decrypted = crate::storage::credential::decrypt(password);
+            session.authenticate_password(&ssh.user, &decrypted).await?
         } else {
             return Err(crate::error::AppError::Ssh(
                 "No SSH authentication method provided (key or password)".into(),

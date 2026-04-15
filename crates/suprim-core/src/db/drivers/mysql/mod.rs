@@ -12,6 +12,7 @@ use crate::db::types::{
     SchemaNode, SchemaTree, TableNode, ViewNode,
 };
 use crate::error::{AppError, Result};
+use crate::storage::credential;
 
 // ─── Type mapping ────────────────────────────────────────────────────────────
 
@@ -348,13 +349,16 @@ impl DatabaseDriver for MysqlDriver {
                 database,
                 user,
                 password_key,
-            } => (
-                host.as_str(),
-                *port,
-                database.as_str(),
-                user.as_str(),
-                password_key.as_str(),
-            ),
+            } => {
+                let decrypted = credential::decrypt(password_key);
+                (
+                    host.as_str(),
+                    *port,
+                    database.as_str(),
+                    user.as_str(),
+                    decrypted,
+                )
+            },
             _ => return Err(AppError::connection("MysqlDriver requires Mysql params")),
         };
 
@@ -363,7 +367,7 @@ impl DatabaseDriver for MysqlDriver {
             .port(port)
             .database(database)
             .username(user)
-            .password(password);
+            .password(&password);
 
         let pool = MySqlPoolOptions::new()
             .max_connections(10)
