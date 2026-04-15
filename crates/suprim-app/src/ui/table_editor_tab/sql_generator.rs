@@ -1,5 +1,5 @@
 /// SQL generation and execution for table editor changes.
-use suprim_sql::db::commands::DbCommand;
+use suprim_core::db::commands::DbCommand;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 

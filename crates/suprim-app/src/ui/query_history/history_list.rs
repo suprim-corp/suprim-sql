@@ -1,7 +1,7 @@
 //! Renders the scrollable list of query history entries.
 
 use eframe::egui;
-use suprim_sql::storage::QueryHistoryEntry;
+use suprim_core::storage::QueryHistoryEntry;
 
 use super::HistoryPanelOutput;
 

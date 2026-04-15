@@ -10,8 +10,8 @@ mod sessions_table;
 mod slow_queries_table;
 
 use eframe::egui;
-use suprim_sql::db::commands::DbCommand;
-use suprim_sql::db::schema::{ServerMetrics, SessionInfo, SlowQueryInfo};
+use suprim_core::db::commands::DbCommand;
+use suprim_core::db::schema::{ServerMetrics, SessionInfo, SlowQueryInfo};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 

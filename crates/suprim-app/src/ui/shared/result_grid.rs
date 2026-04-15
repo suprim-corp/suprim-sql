@@ -6,7 +6,7 @@ use eframe::egui;
 use egui_extras::{Column, TableBuilder};
 use std::cell::RefCell;
 use std::rc::Rc;
-use suprim_sql::db::types::QueryResult;
+use suprim_core::db::types::QueryResult;
 
 use super::result_grid_context_menu::render_cell_context_menu;
 use crate::ui::table_viewer_tab::pending_changes::PendingChanges;

@@ -4,7 +4,7 @@
 
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
-use suprim_sql::db::schema::SlowQueryInfo;
+use suprim_core::db::schema::SlowQueryInfo;
 
 const ROW_H: f32 = 22.0;
 

@@ -1,6 +1,6 @@
 /// Context-menu cell action handlers — copy, paste, set value, duplicate, delete.
 use eframe::egui;
-use suprim_sql::db::types::DbValue;
+use suprim_core::db::types::DbValue;
 use uuid::Uuid;
 
 use crate::ui::shared::clipboard_formatters;

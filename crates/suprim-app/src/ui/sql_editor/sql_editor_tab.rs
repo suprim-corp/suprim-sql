@@ -1,7 +1,7 @@
 /// SQL Editor tab — interactive query execution and result display.
 use eframe::egui;
-use suprim_sql::db::commands::DbCommand;
-use suprim_sql::db::types::QueryResult;
+use suprim_core::db::commands::DbCommand;
+use suprim_core::db::types::QueryResult;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 

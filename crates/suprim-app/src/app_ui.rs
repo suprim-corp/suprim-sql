@@ -81,7 +81,7 @@ impl App {
                         {
                             self.sidebar.on_connecting(conn_id);
                             let _ = self.cmd_tx.try_send(
-                                suprim_sql::db::commands::DbCommand::Connect {
+                                suprim_core::db::commands::DbCommand::Connect {
                                     config: cfg.clone(),
                                 },
                             );
@@ -139,7 +139,7 @@ impl App {
                     self.sidebar.on_connecting(*conn_id);
                     let _ = self
                         .cmd_tx
-                        .try_send(suprim_sql::db::commands::DbCommand::Connect {
+                        .try_send(suprim_core::db::commands::DbCommand::Connect {
                             config: cfg.clone(),
                         });
                 }
@@ -148,7 +148,7 @@ impl App {
             for conn_id in &result.database_requests {
                 let _ = self
                     .cmd_tx
-                    .try_send(suprim_sql::db::commands::DbCommand::ListDatabases {
+                    .try_send(suprim_core::db::commands::DbCommand::ListDatabases {
                         conn_id: *conn_id,
                     });
             }
@@ -156,7 +156,7 @@ impl App {
             for (conn_id, database) in &result.schema_requests {
                 let _ = self
                     .cmd_tx
-                    .try_send(suprim_sql::db::commands::DbCommand::ListSchemas {
+                    .try_send(suprim_core::db::commands::DbCommand::ListSchemas {
                         conn_id: *conn_id,
                         database: database.clone(),
                     });
@@ -165,7 +165,7 @@ impl App {
             if let Some(req) = result.compare_request {
                 let _ = self
                     .cmd_tx
-                    .try_send(suprim_sql::db::commands::DbCommand::CompareSchemas {
+                    .try_send(suprim_core::db::commands::DbCommand::CompareSchemas {
                         source_conn_id: req.source_conn_id,
                         source_database: req.source_database,
                         source_schema: req.source_schema,
@@ -235,7 +235,7 @@ impl App {
                     {
                         for conn_id in self.sidebar.active_connection_ids() {
                             let _ = self.cmd_tx.try_send(
-                                suprim_sql::db::commands::DbCommand::ListDatabases { conn_id },
+                                suprim_core::db::commands::DbCommand::ListDatabases { conn_id },
                             );
                         }
                         ui.close();

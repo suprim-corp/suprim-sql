@@ -1,7 +1,7 @@
 /// Cell editor popup — inline editing for a single cell value with JSON support.
 use eframe::egui;
-use suprim_sql::db::commands::DbCommand;
-use suprim_sql::db::types::DbValue;
+use suprim_core::db::commands::DbCommand;
+use suprim_core::db::types::DbValue;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -33,7 +33,7 @@ pub(super) struct CellEditor {
 
 /// Build a `CellEditor` from a row/col in the current result set.
 pub(super) fn build_cell_editor(
-    result: &suprim_sql::db::types::QueryResult,
+    result: &suprim_core::db::types::QueryResult,
     row: usize,
     col: usize,
 ) -> Option<CellEditor> {

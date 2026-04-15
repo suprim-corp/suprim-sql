@@ -10,8 +10,8 @@ pub(crate) mod sql_preview;
 mod toolbar;
 
 use eframe::egui;
-use suprim_sql::db::commands::DbCommand;
-use suprim_sql::db::types::{DbValue, QueryResult};
+use suprim_core::db::commands::DbCommand;
+use suprim_core::db::types::{DbValue, QueryResult};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 

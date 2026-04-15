@@ -1,7 +1,7 @@
 //! Server Metrics card bar renderer for the Server Dashboard.
 
 use eframe::egui;
-use suprim_sql::db::schema::ServerMetrics;
+use suprim_core::db::schema::ServerMetrics;
 
 /// Render the Server Metrics section as a row of equal-width cards.
 pub(super) fn render_metrics_bar(ui: &mut egui::Ui, metrics: &ServerMetrics) {

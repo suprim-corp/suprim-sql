@@ -2,7 +2,7 @@
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
 
-use suprim_sql::db::drivers::postgres::{PG_COLUMN_TYPES, PG_TYPES_WITH_PARAMS};
+use suprim_core::db::drivers::postgres::{PG_COLUMN_TYPES, PG_TYPES_WITH_PARAMS};
 
 use super::default_suggestions;
 use super::EditableColumn;

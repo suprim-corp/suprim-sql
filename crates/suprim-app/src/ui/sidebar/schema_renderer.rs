@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use eframe::egui::{self, CursorIcon};
-use suprim_sql::db::types::SchemaTree;
+use suprim_core::db::types::SchemaTree;
 use uuid::Uuid;
 
 use super::sequences_folder_renderer;
@@ -89,7 +89,7 @@ fn render_schema_node(
     ui: &mut egui::Ui,
     conn_id: Uuid,
     db_name: &str,
-    schema_node: &suprim_sql::db::types::SchemaNode,
+    schema_node: &suprim_core::db::types::SchemaNode,
     schema_detail_requested: &mut HashSet<String>,
     action: &mut Option<SidebarAction>,
 ) {

@@ -1,6 +1,6 @@
 /// Connection dialog config building — maps dialog form fields to `ConnectionConfig`.
 /// Also contains the `DbType` enum and `from_config` reverse-mapping.
-use suprim_sql::db::connection::{ConnectionConfig, DriverParams, SshConfig};
+use suprim_core::db::connection::{ConnectionConfig, DriverParams, SshConfig};
 use uuid::Uuid;
 
 /// Which database type is selected in the dialog.

@@ -13,8 +13,8 @@ default = []
 premium = ["dep:suprim-premium"]
 
 [dependencies]
-# The public library crate
-suprim-sql = { path = "../.." }
+# The core library crate
+suprim-core = { path = "../suprim-core" }
 
 # Premium private crate (optional — only when submodule present + feature enabled)
 suprim-premium = { path = "../../premium", optional = true }

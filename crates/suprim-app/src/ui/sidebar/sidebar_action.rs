@@ -1,4 +1,4 @@
-use suprim_sql::db::types::TableNode;
+use suprim_core::db::types::TableNode;
 use uuid::Uuid;
 
 /// Action the sidebar wants the app to perform.

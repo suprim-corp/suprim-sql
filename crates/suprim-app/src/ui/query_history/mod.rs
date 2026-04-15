@@ -3,7 +3,7 @@
 mod history_list;
 
 use eframe::egui;
-use suprim_sql::storage::QueryHistoryStore;
+use suprim_core::storage::QueryHistoryStore;
 
 /// Output from the history panel — tells the app what to do.
 pub(crate) struct HistoryPanelOutput {

@@ -1,11 +1,11 @@
 /// Handles `SidebarAction` dispatches — maps sidebar UI actions to DbCommands
 /// or application state changes. Extracted from `app.rs` to isolate sidebar
 /// action routing from core application wiring.
-use suprim_sql::db::commands::DbCommand;
-use suprim_sql::storage::AppConfig;
+use suprim_core::db::commands::DbCommand;
+use suprim_core::storage::AppConfig;
 use tokio::sync::mpsc;
 
-use suprim_sql::premium::PremiumGate;
+use suprim_core::premium::PremiumGate;
 
 use crate::ui::{
     ConnectionDialog, DeleteConnectionDialog, InputDialog, SidebarAction, TabManager, UpgradePrompt,

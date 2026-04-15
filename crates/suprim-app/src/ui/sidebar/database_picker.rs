@@ -1,5 +1,5 @@
 use eframe::egui;
-use suprim_sql::db::types::DatabaseNode;
+use suprim_core::db::types::DatabaseNode;
 
 /// Render the database filter/picker popup window.
 /// Returns `Some(new_visible)` if the user changed the filter, `None` otherwise.

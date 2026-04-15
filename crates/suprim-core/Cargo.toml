@@ -1,0 +1,71 @@
+[package]
+name = "suprim-core"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.92"
+
+# ---------------------------------------------------------
+# Features — disable unused DB drivers at compile time
+# ---------------------------------------------------------
+[features]
+default = ["sqlite", "postgres", "mysql", "redis"]
+sqlite   = ["sqlx/sqlite"]
+postgres = ["sqlx/postgres"]
+mysql    = ["sqlx/mysql"]
+redis    = ["dep:redis"]
+
+# ---------------------------------------------------------
+# Dependencies
+# ---------------------------------------------------------
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Database
+sqlx       = { version = "0.9.0-alpha.1", features = ["runtime-tokio", "tls-rustls", "postgres", "mysql", "sqlite", "chrono", "uuid", "macros", "json"] }
+redis      = { version = "1", features = ["tokio-comp", "aio"], optional = true }
+
+# Serialization
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml       = "1"
+
+# SQL formatting
+sqlformat  = "0.5"
+
+# Types & utils
+uuid      = { version = "1", features = ["v4", "serde"] }
+chrono    = { version = "0.4", features = ["serde"] }
+thiserror = "2"
+anyhow    = "1"
+dirs-next = "2"
+
+# Crypto (AES-256-GCM for config encryption)
+aes-gcm = "0.11.0-rc.3"
+rand    = "0.10"
+base64  = "0.22"
+
+# OS keychain
+keyring = "4.0.0-rc.3"
+
+# SSH tunnel
+russh = "0.60"
+
+# Async
+async-trait  = "0.1"
+
+# HTTP (license validation)
+reqwest = { version = "0.13", features = ["json", "rustls"], default-features = false }
+
+# Logging
+tracing = "0.1"
+
+# ---------------------------------------------------------
+# Dev / Test dependencies
+# ---------------------------------------------------------
+[dev-dependencies]
+mockall = "0.14"
+tokio = { version = "1", features = ["full"] }
+testcontainers         = "0.27"
+testcontainers-modules = { version = "0.15", features = ["postgres", "mysql", "redis", "mongo", "mssql_server"] }
+tempfile = "3"

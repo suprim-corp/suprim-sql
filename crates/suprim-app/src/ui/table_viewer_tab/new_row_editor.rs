@@ -1,6 +1,6 @@
 /// New-row editor — popup dialog for inserting a blank row with column inputs.
 use eframe::egui;
-use suprim_sql::db::types::{ColumnMeta, DbValue};
+use suprim_core::db::types::{ColumnMeta, DbValue};
 use uuid::Uuid;
 
 use super::sql_preview;

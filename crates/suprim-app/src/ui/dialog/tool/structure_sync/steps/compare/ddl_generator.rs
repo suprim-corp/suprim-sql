@@ -3,7 +3,7 @@
 //! Takes the source `SchemaNode` + checked `DiffEntry` list and produces
 //! PostgreSQL DDL statements to bring the target schema in sync with source.
 
-use suprim_sql::db::schema::{ExtensionInfo, SchemaNode};
+use suprim_core::db::schema::{ExtensionInfo, SchemaNode};
 
 use crate::ui::dialog::tool::structure_sync::types::{DiffEntry, DiffGroup, DiffKind, ObjectType};
 
@@ -60,8 +60,8 @@ pub(crate) fn generate_ddl(
 fn generate_entry_ddl(
     schema: &str,
     entry: &DiffEntry,
-    src_tables: &std::collections::HashMap<&str, &suprim_sql::db::schema::TableNode>,
-    tgt_tables: &std::collections::HashMap<&str, &suprim_sql::db::schema::TableNode>,
+    src_tables: &std::collections::HashMap<&str, &suprim_core::db::schema::TableNode>,
+    tgt_tables: &std::collections::HashMap<&str, &suprim_core::db::schema::TableNode>,
     source: &SchemaNode,
     target: &SchemaNode,
     source_extensions: &[ExtensionInfo],

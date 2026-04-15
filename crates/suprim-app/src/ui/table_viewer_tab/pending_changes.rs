@@ -2,7 +2,7 @@
 /// Changes are only sent to the database when the user clicks Execute (▲).
 use std::collections::{HashMap, HashSet};
 
-use suprim_sql::db::types::DbValue;
+use suprim_core::db::types::DbValue;
 
 /// A single cell edit that hasn't been committed yet.
 #[derive(Clone)]

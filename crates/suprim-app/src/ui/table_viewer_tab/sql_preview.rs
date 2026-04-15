@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 /// SQL preview helpers — generate human-readable SQL for mutation operations.
 /// Used by the cell editor and new-row editor to show SQL before commit.
-use suprim_sql::db::types::{ColumnMeta, DbValue};
+use suprim_core::db::types::{ColumnMeta, DbValue};
 
 /// Generate an UPDATE SQL preview string.
 pub(super) fn preview_update_sql(

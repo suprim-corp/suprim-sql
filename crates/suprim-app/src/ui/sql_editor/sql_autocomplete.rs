@@ -7,7 +7,7 @@
 /// All cursor positions from egui are **character offsets** (not byte offsets).
 use eframe::egui;
 
-use suprim_sql::db::sql_keywords::{SQL_CONSTANTS, SQL_FUNCTIONS, SQL_KEYWORDS, SQL_TYPES};
+use suprim_core::db::sql_keywords::{SQL_CONSTANTS, SQL_FUNCTIONS, SQL_KEYWORDS, SQL_TYPES};
 
 // ─── Char ↔ byte helpers ─────────────────────────────────────────────────────
 

@@ -6,7 +6,7 @@ use eframe::egui;
 use egui::text::LayoutJob;
 use egui::{Color32, FontId, TextFormat};
 
-use suprim_sql::db::sql_keywords::{SQL_CONSTANTS, SQL_FUNCTIONS, SQL_KEYWORDS, SQL_TYPES};
+use suprim_core::db::sql_keywords::{SQL_CONSTANTS, SQL_FUNCTIONS, SQL_KEYWORDS, SQL_TYPES};
 
 // ─── Color palettes ──────────────────────────────────────────────────────────
 

@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use suprim_sql::db::{ConnectionConfig, DbFactory, DriverParams};
+use suprim_core::db::{ConnectionConfig, DbFactory, DriverParams};
 
 fn sqlite_memory_config() -> ConnectionConfig {
     ConnectionConfig::new(
@@ -48,7 +48,7 @@ async fn test_execute_with_params() {
     let result = driver
         .execute_with_params(
             "SELECT ? AS val",
-            vec![suprim_sql::db::DbValue::Text("world".to_string())],
+            vec![suprim_core::db::DbValue::Text("world".to_string())],
         )
         .await
         .unwrap();
@@ -68,22 +68,22 @@ async fn test_execute_insert_update_delete() {
 
     // Insert
     let mut values = HashMap::new();
-    values.insert("id".to_string(), suprim_sql::db::DbValue::Int(1));
-    values.insert("name".to_string(), suprim_sql::db::DbValue::Text("Alice".to_string()));
+    values.insert("id".to_string(), suprim_core::db::DbValue::Int(1));
+    values.insert("name".to_string(), suprim_core::db::DbValue::Text("Alice".to_string()));
     let affected = driver.insert_row("users", values).await.unwrap();
     assert_eq!(affected, 1);
 
     // Update
     let mut pk = HashMap::new();
-    pk.insert("id".to_string(), suprim_sql::db::DbValue::Int(1));
+    pk.insert("id".to_string(), suprim_core::db::DbValue::Int(1));
     let mut changes = HashMap::new();
-    changes.insert("name".to_string(), suprim_sql::db::DbValue::Text("Bob".to_string()));
+    changes.insert("name".to_string(), suprim_core::db::DbValue::Text("Bob".to_string()));
     let affected = driver.update_row("users", pk.clone(), changes).await.unwrap();
     assert_eq!(affected, 1);
 
     // Verify update
     let result = driver.execute("SELECT name FROM users WHERE id=1").await.unwrap();
-    assert_eq!(result.rows[0][0], suprim_sql::db::DbValue::Text("Bob".to_string()));
+    assert_eq!(result.rows[0][0], suprim_core::db::DbValue::Text("Bob".to_string()));
 
     // Delete
     let affected = driver.delete_row("users", pk).await.unwrap();
@@ -131,7 +131,7 @@ async fn test_table_data_pagination() {
         driver
             .execute_with_params(
                 "INSERT INTO pag(id) VALUES(?)",
-                vec![suprim_sql::db::DbValue::Int(i)],
+                vec![suprim_core::db::DbValue::Int(i)],
             )
             .await
             .unwrap();
@@ -240,12 +240,12 @@ async fn test_all_db_value_types_roundtrip() {
     assert_eq!(result.columns.len(), 4);
     // id = 1 (Int), name = 'Alice' (Text), score = 9.5 (Float), active = 1 (Int)
     let row = &result.rows[0];
-    assert_eq!(row[0], suprim_sql::db::DbValue::Int(1));
-    assert_eq!(row[1], suprim_sql::db::DbValue::Text("Alice".to_string()));
+    assert_eq!(row[0], suprim_core::db::DbValue::Int(1));
+    assert_eq!(row[1], suprim_core::db::DbValue::Text("Alice".to_string()));
     // score may be Float or Text depending on type affinity
     assert!(
-        matches!(&row[2], suprim_sql::db::DbValue::Float(f) if *f == 9.5)
-            || matches!(&row[2], suprim_sql::db::DbValue::Text(s) if s == "9.5")
+        matches!(&row[2], suprim_core::db::DbValue::Float(f) if *f == 9.5)
+            || matches!(&row[2], suprim_core::db::DbValue::Text(s) if s == "9.5")
     );
 }
 
@@ -261,7 +261,7 @@ async fn test_execute_error_paths() {
 
     // Execute with params on bad SQL
     let err2 = driver
-        .execute_with_params("SELECT ? FROM nonexistent_xyz", vec![suprim_sql::db::DbValue::Int(1)])
+        .execute_with_params("SELECT ? FROM nonexistent_xyz", vec![suprim_core::db::DbValue::Int(1)])
         .await;
     assert!(err2.is_err());
 
@@ -271,15 +271,15 @@ async fn test_execute_error_paths() {
 
     // insert_row on nonexistent table
     let mut vals = HashMap::new();
-    vals.insert("id".to_string(), suprim_sql::db::DbValue::Int(1));
+    vals.insert("id".to_string(), suprim_core::db::DbValue::Int(1));
     let err4 = driver.insert_row("nonexistent_xyz", vals).await;
     assert!(err4.is_err());
 
     // update_row on nonexistent table
     let mut pk = HashMap::new();
-    pk.insert("id".to_string(), suprim_sql::db::DbValue::Int(1));
+    pk.insert("id".to_string(), suprim_core::db::DbValue::Int(1));
     let mut changes = HashMap::new();
-    changes.insert("v".to_string(), suprim_sql::db::DbValue::Int(2));
+    changes.insert("v".to_string(), suprim_core::db::DbValue::Int(2));
     let err5 = driver.update_row("nonexistent_xyz", pk.clone(), changes).await;
     assert!(err5.is_err());
 
@@ -310,13 +310,13 @@ async fn test_bind_all_db_value_types() {
         .execute_with_params(
             "INSERT INTO bind_test VALUES(?, ?, ?, ?, ?, ?, ?)",
             vec![
-                suprim_sql::db::DbValue::Int(1),
-                suprim_sql::db::DbValue::Null,
-                suprim_sql::db::DbValue::Bool(true),
-                suprim_sql::db::DbValue::Float(3.14),
-                suprim_sql::db::DbValue::Bytes(vec![1, 2, 3]),
-                suprim_sql::db::DbValue::Json(serde_json::json!({"x": 1})),
-                suprim_sql::db::DbValue::Timestamp(ts),
+                suprim_core::db::DbValue::Int(1),
+                suprim_core::db::DbValue::Null,
+                suprim_core::db::DbValue::Bool(true),
+                suprim_core::db::DbValue::Float(3.14),
+                suprim_core::db::DbValue::Bytes(vec![1, 2, 3]),
+                suprim_core::db::DbValue::Json(serde_json::json!({"x": 1})),
+                suprim_core::db::DbValue::Timestamp(ts),
             ],
         )
         .await

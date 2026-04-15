@@ -1,6 +1,6 @@
 //! StructureSyncDialog state, construction, and event-driven data updates.
 
-use suprim_sql::db::schema::{ExtensionInfo, SchemaNode};
+use suprim_core::db::schema::{ExtensionInfo, SchemaNode};
 
 use super::steps::compare::{ddl_generator, diff_engine};
 use super::types::{CompareState, ConnInfo, DbInfo, DiffGroup, DiffKind, Endpoint, WizardStep};

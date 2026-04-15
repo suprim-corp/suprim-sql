@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::mysql::Mysql;
 
-use suprim_sql::db::{ConnectionConfig, DbFactory, DbValue, DriverParams};
+use suprim_core::db::{ConnectionConfig, DbFactory, DbValue, DriverParams};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use suprim_sql::db::schema::ExtensionInfo;
+use suprim_core::db::schema::ExtensionInfo;
 
 use crate::ui::dialog::tool::structure_sync::types::{DiffEntry, DiffKind, ObjectType};
 

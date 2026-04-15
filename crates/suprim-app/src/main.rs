@@ -7,8 +7,8 @@ mod ui;
 
 use eframe::egui;
 use std::sync::Arc;
-use suprim_sql::db::worker::DbWorker;
-use suprim_sql::premium;
+use suprim_core::db::worker::DbWorker;
+use suprim_core::premium;
 
 fn main() {
     // Initialize tracing

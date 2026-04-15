@@ -1,7 +1,7 @@
 /// Shared clipboard formatting utilities for DbValue → string conversion.
 ///
 /// Eliminates duplication between sql_editor_tab and table_viewer_tab/cell_actions.
-use suprim_sql::db::types::DbValue;
+use suprim_core::db::types::DbValue;
 
 /// Format a DbValue as a pretty-printed JSON string for clipboard.
 pub fn format_as_json(val: &DbValue) -> String {

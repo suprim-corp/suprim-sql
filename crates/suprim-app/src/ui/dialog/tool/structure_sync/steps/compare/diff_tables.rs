@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use suprim_sql::db::schema::{ColumnNode, ForeignKeyNode, IndexNode, TableNode};
+use suprim_core::db::schema::{ColumnNode, ForeignKeyNode, IndexNode, TableNode};
 
 use crate::ui::dialog::tool::structure_sync::types::{DiffEntry, DiffKind, ObjectType};
 

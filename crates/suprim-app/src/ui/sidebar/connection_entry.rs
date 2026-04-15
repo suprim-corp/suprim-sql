@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use suprim_sql::db::types::{DatabaseNode, SchemaNode, SchemaTree};
+use suprim_core::db::types::{DatabaseNode, SchemaNode, SchemaTree};
 use uuid::Uuid;
 
 /// Connection lifecycle status.

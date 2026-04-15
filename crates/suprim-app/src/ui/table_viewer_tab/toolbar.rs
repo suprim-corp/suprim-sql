@@ -1,7 +1,7 @@
 /// Table viewer toolbar — icon buttons for reload, add, delete, undo, execute.
 /// Extracted from `filter_bar.rs` to keep filter input logic separate from toolbar icons.
 use eframe::egui;
-use suprim_sql::db::commands::DbCommand;
+use suprim_core::db::commands::DbCommand;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 

@@ -1,6 +1,6 @@
 /// Read-only sections for indexes and foreign keys display.
 use eframe::egui;
-use suprim_sql::db::types::{ForeignKeyNode, IndexNode};
+use suprim_core::db::types::{ForeignKeyNode, IndexNode};
 
 pub fn render_indexes_section(indexes: &[IndexNode], ui: &mut egui::Ui) {
     ui.label(

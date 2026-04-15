@@ -1,7 +1,7 @@
 /// Filter bar — WHERE / ORDER BY input fields with reload button and autocomplete.
 use eframe::egui;
 use egui::text_edit::TextEditOutput;
-use suprim_sql::db::commands::DbCommand;
+use suprim_core::db::commands::DbCommand;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 

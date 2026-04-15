@@ -1,6 +1,6 @@
 //! Tab workspace snapshot and restore — serialization of open tabs for persistence.
 
-use suprim_sql::storage::TabSnapshot;
+use suprim_core::storage::TabSnapshot;
 use uuid::Uuid;
 
 use super::server_dashboard::ServerDashboardTab;

@@ -2,7 +2,7 @@
 //! Extracted from `app_ui.rs` to keep the main UI renderer focused.
 
 use eframe::egui;
-use suprim_sql::db::commands::DbCommand;
+use suprim_core::db::commands::DbCommand;
 
 use crate::app::App;
 

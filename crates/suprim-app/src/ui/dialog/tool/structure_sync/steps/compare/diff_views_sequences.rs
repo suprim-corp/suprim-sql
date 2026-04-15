@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use suprim_sql::db::schema::{SequenceNode, ViewNode};
+use suprim_core::db::schema::{SequenceNode, ViewNode};
 
 use crate::ui::dialog::tool::structure_sync::types::{DiffEntry, DiffKind, ObjectType};
 

@@ -5,8 +5,8 @@ mod detail_sections;
 mod sql_generator;
 
 use eframe::egui;
-use suprim_sql::db::commands::DbCommand;
-use suprim_sql::db::types::{ForeignKeyNode, IndexNode, TableNode};
+use suprim_core::db::commands::DbCommand;
+use suprim_core::db::types::{ForeignKeyNode, IndexNode, TableNode};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -26,8 +26,8 @@ pub(crate) struct EditableColumn {
     pub original: bool,
 }
 
-impl From<&suprim_sql::db::types::ColumnNode> for EditableColumn {
-    fn from(c: &suprim_sql::db::types::ColumnNode) -> Self {
+impl From<&suprim_core::db::types::ColumnNode> for EditableColumn {
+    fn from(c: &suprim_core::db::types::ColumnNode) -> Self {
         // Parse "varchar(255)" → base="varchar", param="255"
         let (base, param) = parse_type_and_param(&c.db_type);
         Self {

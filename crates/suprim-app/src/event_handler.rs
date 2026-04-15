@@ -2,9 +2,9 @@
 /// Extracted from `app.rs` to keep the main application file focused on
 /// struct definition, construction, and the eframe trait impl glue.
 use eframe::egui;
-use suprim_sql::db::commands::DbCommand;
-use suprim_sql::db::types::{DatabaseNode, SchemaTree};
-use suprim_sql::storage::QueryHistoryEntry;
+use suprim_core::db::commands::DbCommand;
+use suprim_core::db::types::{DatabaseNode, SchemaTree};
+use suprim_core::storage::QueryHistoryEntry;
 
 use crate::app::App;
 
@@ -12,7 +12,7 @@ impl App {
     /// Drain all pending events from the DbWorker and update state.
     /// Returns `true` if at least one event was processed.
     pub(crate) fn process_events(&mut self) -> bool {
-        use suprim_sql::db::commands::DbEvent;
+        use suprim_core::db::commands::DbEvent;
 
         let mut had_events = false;
         while let Ok(event) = self.event_rx.try_recv() {
@@ -273,7 +273,7 @@ impl App {
                     use crate::ui::dialog::tool::structure_sync::{
                         ConnInfo, ConnMeta, DbInfo, StructureSyncDialog,
                     };
-                    use suprim_sql::db::connection::DriverParams;
+                    use suprim_core::db::connection::DriverParams;
 
                     // Build ConnInfo from active (connected) connections only
                     let conns: Vec<ConnInfo> = self

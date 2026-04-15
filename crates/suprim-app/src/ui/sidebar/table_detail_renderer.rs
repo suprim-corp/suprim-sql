@@ -1,5 +1,5 @@
 use eframe::egui::{self, CursorIcon};
-use suprim_sql::db::types::{ColumnNode, ForeignKeyNode, IndexNode, TableNode};
+use suprim_core::db::types::{ColumnNode, ForeignKeyNode, IndexNode, TableNode};
 use uuid::Uuid;
 
 /// Render the detail tree under a single table node: Columns, Indexes, Foreign Keys.

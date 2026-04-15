@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
 
-use suprim_sql::db::{ConnectionConfig, DbFactory, DbValue, DriverParams};
+use suprim_core::db::{ConnectionConfig, DbFactory, DbValue, DriverParams};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -110,7 +110,7 @@ async fn test_execute_with_params() {
     let mut driver = DbFactory::create(&config).unwrap();
     driver.connect(&config).await.unwrap();
 
-    use suprim_sql::db::DbValue;
+    use suprim_core::db::DbValue;
     let result = driver
         .execute_with_params(
             "SELECT $1::text AS val",
@@ -139,7 +139,7 @@ async fn test_execute_insert_update_delete() {
 
     // INSERT
     let mut values = HashMap::new();
-    values.insert("name".to_string(), suprim_sql::db::DbValue::Text("Alice".into()));
+    values.insert("name".to_string(), suprim_core::db::DbValue::Text("Alice".into()));
     let inserted = driver.insert_row("test_iud", values).await.unwrap();
     assert_eq!(inserted, 1);
 
@@ -149,15 +149,15 @@ async fn test_execute_insert_update_delete() {
 
     // UPDATE
     let mut pk = HashMap::new();
-    pk.insert("id".to_string(), suprim_sql::db::DbValue::Int(1));
+    pk.insert("id".to_string(), suprim_core::db::DbValue::Int(1));
     let mut changes = HashMap::new();
-    changes.insert("name".to_string(), suprim_sql::db::DbValue::Text("Bob".into()));
+    changes.insert("name".to_string(), suprim_core::db::DbValue::Text("Bob".into()));
     let updated = driver.update_row("test_iud", pk.clone(), changes).await.unwrap();
     assert_eq!(updated, 1);
 
     // Verify update
     let result = driver.execute("SELECT name FROM test_iud WHERE id = 1").await.unwrap();
-    assert_eq!(result.rows[0][0], suprim_sql::db::DbValue::Text("Bob".into()));
+    assert_eq!(result.rows[0][0], suprim_core::db::DbValue::Text("Bob".into()));
 
     // DELETE
     let deleted = driver.delete_row("test_iud", pk).await.unwrap();

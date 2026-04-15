@@ -67,7 +67,7 @@ impl TabManager {
         conn_name: String,
         database: String,
         schema_name: String,
-        table: &suprim_sql::db::types::TableNode,
+        table: &suprim_core::db::types::TableNode,
         schema_functions: Vec<String>,
     ) {
         let tab_id = Uuid::new_v4();
@@ -125,9 +125,9 @@ impl TabManager {
     pub fn on_dashboard_loaded(
         &mut self,
         conn_id: Uuid,
-        sessions: Vec<suprim_sql::db::schema::SessionInfo>,
-        metrics: suprim_sql::db::schema::ServerMetrics,
-        slow_queries: Vec<suprim_sql::db::schema::SlowQueryInfo>,
+        sessions: Vec<suprim_core::db::schema::SessionInfo>,
+        metrics: suprim_core::db::schema::ServerMetrics,
+        slow_queries: Vec<suprim_core::db::schema::SlowQueryInfo>,
     ) {
         for entry in &mut self.tabs {
             if let TabKind::ServerDashboard(d) = &mut entry.kind {

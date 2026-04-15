@@ -1,5 +1,5 @@
 use eframe::egui::{self, CursorIcon};
-use suprim_sql::db::types::ViewNode;
+use suprim_core::db::types::ViewNode;
 use uuid::Uuid;
 
 use super::table_context_menu;

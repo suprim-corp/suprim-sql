@@ -1,8 +1,8 @@
 use eframe::egui;
 use std::sync::Arc;
-use suprim_sql::db::commands::{DbCommand, DbEvent};
-use suprim_sql::premium::PremiumGate;
-use suprim_sql::storage::{AppConfig, QueryHistoryStore, WorkspaceState};
+use suprim_core::db::commands::{DbCommand, DbEvent};
+use suprim_core::premium::PremiumGate;
+use suprim_core::storage::{AppConfig, QueryHistoryStore, WorkspaceState};
 use tokio::sync::mpsc;
 
 use crate::ui::{

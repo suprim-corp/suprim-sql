@@ -7,7 +7,7 @@
 //! - `diff_functions` — functions and procedures
 //! - `diff_extensions` — database-level extensions
 
-use suprim_sql::db::schema::{ExtensionInfo, SchemaNode};
+use suprim_core::db::schema::{ExtensionInfo, SchemaNode};
 
 use crate::ui::dialog::tool::structure_sync::types::DiffEntry;
 

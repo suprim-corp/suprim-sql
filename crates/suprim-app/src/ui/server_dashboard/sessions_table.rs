@@ -4,8 +4,8 @@
 
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
-use suprim_sql::db::commands::DbCommand;
-use suprim_sql::db::schema::SessionInfo;
+use suprim_core::db::commands::DbCommand;
+use suprim_core::db::schema::SessionInfo;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 

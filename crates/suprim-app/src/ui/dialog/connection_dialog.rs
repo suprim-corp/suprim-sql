@@ -1,8 +1,8 @@
 /// Connection dialog — modal UI for creating or editing a database connection.
 /// Config building and validation logic is in `connection_dialog_config.rs`.
 use eframe::egui;
-use suprim_sql::db::commands::DbCommand;
-use suprim_sql::db::connection::ConnectionConfig;
+use suprim_core::db::commands::DbCommand;
+use suprim_core::db::connection::ConnectionConfig;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 

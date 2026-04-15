@@ -13,8 +13,8 @@ mod views_folder_renderer;
 
 use connection_entry::{ConnectionEntry, ConnectionStatus};
 use eframe::egui;
-use suprim_sql::db::connection::ConnectionConfig;
-use suprim_sql::db::types::{SchemaNode, SchemaTree};
+use suprim_core::db::connection::ConnectionConfig;
+use suprim_core::db::types::{SchemaNode, SchemaTree};
 use uuid::Uuid;
 
 pub use sidebar_action::SidebarAction;
