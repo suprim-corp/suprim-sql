@@ -176,6 +176,14 @@ impl TabManager {
         })
     }
 
+    /// Close the currently active tab (Cmd+W).
+    pub fn close_active_tab(&mut self) {
+        if let Some(id) = self.active_tab {
+            self.tabs.retain(|t| t.tab_id != id);
+            self.active_tab = self.tabs.last().map(|t| t.tab_id);
+        }
+    }
+
     /// Close all tabs associated with a specific connection.
     pub fn close_tabs_for_connection(&mut self, conn_id: Uuid) {
         self.tabs.retain(|entry| {

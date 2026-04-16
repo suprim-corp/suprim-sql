@@ -19,6 +19,11 @@ impl App {
             self.show_history = !self.show_history;
         }
 
+        let close_tab = ui.input(|i| i.key_pressed(egui::Key::W) && i.modifiers.command);
+        if close_tab {
+            self.tab_manager.close_active_tab();
+        }
+
         // ── Custom title bar (macOS only) ───────────────────────────────
         #[cfg(target_os = "macos")]
         {
