@@ -290,7 +290,7 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
         col_map.entry(tbl).or_default().push(ColumnNode {
             id: uuid::Uuid::new_v4(),
             name: col_name,
-            db_type: r.try_get::<String, _>("udt_name").unwrap_or_default(),
+            db_type: pg_type_display(&r.try_get::<String, _>("udt_name").unwrap_or_default()),
             nullable: r.try_get::<bool, _>("is_nullable").unwrap_or(true),
             is_primary_key: is_pk,
             default_value: r
@@ -354,4 +354,28 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
         functions,
         loaded: true,
     })
+}
+
+/// Map PostgreSQL internal type names to SQL-standard / human-readable names.
+fn pg_type_display(udt_name: &str) -> String {
+    match udt_name {
+        "int2" => "smallint".into(),
+        "int4" => "integer".into(),
+        "int8" => "bigint".into(),
+        "float4" => "real".into(),
+        "float8" => "double precision".into(),
+        "bool" => "boolean".into(),
+        "bpchar" => "char".into(),
+        "timetz" => "time with time zone".into(),
+        "timestamptz" => "timestamp with time zone".into(),
+        "_int4" => "integer[]".into(),
+        "_int8" => "bigint[]".into(),
+        "_text" => "text[]".into(),
+        "_varchar" => "varchar[]".into(),
+        "_float4" => "real[]".into(),
+        "_float8" => "double precision[]".into(),
+        "_bool" => "boolean[]".into(),
+        "_uuid" => "uuid[]".into(),
+        other => other.into(),
+    }
 }
