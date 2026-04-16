@@ -24,8 +24,10 @@ impl AppConfig {
         };
         let mut config: Self = toml::from_str(&text).unwrap_or_default();
 
-        // Auto-migrate: encrypt any plain text passwords
-        if config.migrate_plain_passwords() {
+        // Auto-migrate: encrypt any plain text passwords + migrate legacy TLS fields
+        let pw_migrated = config.migrate_plain_passwords();
+        let tls_migrated = config.migrate_legacy_tls();
+        if pw_migrated || tls_migrated {
             config.save();
         }
 
@@ -70,6 +72,20 @@ impl AppConfig {
         }
         if migrated {
             tracing::info!("Migrated plain-text passwords to encrypted storage");
+        }
+        migrated
+    }
+
+    /// Migrate legacy TLS `enabled`/`verify_cert` fields to `ssl_mode`.
+    fn migrate_legacy_tls(&mut self) -> bool {
+        let mut migrated = false;
+        for conn in &mut self.connections {
+            if conn.tls.migrate_legacy() {
+                migrated = true;
+            }
+        }
+        if migrated {
+            tracing::info!("Migrated legacy TLS config to ssl_mode");
         }
         migrated
     }

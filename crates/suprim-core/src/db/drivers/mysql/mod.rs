@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use sqlx::{AssertSqlSafe, Column, Row, TypeInfo};
 use sqlx::mysql::{MySqlConnectOptions, MySqlPool, MySqlPoolOptions, MySqlRow};
 
-use crate::db::connection::{ConnectionConfig, DriverParams, DriverType};
+use crate::db::connection::{ConnectionConfig, DriverParams, DriverType, SslMode};
 use crate::db::driver::DatabaseDriver;
 use crate::db::types::{
     ColumnMeta, ColumnNode, DatabaseNode, DbValue, ForeignKeyNode, IndexNode, QueryResult,
@@ -362,12 +362,31 @@ impl DatabaseDriver for MysqlDriver {
             _ => return Err(AppError::connection("MysqlDriver requires Mysql params")),
         };
 
-        let opts = MySqlConnectOptions::new()
+        let mut opts = MySqlConnectOptions::new()
             .host(host)
             .port(port)
             .database(database)
             .username(user)
             .password(&password);
+
+        // Apply SSL mode
+        opts = match config.tls.ssl_mode {
+            SslMode::Disable => opts.ssl_mode(sqlx::mysql::MySqlSslMode::Disabled),
+            SslMode::Prefer => opts.ssl_mode(sqlx::mysql::MySqlSslMode::Preferred),
+            SslMode::Require => opts.ssl_mode(sqlx::mysql::MySqlSslMode::Required),
+            SslMode::VerifyCa => opts.ssl_mode(sqlx::mysql::MySqlSslMode::VerifyCa),
+        };
+        if matches!(config.tls.ssl_mode, SslMode::Require | SslMode::VerifyCa) {
+            if let Some(ca_path) = &config.tls.ca_cert_path {
+                opts = opts.ssl_ca(ca_path);
+            }
+            if let Some(cert_path) = &config.tls.client_cert_path {
+                opts = opts.ssl_client_cert(cert_path);
+            }
+            if let Some(key_path) = &config.tls.client_key_path {
+                opts = opts.ssl_client_key(key_path);
+            }
+        }
 
         let pool = MySqlPoolOptions::new()
             .max_connections(10)

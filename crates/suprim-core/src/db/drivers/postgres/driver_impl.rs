@@ -4,14 +4,14 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 
-use crate::db::connection::{ConnectionConfig, DriverParams, DriverType};
+use crate::db::connection::{ConnectionConfig, DriverParams, DriverType, SslMode};
 use crate::db::driver::DatabaseDriver;
 use crate::db::schema::{ExtensionInfo, ServerMetrics, SessionInfo, SlowQueryInfo};
 use crate::db::types::{DbValue, QueryResult, SchemaNode};
 use crate::error::{AppError, Result};
 use crate::storage::credential;
 
-use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 
 use super::PostgresDriver;
 
@@ -38,21 +38,25 @@ impl DatabaseDriver for PostgresDriver {
             _ => return Err(AppError::connection("PostgresDriver requires Postgres params")),
         };
 
-        let opts = PgConnectOptions::new()
+        let mut opts = PgConnectOptions::new()
             .host(host)
             .port(port)
             .database(database)
             .username(user)
             .password(&password);
 
+        // Apply SSL mode
+        opts = apply_pg_ssl(opts, &config.tls);
+
         // Store base connection options (without database) for cross-db pool creation.
-        self.connect_opts = Some(
-            PgConnectOptions::new()
-                .host(host)
-                .port(port)
-                .username(user)
-                .password(&password),
-        );
+        let mut base_opts = PgConnectOptions::new()
+            .host(host)
+            .port(port)
+            .username(user)
+            .password(&password);
+
+        base_opts = apply_pg_ssl(base_opts, &config.tls);
+        self.connect_opts = Some(base_opts);
 
         let pool = PgPoolOptions::new()
             .max_connections(10)
@@ -179,4 +183,32 @@ impl DatabaseDriver for PostgresDriver {
     async fn list_slow_queries(&self) -> Result<Vec<SlowQueryInfo>> {
         Ok(super::dashboard_loader::load_slow_queries(self.pool()?).await)
     }
+}
+
+/// Map `SslMode` to `PgConnectOptions` ssl settings.
+fn apply_pg_ssl(
+    mut opts: PgConnectOptions,
+    tls: &crate::db::connection::TlsConfig,
+) -> PgConnectOptions {
+    opts = match tls.ssl_mode {
+        SslMode::Disable => opts.ssl_mode(PgSslMode::Disable),
+        SslMode::Prefer => opts.ssl_mode(PgSslMode::Prefer),
+        SslMode::Require => opts.ssl_mode(PgSslMode::Require),
+        SslMode::VerifyCa => opts.ssl_mode(PgSslMode::VerifyCa),
+    };
+
+    // Cert paths only meaningful for Require and VerifyCa
+    if matches!(tls.ssl_mode, SslMode::Require | SslMode::VerifyCa) {
+        if let Some(ca_path) = &tls.ca_cert_path {
+            opts = opts.ssl_root_cert(ca_path);
+        }
+        if let Some(cert_path) = &tls.client_cert_path {
+            opts = opts.ssl_client_cert(cert_path);
+        }
+        if let Some(key_path) = &tls.client_key_path {
+            opts = opts.ssl_client_key(key_path);
+        }
+    }
+
+    opts
 }

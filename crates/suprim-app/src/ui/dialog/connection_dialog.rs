@@ -53,6 +53,12 @@ pub struct ConnectionDialog {
     ssh_key_path: String,
     ssh_password: String,
 
+    // TLS/SSL fields
+    ssl_mode: suprim_core::db::connection::SslMode,
+    tls_ca_cert_path: String,
+    tls_client_cert_path: String,
+    tls_client_key_path: String,
+
     error: Option<String>,
     test_status: TestStatus,
 }
@@ -77,6 +83,10 @@ impl ConnectionDialog {
             ssh_user: String::new(),
             ssh_key_path: String::new(),
             ssh_password: String::new(),
+            ssl_mode: suprim_core::db::connection::SslMode::default(),
+            tls_ca_cert_path: String::new(),
+            tls_client_cert_path: String::new(),
+            tls_client_key_path: String::new(),
             error: None,
             test_status: TestStatus::Idle,
         }
@@ -102,6 +112,10 @@ impl ConnectionDialog {
             ssh_user: f.ssh_user,
             ssh_key_path: f.ssh_key_path,
             ssh_password: f.ssh_password,
+            ssl_mode: f.ssl_mode,
+            tls_ca_cert_path: f.tls_ca_cert_path,
+            tls_client_cert_path: f.tls_client_cert_path,
+            tls_client_key_path: f.tls_client_key_path,
             error: None,
             test_status: TestStatus::Idle,
         }
@@ -125,6 +139,10 @@ impl ConnectionDialog {
             ssh_user: &self.ssh_user,
             ssh_key_path: &self.ssh_key_path,
             ssh_password: &self.ssh_password,
+            ssl_mode: self.ssl_mode,
+            tls_ca_cert_path: &self.tls_ca_cert_path,
+            tls_client_cert_path: &self.tls_client_cert_path,
+            tls_client_key_path: &self.tls_client_key_path,
         }
     }
 
@@ -296,6 +314,92 @@ impl ConnectionDialog {
                                     egui::TextEdit::singleline(&mut self.ssh_password)
                                         .password(true),
                                 );
+                                ui.end_row();
+                            }
+                        }
+
+                        // TLS/SSL fields (not for SQLite)
+                        if !matches!(self.db_type, DbType::Sqlite) {
+                            ui.label("SSL Mode:");
+                            let ssl_combo = egui::ComboBox::from_id_salt("ssl_mode")
+                                .selected_text(self.ssl_mode.label())
+                                .show_ui(ui, |ui| {
+                                    for mode in suprim_core::db::connection::SslMode::all() {
+                                        if ui
+                                            .selectable_label(self.ssl_mode == *mode, mode.label())
+                                            .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                            .clicked()
+                                        {
+                                            self.ssl_mode = *mode;
+                                        }
+                                    }
+                                });
+                            ssl_combo
+                                .response
+                                .on_hover_cursor(egui::CursorIcon::PointingHand);
+                            ui.end_row();
+
+                            // Cert path fields — only shown for Require and Verify CA
+                            if matches!(
+                                self.ssl_mode,
+                                suprim_core::db::connection::SslMode::Require
+                                    | suprim_core::db::connection::SslMode::VerifyCa
+                            ) {
+                                ui.label("CA Certificate:");
+                                ui.horizontal(|ui| {
+                                    ui.text_edit_singleline(&mut self.tls_ca_cert_path);
+                                    if ui
+                                        .small_button("Browse\u{2026}")
+                                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                        .clicked()
+                                    {
+                                        if let Some(path) = rfd::FileDialog::new()
+                                            .add_filter("Certificate", &["crt", "pem", "cer", "ca"])
+                                            .pick_file()
+                                        {
+                                            self.tls_ca_cert_path =
+                                                path.to_string_lossy().to_string();
+                                        }
+                                    }
+                                });
+                                ui.end_row();
+
+                                ui.label("Client Certificate:");
+                                ui.horizontal(|ui| {
+                                    ui.text_edit_singleline(&mut self.tls_client_cert_path);
+                                    if ui
+                                        .small_button("Browse\u{2026}")
+                                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                        .clicked()
+                                    {
+                                        if let Some(path) = rfd::FileDialog::new()
+                                            .add_filter("Certificate", &["crt", "pem", "cer"])
+                                            .pick_file()
+                                        {
+                                            self.tls_client_cert_path =
+                                                path.to_string_lossy().to_string();
+                                        }
+                                    }
+                                });
+                                ui.end_row();
+
+                                ui.label("Client Key:");
+                                ui.horizontal(|ui| {
+                                    ui.text_edit_singleline(&mut self.tls_client_key_path);
+                                    if ui
+                                        .small_button("Browse\u{2026}")
+                                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                        .clicked()
+                                    {
+                                        if let Some(path) = rfd::FileDialog::new()
+                                            .add_filter("Key", &["key", "pem"])
+                                            .pick_file()
+                                        {
+                                            self.tls_client_key_path =
+                                                path.to_string_lossy().to_string();
+                                        }
+                                    }
+                                });
                                 ui.end_row();
                             }
                         }

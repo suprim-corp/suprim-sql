@@ -94,14 +94,75 @@ pub struct SshConfig {
     pub password_key: Option<String>,
 }
 
+/// SSL/TLS mode for database connections.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum SslMode {
+    /// No SSL, even if server supports it.
+    Disable,
+    /// Use SSL if server supports it, fallback to plain if not (default).
+    #[default]
+    Prefer,
+    /// Require SSL, fail if server doesn't support it. No cert verification.
+    Require,
+    /// Require SSL + verify server certificate against CA.
+    VerifyCa,
+}
+
+impl SslMode {
+    pub fn label(&self) -> &'static str {
+        match self {
+            SslMode::Disable => "Disable",
+            SslMode::Prefer => "Prefer",
+            SslMode::Require => "Require",
+            SslMode::VerifyCa => "Verify CA",
+        }
+    }
+
+    pub fn all() -> &'static [SslMode] {
+        &[
+            SslMode::Disable,
+            SslMode::Prefer,
+            SslMode::Require,
+            SslMode::VerifyCa,
+        ]
+    }
+}
+
 /// TLS configuration
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct TlsConfig {
-    pub enabled: bool,
-    pub verify_cert: bool,
+    #[serde(default)]
+    pub ssl_mode: SslMode,
     pub ca_cert_path: Option<std::path::PathBuf>,
     pub client_cert_path: Option<std::path::PathBuf>,
     pub client_key_path: Option<std::path::PathBuf>,
+
+    // Legacy fields — read from old config files, not written to new ones.
+    // Migrated to ssl_mode on next save.
+    #[serde(default, skip_serializing)]
+    enabled: bool,
+    #[serde(default, skip_serializing)]
+    verify_cert: bool,
+}
+
+impl TlsConfig {
+    /// Migrate legacy `enabled`/`verify_cert` fields to `ssl_mode`.
+    /// Returns true if migration was performed.
+    pub fn migrate_legacy(&mut self) -> bool {
+        if self.enabled && self.ssl_mode == SslMode::Prefer {
+            // Old config had enabled=true but ssl_mode is still default (Prefer)
+            // → must have been written by old version
+            self.ssl_mode = if self.verify_cert {
+                SslMode::VerifyCa
+            } else {
+                SslMode::Require
+            };
+            self.enabled = false;
+            self.verify_cert = false;
+            return true;
+        }
+        false
+    }
 }
 
 /// A saved connection configuration.

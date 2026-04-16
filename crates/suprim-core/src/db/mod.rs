@@ -11,7 +11,7 @@ pub mod values;
 pub mod worker;
 
 pub use commands::{DbCommand, DbEvent};
-pub use connection::{ConnectionConfig, DriverParams, DriverType, SshConfig, TlsConfig};
+pub use connection::{ConnectionConfig, DriverParams, DriverType, SshConfig, SslMode, TlsConfig};
 pub use driver::DatabaseDriver;
 pub use factory::DbFactory;
 pub use worker::DbWorker;

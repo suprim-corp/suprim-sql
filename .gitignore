@@ -35,3 +35,6 @@ CLAUDE.md
 AGENTS.md
 /plans
 release-manifest.json
+
+# Local test scripts & generated certs
+scripts/docker-ssl/

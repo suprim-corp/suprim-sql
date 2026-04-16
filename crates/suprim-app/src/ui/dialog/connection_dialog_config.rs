@@ -1,6 +1,6 @@
 /// Connection dialog config building — maps dialog form fields to `ConnectionConfig`.
 /// Also contains the `DbType` enum and `from_config` reverse-mapping.
-use suprim_core::db::connection::{ConnectionConfig, DriverParams, SshConfig};
+use suprim_core::db::connection::{ConnectionConfig, DriverParams, SshConfig, SslMode};
 use uuid::Uuid;
 
 /// Which database type is selected in the dialog.
@@ -67,6 +67,11 @@ pub struct DialogFields<'a> {
     pub ssh_user: &'a str,
     pub ssh_key_path: &'a str,
     pub ssh_password: &'a str,
+    // TLS/SSL fields
+    pub ssl_mode: SslMode,
+    pub tls_ca_cert_path: &'a str,
+    pub tls_client_cert_path: &'a str,
+    pub tls_client_key_path: &'a str,
 }
 
 /// Build a `ConnectionConfig` from dialog form fields, validating inputs.
@@ -176,6 +181,24 @@ pub fn build_config(fields: &DialogFields<'_>) -> Result<ConnectionConfig, Strin
         config.id = id;
     }
 
+    // TLS/SSL
+    config.tls.ssl_mode = fields.ssl_mode;
+    config.tls.ca_cert_path = if fields.tls_ca_cert_path.is_empty() {
+        None
+    } else {
+        Some(std::path::PathBuf::from(fields.tls_ca_cert_path))
+    };
+    config.tls.client_cert_path = if fields.tls_client_cert_path.is_empty() {
+        None
+    } else {
+        Some(std::path::PathBuf::from(fields.tls_client_cert_path))
+    };
+    config.tls.client_key_path = if fields.tls_client_key_path.is_empty() {
+        None
+    } else {
+        Some(std::path::PathBuf::from(fields.tls_client_key_path))
+    };
+
     Ok(config)
 }
 
@@ -196,6 +219,11 @@ pub struct ExtractedFields {
     pub ssh_user: String,
     pub ssh_key_path: String,
     pub ssh_password: String,
+    // TLS/SSL fields
+    pub ssl_mode: SslMode,
+    pub tls_ca_cert_path: String,
+    pub tls_client_cert_path: String,
+    pub tls_client_key_path: String,
 }
 
 pub fn extract_fields(config: &ConnectionConfig) -> ExtractedFields {
@@ -240,6 +268,10 @@ pub fn extract_fields(config: &ConnectionConfig) -> ExtractedFields {
             ssh_user: String::new(),
             ssh_key_path: String::new(),
             ssh_password: String::new(),
+            ssl_mode: SslMode::default(),
+            tls_ca_cert_path: String::new(),
+            tls_client_cert_path: String::new(),
+            tls_client_key_path: String::new(),
         },
         DriverParams::Postgres {
             host,
@@ -262,6 +294,10 @@ pub fn extract_fields(config: &ConnectionConfig) -> ExtractedFields {
             ssh_user: String::new(),
             ssh_key_path: String::new(),
             ssh_password: String::new(),
+            ssl_mode: SslMode::default(),
+            tls_ca_cert_path: String::new(),
+            tls_client_cert_path: String::new(),
+            tls_client_key_path: String::new(),
         },
         DriverParams::Mysql {
             host,
@@ -284,6 +320,10 @@ pub fn extract_fields(config: &ConnectionConfig) -> ExtractedFields {
             ssh_user: String::new(),
             ssh_key_path: String::new(),
             ssh_password: String::new(),
+            ssl_mode: SslMode::default(),
+            tls_ca_cert_path: String::new(),
+            tls_client_cert_path: String::new(),
+            tls_client_key_path: String::new(),
         },
         DriverParams::Redis {
             host,
@@ -305,6 +345,10 @@ pub fn extract_fields(config: &ConnectionConfig) -> ExtractedFields {
             ssh_user: String::new(),
             ssh_key_path: String::new(),
             ssh_password: String::new(),
+            ssl_mode: SslMode::default(),
+            tls_ca_cert_path: String::new(),
+            tls_client_cert_path: String::new(),
+            tls_client_key_path: String::new(),
         },
         DriverParams::MongoDB { uri, .. } => ExtractedFields {
             db_type: DbType::MongoDB,
@@ -321,6 +365,10 @@ pub fn extract_fields(config: &ConnectionConfig) -> ExtractedFields {
             ssh_user: String::new(),
             ssh_key_path: String::new(),
             ssh_password: String::new(),
+            ssl_mode: SslMode::default(),
+            tls_ca_cert_path: String::new(),
+            tls_client_cert_path: String::new(),
+            tls_client_key_path: String::new(),
         },
         DriverParams::Mssql {
             host,
@@ -343,6 +391,10 @@ pub fn extract_fields(config: &ConnectionConfig) -> ExtractedFields {
             ssh_user: String::new(),
             ssh_key_path: String::new(),
             ssh_password: String::new(),
+            ssl_mode: SslMode::default(),
+            tls_ca_cert_path: String::new(),
+            tls_client_cert_path: String::new(),
+            tls_client_key_path: String::new(),
         },
     };
 
@@ -353,5 +405,26 @@ pub fn extract_fields(config: &ConnectionConfig) -> ExtractedFields {
     f.ssh_user = ssh_user;
     f.ssh_key_path = ssh_key_path;
     f.ssh_password = ssh_password;
+
+    // Apply TLS fields from config
+    f.ssl_mode = config.tls.ssl_mode;
+    f.tls_ca_cert_path = config
+        .tls
+        .ca_cert_path
+        .as_ref()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
+    f.tls_client_cert_path = config
+        .tls
+        .client_cert_path
+        .as_ref()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
+    f.tls_client_key_path = config
+        .tls
+        .client_key_path
+        .as_ref()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
     f
 }
