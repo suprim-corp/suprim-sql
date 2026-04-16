@@ -57,7 +57,7 @@ fi
 
 # ── Step 2: Build .app bundle ────────────────────────────────────────────
 echo "==> Building release binary + .app bundle..."
-cargo bundle --release --format osx
+cargo bundle --release --format osx -p suprim-app
 
 if [[ ! -d "$APP_PATH" ]]; then
     echo "ERROR: Expected .app not found at ${APP_PATH}"
