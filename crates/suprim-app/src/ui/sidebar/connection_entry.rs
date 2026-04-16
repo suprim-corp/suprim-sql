@@ -16,6 +16,8 @@ pub(super) enum ConnectionStatus {
 pub(super) struct ConnectionEntry {
     pub conn_id: Uuid,
     pub label: String,
+    /// Driver type string for engine icon (e.g. "postgres", "mysql", "sqlite").
+    pub driver_type: String,
     pub status: ConnectionStatus,
     /// Currently displayed schema tree (already filtered).
     pub schema: Option<SchemaTree>,
@@ -46,6 +48,7 @@ impl ConnectionEntry {
     pub fn new(
         conn_id: Uuid,
         label: String,
+        driver_type: String,
         schema: SchemaTree,
         visible_databases: Option<Vec<String>>,
     ) -> Self {
@@ -53,6 +56,7 @@ impl ConnectionEntry {
         Self {
             conn_id,
             label,
+            driver_type,
             status: ConnectionStatus::Connected,
             schema: Some(schema),
             all_databases,
@@ -68,10 +72,11 @@ impl ConnectionEntry {
     }
 
     /// Create a placeholder entry for a saved connection (not yet connected).
-    pub fn new_disconnected(conn_id: Uuid, label: String) -> Self {
+    pub fn new_disconnected(conn_id: Uuid, label: String, driver_type: String) -> Self {
         Self {
             conn_id,
             label,
+            driver_type,
             status: ConnectionStatus::Disconnected,
             schema: None,
             all_databases: Vec::new(),

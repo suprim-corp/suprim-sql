@@ -54,6 +54,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # SQL formatting (needed by sql_highlighter in UI)
 sqlformat = "0.5"
+iconflow = { version = "1.0.0", features = ["pack-phosphor", "pack-devicon", "pack-tabler"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2            = "0.6"

@@ -1,6 +1,7 @@
 #[cfg(target_os = "macos")]
 pub(crate) mod custom_title_bar;
 pub(crate) mod dialog;
+pub(crate) mod icons;
 #[cfg(target_os = "macos")]
 pub mod macos_menu;
 pub(crate) mod query_history;

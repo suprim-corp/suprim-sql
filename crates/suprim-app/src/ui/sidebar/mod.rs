@@ -17,6 +17,8 @@ use suprim_core::db::connection::ConnectionConfig;
 use suprim_core::db::types::{SchemaNode, SchemaTree};
 use uuid::Uuid;
 
+use crate::ui::icons;
+
 pub use sidebar_action::SidebarAction;
 
 /// Connection info entry for dialog dropdowns: (conn_id, label, databases_with_schemas, server_version, connected).
@@ -44,8 +46,11 @@ impl Sidebar {
     pub fn init_from_config(&mut self, configs: &[ConnectionConfig]) {
         for cfg in configs {
             if !self.connections.iter().any(|c| c.conn_id == cfg.id) {
-                self.connections
-                    .push(ConnectionEntry::new_disconnected(cfg.id, cfg.name.clone()));
+                self.connections.push(ConnectionEntry::new_disconnected(
+                    cfg.id,
+                    cfg.name.clone(),
+                    cfg.driver_type().to_string(),
+                ));
             }
         }
     }
@@ -106,6 +111,7 @@ impl Sidebar {
         &mut self,
         conn_id: Uuid,
         name: String,
+        driver_type: String,
         schema: SchemaTree,
         visible: Option<Vec<String>>,
         server_version: Option<String>,
@@ -123,7 +129,7 @@ impl Sidebar {
             entry.schemas_requested.clear();
         } else {
             // New connection (not from config)
-            let mut entry = ConnectionEntry::new(conn_id, name, schema, visible);
+            let mut entry = ConnectionEntry::new(conn_id, name, driver_type, schema, visible);
             entry.server_version = server_version;
             self.connections.push(entry);
         }
@@ -213,20 +219,12 @@ impl Sidebar {
         // Connection count header
         let count = self.connections.len();
         ui.horizontal(|ui| {
-            let header = match connection_limit {
-                Some(max) => format!(
-                    "{} Connections ({}/{})",
-                    egui_phosphor::regular::PLUGS_CONNECTED,
-                    count,
-                    max
-                ),
-                None => format!(
-                    "{} Connections ({})",
-                    egui_phosphor::regular::PLUGS_CONNECTED,
-                    count
-                ),
+            ui.label(icons::ph::rich("plugs-connected", icons::SIDEBAR_HEADER));
+            let text = match connection_limit {
+                Some(max) => format!("Connections ({}/{})", count, max),
+                None => format!("Connections ({})", count),
             };
-            ui.label(egui::RichText::new(header).size(12.0).weak());
+            ui.label(egui::RichText::new(text).size(icons::SIDEBAR_HEADER).weak());
         });
         ui.add_space(2.0);
 

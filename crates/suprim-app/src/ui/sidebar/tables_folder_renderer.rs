@@ -5,6 +5,7 @@ use uuid::Uuid;
 use super::table_context_menu;
 use super::table_detail_renderer;
 use super::SidebarAction;
+use crate::ui::icons;
 
 pub(super) fn render_tables_folder(
     ui: &mut egui::Ui,
@@ -14,24 +15,27 @@ pub(super) fn render_tables_folder(
     schema_node: &SchemaNode,
     action: &mut Option<SidebarAction>,
 ) {
-    let label = format!(
-        "{} Tables ({})",
-        egui_phosphor::regular::TABLE,
-        schema_node.tables.len()
+    let folder_state_id =
+        ui.make_persistent_id(format!("{conn_id}:{db_name}:{schema_name}:tables"));
+    let folder_state = egui::collapsing_header::CollapsingState::load_with_default_open(
+        ui.ctx(),
+        folder_state_id,
+        false,
     );
-    let tables_resp = egui::CollapsingHeader::new(label)
-        .id_salt(format!("{conn_id}:{db_name}:{schema_name}:tables"))
-        .show(ui, |ui| {
+
+    let (toggle_resp, header_resp, _body_resp) = folder_state
+        .show_header(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(icons::db::table(icons::SIDEBAR_ICON, icons::db::COLOR_TABLE));
+                ui.label(format!("Tables ({})", schema_node.tables.len()))
+            })
+        })
+        .body(|ui| {
             for table in &schema_node.tables {
                 let tbl_name = &table.name;
-                let tbl_label = match table.row_count {
-                    Some(c) => format!(
-                        "{} {} (~{})",
-                        egui_phosphor::regular::TABLE,
-                        tbl_name,
-                        format_row_count(c)
-                    ),
-                    None => format!("{} {}", egui_phosphor::regular::TABLE, tbl_name),
+                let tbl_suffix = match table.row_count {
+                    Some(c) => format!(" (~{})", format_row_count(c)),
+                    None => String::new(),
                 };
 
                 let state_id = ui.make_persistent_id(format!(
@@ -43,10 +47,14 @@ pub(super) fn render_tables_folder(
                     false,
                 );
 
-                let (toggle_resp, header_resp, _body_resp) = state
+                let (tbl_toggle, tbl_header, _tbl_body) = state
                     .show_header(ui, |ui| {
-                        ui.selectable_label(false, &tbl_label)
-                            .on_hover_cursor(CursorIcon::PointingHand)
+                        ui.horizontal(|ui| {
+                            ui.label(icons::db::table(icons::SIDEBAR_ICON, icons::db::COLOR_TABLE));
+                            ui.selectable_label(false, format!("{}{}", tbl_name, tbl_suffix))
+                                .on_hover_cursor(CursorIcon::PointingHand)
+                        })
+                        .inner
                     })
                     .body(|ui| {
                         table_detail_renderer::render_table_detail(
@@ -58,8 +66,8 @@ pub(super) fn render_tables_folder(
                         );
                     });
 
-                toggle_resp.on_hover_cursor(CursorIcon::PointingHand);
-                let label_resp = &header_resp.inner;
+                tbl_toggle.on_hover_cursor(CursorIcon::PointingHand);
+                let label_resp = &tbl_header.inner;
 
                 // Right-click context menu on the label
                 let func_sigs: Vec<String> = schema_node
@@ -89,12 +97,9 @@ pub(super) fn render_tables_folder(
             }
         });
     // Right-click on "Tables" folder header → "New Table..."
-    tables_resp.header_response.context_menu(|ui| {
+    header_resp.inner.response.context_menu(|ui| {
         if ui
-            .button(format!(
-                "{}  New Table...",
-                egui_phosphor::regular::PLUS_CIRCLE
-            ))
+            .button(format!("{}  New Table...", icons::ph::plus_circle()))
             .on_hover_cursor(CursorIcon::PointingHand)
             .clicked()
         {
@@ -111,8 +116,10 @@ pub(super) fn render_tables_folder(
             ui.close();
         }
     });
-    tables_resp
-        .header_response
+    toggle_resp.on_hover_cursor(CursorIcon::PointingHand);
+    header_resp
+        .inner
+        .response
         .on_hover_cursor(CursorIcon::PointingHand);
 }
 

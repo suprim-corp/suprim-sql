@@ -8,6 +8,7 @@ use super::sequences_folder_renderer;
 use super::tables_folder_renderer;
 use super::views_folder_renderer;
 use super::SidebarAction;
+use crate::ui::icons;
 
 /// Render the full schema tree for one connection.
 /// Returns an optional action (open viewer, lazy-load trigger, etc.).
@@ -29,11 +30,24 @@ pub(super) fn render_schema_tree(
         }
 
         let db_name = db_node.name.clone();
-        let db_label = format!("{} {}", egui_phosphor::regular::DATABASE, db_node.name);
 
-        let db_response = egui::CollapsingHeader::new(&db_label)
-            .id_salt(format!("{conn_id}:{}", db_node.name))
-            .show(ui, |ui| {
+        let db_id_salt = format!("{conn_id}:{}", db_node.name);
+        let db_state_id = ui.make_persistent_id(&db_id_salt);
+        let db_state = egui::collapsing_header::CollapsingState::load_with_default_open(
+            ui.ctx(),
+            db_state_id,
+            false,
+        );
+        let openness = db_state.openness(ui.ctx());
+
+        let (toggle_resp, header_resp, _body_resp) = db_state
+            .show_header(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(icons::db::database(icons::SIDEBAR_ICON, icons::db::COLOR_DATABASE));
+                    ui.label(&db_node.name)
+                })
+            })
+            .body(|ui| {
                 for schema_node in &db_node.schemas {
                     render_schema_node(
                         ui,
@@ -48,9 +62,11 @@ pub(super) fn render_schema_tree(
                     ui.weak("loading schemas...");
                 }
             });
-        let db_header = db_response
-            .header_response
+        let db_header = header_resp
+            .inner
+            .response
             .on_hover_cursor(CursorIcon::PointingHand);
+        toggle_resp.on_hover_cursor(CursorIcon::PointingHand);
 
         // Context menu on database node
         db_header.context_menu(|ui| {
@@ -68,7 +84,7 @@ pub(super) fn render_schema_tree(
         });
 
         // Trigger ListSchemas when database expanded but has no schemas yet.
-        if db_response.openness > 0.0
+        if openness > 0.0
             && db_node.schemas.is_empty()
             && action.is_none()
             && !schemas_requested.contains(&db_name)
@@ -96,20 +112,24 @@ fn render_schema_node(
     let schema_name = &schema_node.name;
     let loaded = schema_node.loaded;
 
-    let display = if loaded {
-        format!("{} {}", egui_phosphor::regular::TREE_STRUCTURE, schema_name)
-    } else {
-        format!(
-            "{} {} ...",
-            egui_phosphor::regular::TREE_STRUCTURE,
-            schema_name
-        )
-    };
+    let suffix = if loaded { "" } else { " ..." };
 
     let schema_id = egui::Id::new(format!("{conn_id}:{db_name}:{schema_name}"));
-    let resp = egui::CollapsingHeader::new(display)
-        .id_salt(schema_id)
-        .show(ui, |ui| {
+    let schema_state = egui::collapsing_header::CollapsingState::load_with_default_open(
+        ui.ctx(),
+        schema_id,
+        false,
+    );
+    let openness = schema_state.openness(ui.ctx());
+
+    let (toggle_resp, header_resp, _body_resp) = schema_state
+        .show_header(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(icons::db::schema(icons::SIDEBAR_ICON, icons::db::COLOR_SCHEMA));
+                ui.label(format!("{}{}", schema_name, suffix))
+            })
+        })
+        .body(|ui| {
             if !loaded {
                 ui.weak("loading...");
                 return;
@@ -152,12 +172,15 @@ fn render_schema_node(
                 schema_node,
             );
         });
-    resp.header_response
+    toggle_resp.on_hover_cursor(CursorIcon::PointingHand);
+    header_resp
+        .inner
+        .response
         .on_hover_cursor(CursorIcon::PointingHand);
 
     // Trigger lazy-load when expanded but not yet loaded.
     let detail_key = format!("{db_name}:{schema_name}");
-    if resp.openness > 0.0
+    if openness > 0.0
         && !loaded
         && action.is_none()
         && !schema_detail_requested.contains(&detail_key)

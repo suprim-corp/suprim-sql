@@ -4,6 +4,7 @@ use uuid::Uuid;
 use super::connection_entry::{ConnectionEntry, ConnectionStatus};
 use super::sidebar_action::SidebarAction;
 use super::{context_menus, schema_renderer};
+use crate::ui::icons;
 
 /// Render all connections in the sidebar scroll area.
 /// Returns an optional [`SidebarAction`] to be handled by the app.
@@ -67,7 +68,12 @@ fn render_single_connection(
 
         let resp = cs
             .show_header(ui, |ui| {
-                ui.label(text).on_hover_cursor(CursorIcon::PointingHand)
+                ui.horizontal(|ui| {
+                    ui.label(icons::engine::by_name(&entry.driver_type, icons::SIDEBAR_ICON));
+                    ui.label(text)
+                })
+                .inner
+                .on_hover_cursor(CursorIcon::PointingHand)
             })
             .body(|_| {}); // empty body — always collapsed
 
@@ -132,7 +138,12 @@ fn render_single_connection(
     }
     let resp = cs
         .show_header(ui, |ui| {
-            ui.label(&header).on_hover_cursor(CursorIcon::PointingHand)
+            ui.horizontal(|ui| {
+                ui.label(icons::engine::by_name(&entry.driver_type, icons::SIDEBAR_ICON));
+                ui.label(&header)
+            })
+            .inner
+            .on_hover_cursor(CursorIcon::PointingHand)
         })
         .body(|ui| {
             if let Some(schema) = &entry.schema {

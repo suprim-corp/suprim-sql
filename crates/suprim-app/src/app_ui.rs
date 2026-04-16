@@ -80,6 +80,9 @@ impl App {
             .default_size(220.0)
             .min_size(160.0)
             .show_inside(ui, |ui| {
+                // Scale up sidebar text
+                ui.style_mut().override_font_id =
+                    Some(egui::FontId::proportional(crate::ui::icons::SIDEBAR_TEXT));
                 let conn_limit = self.gate.connection_limit();
                 let action = self.sidebar.show(ui, conn_limit);
                 if let Some(act) = action {

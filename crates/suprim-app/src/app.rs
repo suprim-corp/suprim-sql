@@ -81,6 +81,8 @@ impl App {
         // Register Phosphor icon font so all UI components can use it.
         let mut fonts = egui::FontDefinitions::default();
         egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+        // Add iconflow icon fonts (Devicon + Tabler + Phosphor via iconflow)
+        crate::ui::icons::install_fonts(&mut fonts);
         cc.egui_ctx.set_fonts(fonts);
 
         // Load saved connections from disk.
