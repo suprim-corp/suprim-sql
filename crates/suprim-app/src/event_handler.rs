@@ -63,38 +63,21 @@ impl App {
                 DbEvent::QueryResult { tab_id, result } => {
                     // Check if this result belongs to a pending export.
                     if let Some(pending) = self.pending_exports.remove(&tab_id) {
-                        use crate::ui::export::ExportFormatId;
-                        let res = match pending.format {
-                            ExportFormatId::Csv => crate::ui::export::csv_plugin::export(
-                                &result,
-                                &pending.destination,
-                                &pending.csv_options,
-                            ),
-                            ExportFormatId::Json => crate::ui::export::json_plugin::export(
-                                &result,
-                                &pending.destination,
-                                &pending.json_options,
-                            ),
-                            ExportFormatId::Sql => {
-                                let tbl = crate::ui::export::sql_plugin::SqlTableExport {
-                                    schema: &pending.schema,
-                                    name: &pending.table_name,
-                                    result: &result,
-                                    include_structure: pending.sql_include_structure,
-                                    include_drop: pending.sql_include_drop,
-                                    include_data: pending.sql_include_data,
-                                    table_node: pending.table_node.as_ref(),
-                                };
-                                crate::ui::export::sql_plugin::export(
-                                    &[tbl],
-                                    &pending.destination,
-                                    &pending.sql_options,
-                                )
-                            }
-                            ExportFormatId::Xlsx => {
-                                unreachable!("XLSX export should be disabled by validation")
-                            }
+                        use crate::ui::export::types::SqlExportInfo;
+                        let sql_info = SqlExportInfo {
+                            schema: &pending.schema,
+                            table_name: &pending.table_name,
+                            include_structure: pending.sql_include_structure,
+                            include_drop: pending.sql_include_drop,
+                            include_data: pending.sql_include_data,
+                            table_node: pending.table_node.as_ref(),
                         };
+                        let res = crate::ui::export::writers::execute_export(
+                            &result,
+                            &pending.destination,
+                            &pending.format_options,
+                            Some(sql_info),
+                        );
                         match res {
                             Ok(_) => {
                                 self.status = format!(

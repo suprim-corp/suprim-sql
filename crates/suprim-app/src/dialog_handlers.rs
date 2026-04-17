@@ -180,43 +180,18 @@ impl App {
     /// Perform an export — either write immediately (QueryResult mode) or
     /// enqueue DbCommand::Execute for each table (Tables mode).
     fn handle_export_request(&mut self, req: crate::ui::export::ExportRequest) {
-        use crate::app::PendingExport;
-        use crate::ui::export::{ExportFormatId, ExportModeKind};
+        use crate::ui::export::types::{FormatOptions, PendingExport};
+        use crate::ui::export::ExportModeKind;
 
         match req.mode_kind {
             ExportModeKind::QueryResult => {
                 if let Some(result) = &req.query_result {
-                    let res = match req.format {
-                        ExportFormatId::Csv => crate::ui::export::csv_plugin::export(
-                            result,
-                            &req.destination,
-                            &req.csv_options,
-                        ),
-                        ExportFormatId::Json => crate::ui::export::json_plugin::export(
-                            result,
-                            &req.destination,
-                            &req.json_options,
-                        ),
-                        ExportFormatId::Sql => {
-                            let tbl = crate::ui::export::sql_plugin::SqlTableExport {
-                                schema: "public",
-                                name: "query_result",
-                                result,
-                                include_structure: true,
-                                include_drop: false,
-                                include_data: true,
-                                table_node: None,
-                            };
-                            crate::ui::export::sql_plugin::export(
-                                &[tbl],
-                                &req.destination,
-                                &req.sql_options,
-                            )
-                        }
-                        ExportFormatId::Xlsx => {
-                            unreachable!("XLSX export should be disabled by validation")
-                        }
-                    };
+                    let res = crate::ui::export::writers::execute_export(
+                        result,
+                        &req.destination,
+                        &req.format_options,
+                        None,
+                    );
                     match res {
                         Ok(_) => {
                             self.status = format!(
@@ -234,17 +209,7 @@ impl App {
             }
             ExportModeKind::Tables => {
                 let is_multi = req.selected_tables.len() > 1;
-                let gzip = match req.format {
-                    ExportFormatId::Csv => req.csv_options.gzip,
-                    ExportFormatId::Json => req.json_options.gzip,
-                    ExportFormatId::Sql => req.sql_options.gzip,
-                    _ => false,
-                };
-                let ext = if gzip {
-                    format!("{}.gz", req.format.extension())
-                } else {
-                    req.format.extension().to_string()
-                };
+                let ext = req.format_options.extension();
                 for table in req.selected_tables {
                     let tab_id = uuid::Uuid::new_v4();
                     let sql = format!("SELECT * FROM \"{}\".\"{}\"", table.schema, table.name);
@@ -262,14 +227,18 @@ impl App {
                         &table.name,
                     );
 
+                    // Build FormatOptions for this pending export (clone from request)
+                    let format_options = match &req.format_options {
+                        FormatOptions::Csv(o) => FormatOptions::Csv(o.clone()),
+                        FormatOptions::Json(o) => FormatOptions::Json(o.clone()),
+                        FormatOptions::Sql(o) => FormatOptions::Sql(o.clone()),
+                    };
+
                     self.pending_exports.insert(
                         tab_id,
                         PendingExport {
                             destination: dest,
-                            format: req.format,
-                            csv_options: req.csv_options.clone(),
-                            json_options: req.json_options.clone(),
-                            sql_options: req.sql_options.clone(),
+                            format_options,
                             table_name: table.name.clone(),
                             schema: table.schema.clone(),
                             sql_include_structure: table.sql_include_structure,

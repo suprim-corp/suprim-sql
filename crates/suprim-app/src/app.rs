@@ -10,24 +10,8 @@ use crate::ui::{
     TabManager, UpgradePrompt,
 };
 
-/// A pending export waiting for query results to come back.
-pub struct PendingExport {
-    pub destination: std::path::PathBuf,
-    pub format: crate::ui::export::ExportFormatId,
-    pub csv_options: crate::ui::export::CsvOptions,
-    pub json_options: crate::ui::export::JsonOptions,
-    pub sql_options: crate::ui::export::SqlOptions,
-    /// When exporting multiple tables, this tells us the filename template.
-    pub table_name: String,
-    /// Schema of the table being exported (needed for SQL export).
-    pub schema: String,
-    /// Per-table SQL toggles.
-    pub sql_include_structure: bool,
-    pub sql_include_drop: bool,
-    pub sql_include_data: bool,
-    /// Full table metadata for DDL generation (populated from sidebar schema tree).
-    pub table_node: Option<suprim_core::db::TableNode>,
-}
+/// Re-export from the export module for convenience.
+pub use crate::ui::export::PendingExport;
 
 /// Main application state — owned by the eframe runtime on the UI thread.
 pub struct App {

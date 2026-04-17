@@ -4,50 +4,33 @@
 //! Right pane: format picker + format-specific options + file name.
 //!
 //! Files in this module:
-//! - `types.rs` — shared enums/structs (ExportFormatId, ExportMode, ExportRequest, …)
-//! - `csv_plugin.rs` — CSV options + UI + writer
-//! - `json_plugin.rs` — JSON options + UI + writer
-//! - `tree_widgets.rs` — tristate checkbox + tree node rendering
-//! - `dialog_ui.rs` — options panel + tree scroll container
-//! - `build.rs` — validation + request build (native save dialog)
+//! - `types.rs`         — shared enums/structs (ExportFormatId, FormatOptions, PendingExport, …)
+//! - `csv_options.rs`   — CSV options + UI
+//! - `json_options.rs`  — JSON options + UI
+//! - `sql_options.rs`   — SQL options + UI
+//! - `tree_widgets.rs`  — tristate checkbox + tree node rendering
+//! - `dialog_ui.rs`     — options panel + tree scroll container
+//! - `build.rs`         — validation + request build (native save dialog)
+//! - `writers/`         — CSV, JSON, SQL file writers + shared dispatch
 
 mod build;
-pub mod csv_plugin;
+pub mod csv_options;
 mod dialog_ui;
-pub mod json_plugin;
-pub mod sql_plugin;
+pub mod json_options;
+pub mod sql_options;
 mod tree_widgets;
 pub mod types;
+pub mod writers;
 
 use eframe::egui;
 
-pub use csv_plugin::CsvOptions;
-pub use json_plugin::JsonOptions;
-pub use sql_plugin::SqlOptions;
+pub use csv_options::CsvOptions;
+pub use json_options::JsonOptions;
+pub use sql_options::SqlOptions;
 pub use types::{
     ExportDatabaseItem, ExportFormatId, ExportMode, ExportModeKind, ExportOutcome, ExportRequest,
-    ExportSchemaItem, ExportTableItem,
+    ExportSchemaItem, ExportTableItem, PendingExport,
 };
-
-// ── Gzip writer helper ─────────────────────────────────────────────────────
-
-/// Create a writer for the given path. When `gzip` is true, wraps in a
-/// `GzEncoder` for on-the-fly compression.
-pub(crate) fn create_writer(
-    path: &std::path::Path,
-    gzip: bool,
-) -> std::io::Result<Box<dyn std::io::Write>> {
-    let file = std::fs::File::create(path)?;
-    let buf = std::io::BufWriter::new(file);
-    if gzip {
-        Ok(Box::new(flate2::write::GzEncoder::new(
-            buf,
-            flate2::Compression::default(),
-        )))
-    } else {
-        Ok(Box::new(buf))
-    }
-}
 
 // ── Dialog state ────────────────────────────────────────────────────────────
 

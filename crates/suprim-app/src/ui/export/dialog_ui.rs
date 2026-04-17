@@ -2,9 +2,9 @@
 
 use eframe::egui;
 
-use super::csv_plugin;
-use super::json_plugin;
-use super::sql_plugin;
+use super::csv_options;
+use super::json_options;
+use super::sql_options;
 use super::tree_widgets::render_database_node;
 use super::types::{ExportFormatId, ExportMode};
 use super::ExportDialog;
@@ -112,9 +112,9 @@ impl ExportDialog {
 
         // Format-specific options (only rendered for available formats)
         match self.format {
-            ExportFormatId::Csv => csv_plugin::render_options_ui(ui, &mut self.csv_opts),
-            ExportFormatId::Json => json_plugin::render_options_ui(ui, &mut self.json_opts),
-            ExportFormatId::Sql => sql_plugin::render_options_ui(ui, &mut self.sql_opts),
+            ExportFormatId::Csv => csv_options::render_options_ui(ui, &mut self.csv_opts),
+            ExportFormatId::Json => json_options::render_options_ui(ui, &mut self.json_opts),
+            ExportFormatId::Sql => sql_options::render_options_ui(ui, &mut self.sql_opts),
             ExportFormatId::Xlsx => {
                 ui.vertical_centered(|ui| {
                     ui.add_space(20.0);

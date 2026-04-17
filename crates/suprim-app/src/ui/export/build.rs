@@ -1,23 +1,33 @@
 //! Validation + export request construction (native save dialog).
 
-use super::types::{ExportFormatId, ExportMode, ExportModeKind, ExportRequest, SelectedTable};
+use super::types::{
+    ExportFormatId, ExportMode, ExportModeKind, ExportRequest, FormatOptions, SelectedTable,
+};
 use super::ExportDialog;
 
 impl ExportDialog {
-    /// Whether the current format's gzip option is enabled.
-    fn is_gzip(&self) -> bool {
+    /// Build a `FormatOptions` from the currently-selected format and its options.
+    fn active_format_options(&self) -> FormatOptions {
         match self.format {
-            ExportFormatId::Csv => self.csv_opts.gzip,
-            ExportFormatId::Json => self.json_opts.gzip,
-            ExportFormatId::Sql => self.sql_opts.gzip,
-            ExportFormatId::Xlsx => false,
+            ExportFormatId::Csv => FormatOptions::Csv(self.csv_opts.clone()),
+            ExportFormatId::Json => FormatOptions::Json(self.json_opts.clone()),
+            ExportFormatId::Sql => FormatOptions::Sql(self.sql_opts.clone()),
+            ExportFormatId::Xlsx => {
+                unreachable!("XLSX should be disabled by validation")
+            }
         }
     }
 
     /// Full file extension including `.gz` suffix when gzip is enabled.
     pub(super) fn full_extension(&self) -> String {
         let base = self.format.extension();
-        if self.is_gzip() {
+        let is_gzip = match self.format {
+            ExportFormatId::Csv => self.csv_opts.gzip,
+            ExportFormatId::Json => self.json_opts.gzip,
+            ExportFormatId::Sql => self.sql_opts.gzip,
+            ExportFormatId::Xlsx => false,
+        };
+        if is_gzip {
             format!("{base}.gz")
         } else {
             base.to_string()
@@ -66,7 +76,9 @@ impl ExportDialog {
     /// Open the native save-file/folder dialog and build an `ExportRequest`.
     /// Returns `None` if the user cancels the native picker.
     pub(super) fn build_request(&mut self) -> Option<ExportRequest> {
-        let ext = self.full_extension();
+        let format_options = self.active_format_options();
+        let ext = format_options.extension();
+
         let (destination, selected_tables, mode_kind, query_result) = match &mut self.mode {
             ExportMode::QueryResult { result, .. } => {
                 let path = rfd::FileDialog::new()
@@ -113,12 +125,9 @@ impl ExportDialog {
 
         Some(ExportRequest {
             mode_kind,
-            format: self.format,
             destination,
             selected_tables,
-            csv_options: self.csv_opts.clone(),
-            json_options: self.json_opts.clone(),
-            sql_options: self.sql_opts.clone(),
+            format_options,
             query_result,
         })
     }

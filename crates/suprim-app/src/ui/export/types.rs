@@ -4,6 +4,11 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 use suprim_core::db::values::QueryResult;
+use suprim_core::db::TableNode;
+
+use super::csv_options::CsvOptions;
+use super::json_options::JsonOptions;
+use super::sql_options::SqlOptions;
 
 /// Single table/view in the export tree.
 #[derive(Debug, Clone)]
@@ -106,6 +111,54 @@ impl ExportFormatId {
     }
 }
 
+// ── FormatOptions ───────────────────────────────────────────────────────────
+
+/// Active export format with its associated options.
+pub enum FormatOptions {
+    Csv(CsvOptions),
+    Json(JsonOptions),
+    Sql(SqlOptions),
+}
+
+impl FormatOptions {
+    pub fn format_id(&self) -> ExportFormatId {
+        match self {
+            FormatOptions::Csv(_) => ExportFormatId::Csv,
+            FormatOptions::Json(_) => ExportFormatId::Json,
+            FormatOptions::Sql(_) => ExportFormatId::Sql,
+        }
+    }
+
+    pub fn is_gzip(&self) -> bool {
+        match self {
+            FormatOptions::Csv(o) => o.gzip,
+            FormatOptions::Json(o) => o.gzip,
+            FormatOptions::Sql(o) => o.gzip,
+        }
+    }
+
+    pub fn extension(&self) -> String {
+        let base = self.format_id().extension();
+        if self.is_gzip() {
+            format!("{base}.gz")
+        } else {
+            base.to_string()
+        }
+    }
+}
+
+// ── SqlExportInfo ───────────────────────────────────────────────────────────
+
+/// Per-table metadata passed to the SQL writer via `execute_export`.
+pub struct SqlExportInfo<'a> {
+    pub schema: &'a str,
+    pub table_name: &'a str,
+    pub include_structure: bool,
+    pub include_drop: bool,
+    pub include_data: bool,
+    pub table_node: Option<&'a TableNode>,
+}
+
 /// Mode the dialog was opened in.
 pub enum ExportMode {
     /// Export selected tables from the sidebar (requires fetching data).
@@ -130,16 +183,13 @@ pub enum ExportOutcome {
 /// Request to perform an export.
 pub struct ExportRequest {
     pub mode_kind: ExportModeKind,
-    pub format: ExportFormatId,
     /// Output path. For query results: a file. For table mode: a file (if 1 table)
     /// or directory where one file per table will be written.
     pub destination: PathBuf,
     /// Tables selected (only relevant for Tables mode).
     pub selected_tables: Vec<SelectedTable>,
-    /// Format-specific options.
-    pub csv_options: crate::ui::export::csv_plugin::CsvOptions,
-    pub json_options: crate::ui::export::json_plugin::JsonOptions,
-    pub sql_options: crate::ui::export::sql_plugin::SqlOptions,
+    /// Format-specific options (active format + its config).
+    pub format_options: FormatOptions,
     /// For QueryResult mode — the already-loaded result to write directly.
     pub query_result: Option<QueryResult>,
 }
@@ -162,4 +212,19 @@ pub struct SelectedTable {
     pub sql_include_structure: bool,
     pub sql_include_drop: bool,
     pub sql_include_data: bool,
+}
+
+// ── PendingExport ───────────────────────────────────────────────────────────
+
+/// A pending export waiting for query results to come back (Tables mode).
+pub struct PendingExport {
+    pub destination: PathBuf,
+    pub format_options: FormatOptions,
+    pub table_name: String,
+    pub schema: String,
+    pub sql_include_structure: bool,
+    pub sql_include_drop: bool,
+    pub sql_include_data: bool,
+    /// Full table metadata for DDL generation (populated from sidebar schema tree).
+    pub table_node: Option<TableNode>,
 }
