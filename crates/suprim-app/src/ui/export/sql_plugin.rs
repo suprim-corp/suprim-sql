@@ -98,10 +98,7 @@ pub fn render_options_ui(ui: &mut egui::Ui, opts: &mut SqlOptions) {
         });
 
     ui.add_space(4.0);
-    ui.add_enabled_ui(false, |ui| {
-        ui.checkbox(&mut opts.gzip, "Compress the file using Gzip")
-            .on_hover_text("Coming soon");
-    });
+    ui.checkbox(&mut opts.gzip, "Compress the file using Gzip");
 }
 
 // ── Writer ──────────────────────────────────────────────────────────────────
@@ -125,7 +122,7 @@ pub fn export(
     path: &Path,
     opts: &SqlOptions,
 ) -> std::io::Result<()> {
-    let mut f = std::fs::File::create(path)?;
+    let mut f = super::create_writer(path, opts.gzip)?;
 
     // File header
     writeln!(
@@ -142,7 +139,7 @@ pub fn export(
 }
 
 fn write_table(
-    f: &mut std::fs::File,
+    f: &mut dyn Write,
     tbl: &SqlTableExport<'_>,
     opts: &SqlOptions,
 ) -> std::io::Result<()> {
@@ -195,7 +192,7 @@ fn write_table(
 }
 
 fn write_insert_statements(
-    f: &mut std::fs::File,
+    f: &mut dyn Write,
     tbl: &SqlTableExport<'_>,
     opts: &SqlOptions,
 ) -> std::io::Result<()> {

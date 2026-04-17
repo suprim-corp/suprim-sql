@@ -107,6 +107,7 @@ pub struct CsvOptions {
     pub delimiter: Delimiter,
     pub quote_handling: QuoteHandling,
     pub line_break: LineBreak,
+    pub gzip: bool,
 }
 
 impl Default for CsvOptions {
@@ -119,6 +120,7 @@ impl Default for CsvOptions {
             delimiter: Delimiter::Comma,
             quote_handling: QuoteHandling::AsNeeded,
             line_break: LineBreak::Lf,
+            gzip: false,
         }
     }
 }
@@ -136,6 +138,7 @@ pub fn render_options_ui(ui: &mut egui::Ui, opts: &mut CsvOptions) {
         "Put field names in the first row",
     );
     ui.checkbox(&mut opts.sanitize_formulas, "Sanitize formula-like values");
+    ui.checkbox(&mut opts.gzip, "Compress the file using Gzip");
 
     ui.add_space(6.0);
     ui.separator();
@@ -205,7 +208,7 @@ pub fn render_options_ui(ui: &mut egui::Ui, opts: &mut CsvOptions) {
 
 /// Export a single `QueryResult` to CSV with the given options.
 pub fn export(result: &QueryResult, path: &Path, opts: &CsvOptions) -> std::io::Result<()> {
-    let mut f = std::fs::File::create(path)?;
+    let mut f = super::create_writer(path, opts.gzip)?;
     let sep = opts.delimiter.char();
     let lb = opts.line_break.value();
 

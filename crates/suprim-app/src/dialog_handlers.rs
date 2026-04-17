@@ -234,12 +234,22 @@ impl App {
             }
             ExportModeKind::Tables => {
                 let is_multi = req.selected_tables.len() > 1;
+                let gzip = match req.format {
+                    ExportFormatId::Csv => req.csv_options.gzip,
+                    ExportFormatId::Json => req.json_options.gzip,
+                    ExportFormatId::Sql => req.sql_options.gzip,
+                    _ => false,
+                };
+                let ext = if gzip {
+                    format!("{}.gz", req.format.extension())
+                } else {
+                    req.format.extension().to_string()
+                };
                 for table in req.selected_tables {
                     let tab_id = uuid::Uuid::new_v4();
                     let sql = format!("SELECT * FROM \"{}\".\"{}\"", table.schema, table.name);
                     let dest = if is_multi {
-                        req.destination
-                            .join(format!("{}.{}", table.name, req.format.extension()))
+                        req.destination.join(format!("{}.{ext}", table.name))
                     } else {
                         req.destination.clone()
                     };

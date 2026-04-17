@@ -29,6 +29,26 @@ pub use types::{
     ExportSchemaItem, ExportTableItem,
 };
 
+// ── Gzip writer helper ─────────────────────────────────────────────────────
+
+/// Create a writer for the given path. When `gzip` is true, wraps in a
+/// `GzEncoder` for on-the-fly compression.
+pub(crate) fn create_writer(
+    path: &std::path::Path,
+    gzip: bool,
+) -> std::io::Result<Box<dyn std::io::Write>> {
+    let file = std::fs::File::create(path)?;
+    let buf = std::io::BufWriter::new(file);
+    if gzip {
+        Ok(Box::new(flate2::write::GzEncoder::new(
+            buf,
+            flate2::Compression::default(),
+        )))
+    } else {
+        Ok(Box::new(buf))
+    }
+}
+
 // ── Dialog state ────────────────────────────────────────────────────────────
 
 pub struct ExportDialog {

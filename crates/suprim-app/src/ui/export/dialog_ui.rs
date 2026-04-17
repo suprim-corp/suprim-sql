@@ -149,7 +149,7 @@ impl ExportDialog {
                     .hint_text("export"),
             );
             ui.label(
-                egui::RichText::new(format!(".{}", self.format.extension()))
+                egui::RichText::new(format!(".{}", self.full_extension()))
                     .weak()
                     .monospace(),
             );

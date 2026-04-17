@@ -1,9 +1,29 @@
 //! Validation + export request construction (native save dialog).
 
-use super::types::{ExportMode, ExportModeKind, ExportRequest, SelectedTable};
+use super::types::{ExportFormatId, ExportMode, ExportModeKind, ExportRequest, SelectedTable};
 use super::ExportDialog;
 
 impl ExportDialog {
+    /// Whether the current format's gzip option is enabled.
+    fn is_gzip(&self) -> bool {
+        match self.format {
+            ExportFormatId::Csv => self.csv_opts.gzip,
+            ExportFormatId::Json => self.json_opts.gzip,
+            ExportFormatId::Sql => self.sql_opts.gzip,
+            ExportFormatId::Xlsx => false,
+        }
+    }
+
+    /// Full file extension including `.gz` suffix when gzip is enabled.
+    pub(super) fn full_extension(&self) -> String {
+        let base = self.format.extension();
+        if self.is_gzip() {
+            format!("{base}.gz")
+        } else {
+            base.to_string()
+        }
+    }
+
     pub(super) fn selected_count(&self) -> usize {
         match &self.mode {
             ExportMode::Tables { items, .. } => items
@@ -46,11 +66,12 @@ impl ExportDialog {
     /// Open the native save-file/folder dialog and build an `ExportRequest`.
     /// Returns `None` if the user cancels the native picker.
     pub(super) fn build_request(&mut self) -> Option<ExportRequest> {
+        let ext = self.full_extension();
         let (destination, selected_tables, mode_kind, query_result) = match &mut self.mode {
             ExportMode::QueryResult { result, .. } => {
                 let path = rfd::FileDialog::new()
-                    .set_file_name(format!("{}.{}", self.file_name, self.format.extension()))
-                    .add_filter(self.format.label(), &[self.format.extension()])
+                    .set_file_name(format!("{}.{ext}", self.file_name))
+                    .add_filter(self.format.label(), &[&ext])
                     .save_file()?;
                 (
                     path,
@@ -78,8 +99,8 @@ impl ExportDialog {
 
                 let path = if selected.len() == 1 {
                     rfd::FileDialog::new()
-                        .set_file_name(format!("{}.{}", self.file_name, self.format.extension()))
-                        .add_filter(self.format.label(), &[self.format.extension()])
+                        .set_file_name(format!("{}.{ext}", self.file_name))
+                        .add_filter(self.format.label(), &[&ext])
                         .save_file()?
                 } else {
                     rfd::FileDialog::new()
