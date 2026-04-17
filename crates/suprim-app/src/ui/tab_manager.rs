@@ -255,6 +255,21 @@ impl TabManager {
             }
         }
     }
+
+    /// Collect any pending export-dialog-open requests from active tabs.
+    /// Returns (suggested_name, QueryResult) if a tab is asking to open the export dialog.
+    pub fn take_pending_export_request(
+        &mut self,
+    ) -> Option<(String, suprim_core::db::values::QueryResult)> {
+        for entry in &mut self.tabs {
+            if let TabKind::TableViewer(t) = &mut entry.kind {
+                if let Some(result) = t.pending_open_export_dialog.take() {
+                    return Some((t.table_name.clone(), result));
+                }
+            }
+        }
+        None
+    }
 }
 
 /// Build a representative SQL string from TableViewerTab state.

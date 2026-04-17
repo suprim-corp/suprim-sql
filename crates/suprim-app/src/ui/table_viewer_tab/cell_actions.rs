@@ -61,9 +61,6 @@ impl TableViewerTab {
                     }
                 }
             }
-            CellAction::ExportResults => {
-                // TODO: open export dialog
-            }
             CellAction::DuplicateRow => {
                 self.buffer_duplicate_row(row);
             }

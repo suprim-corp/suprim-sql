@@ -8,7 +8,8 @@ use tokio::sync::mpsc;
 use suprim_core::premium::PremiumGate;
 
 use crate::ui::{
-    ConnectionDialog, DeleteConnectionDialog, InputDialog, SidebarAction, TabManager, UpgradePrompt,
+    ConnectionDialog, DeleteConnectionDialog, ExportDialog, InputDialog, SidebarAction, TabManager,
+    UpgradePrompt,
 };
 
 /// Sidebar context passed to the handler so it can mutate application state
@@ -22,6 +23,7 @@ pub struct SidebarContext<'a> {
     pub pending_delete_conn: &'a mut Option<uuid::Uuid>,
     pub input_dialog: &'a mut Option<InputDialog>,
     pub upgrade_prompt: &'a mut Option<UpgradePrompt>,
+    pub export_dialog: &'a mut Option<ExportDialog>,
     pub gate: &'a dyn PremiumGate,
     /// Closure to look up a connection name by id (delegates to sidebar).
     pub conn_name: Box<dyn Fn(uuid::Uuid) -> String + 'a>,
@@ -203,6 +205,50 @@ pub fn handle_sidebar_action(action: SidebarAction, ctx: &mut SidebarContext<'_>
             ctx.tab_manager.open_server_dashboard(conn_id, name);
             // Send initial data load
             let _ = ctx.cmd_tx.try_send(DbCommand::LoadDashboard { conn_id });
+        }
+        SidebarAction::ExportSchema {
+            conn_id,
+            database,
+            schema_name,
+            preselected_table,
+            all_tables,
+            all_views,
+        } => {
+            // Build the items tree: one database, one schema, all tables + views.
+            use crate::ui::export::{ExportDatabaseItem, ExportSchemaItem, ExportTableItem};
+            let mut tables: Vec<ExportTableItem> = all_tables
+                .iter()
+                .map(|name| ExportTableItem {
+                    name: name.clone(),
+                    database: database.clone(),
+                    schema: schema_name.clone(),
+                    is_view: false,
+                    selected: Some(name) == preselected_table.as_ref(),
+                })
+                .collect();
+            tables.extend(all_views.iter().map(|name| ExportTableItem {
+                name: name.clone(),
+                database: database.clone(),
+                schema: schema_name.clone(),
+                is_view: true,
+                selected: Some(name) == preselected_table.as_ref(),
+            }));
+
+            let items = vec![ExportDatabaseItem {
+                name: database.clone(),
+                expanded: true,
+                schemas: vec![ExportSchemaItem {
+                    name: schema_name.clone(),
+                    database: database.clone(),
+                    expanded: true,
+                    tables,
+                }],
+            }];
+
+            let default_name = preselected_table
+                .clone()
+                .unwrap_or_else(|| database.clone());
+            *ctx.export_dialog = Some(ExportDialog::for_tables(conn_id, items, default_name));
         }
     }
 }

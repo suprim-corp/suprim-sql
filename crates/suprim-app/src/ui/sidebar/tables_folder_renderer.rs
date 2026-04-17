@@ -26,7 +26,10 @@ pub(super) fn render_tables_folder(
     let (toggle_resp, header_resp, _body_resp) = folder_state
         .show_header(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(icons::db::table(icons::SIDEBAR_ICON, icons::db::COLOR_TABLE));
+                ui.label(icons::db::table(
+                    icons::SIDEBAR_ICON,
+                    icons::db::COLOR_TABLE,
+                ));
                 ui.label(format!("Tables ({})", schema_node.tables.len()))
             })
         })
@@ -50,7 +53,10 @@ pub(super) fn render_tables_folder(
                 let (tbl_toggle, tbl_header, _tbl_body) = state
                     .show_header(ui, |ui| {
                         ui.horizontal(|ui| {
-                            ui.label(icons::db::table(icons::SIDEBAR_ICON, icons::db::COLOR_TABLE));
+                            ui.label(icons::db::table(
+                                icons::SIDEBAR_ICON,
+                                icons::db::COLOR_TABLE,
+                            ));
                             ui.selectable_label(false, format!("{}{}", tbl_name, tbl_suffix))
                                 .on_hover_cursor(CursorIcon::PointingHand)
                         })
@@ -82,6 +88,8 @@ pub(super) fn render_tables_folder(
                     schema_name,
                     table,
                     &func_sigs,
+                    &schema_node.tables,
+                    &schema_node.views,
                     action,
                 );
 

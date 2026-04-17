@@ -103,7 +103,7 @@ impl SqlEditorTab {
             CellAction::CopyAsSql => ui
                 .ctx()
                 .copy_text(clipboard_formatters::format_as_sql(db_val)),
-            // Other actions are not supported in the SQL editor (read-only results)
+            // Other actions not supported in SQL editor (read-only results)
             _ => {}
         }
     }

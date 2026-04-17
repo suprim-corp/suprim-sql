@@ -114,6 +114,7 @@ impl App {
                             pending_delete_conn: &mut self.pending_delete_conn,
                             input_dialog: &mut self.input_dialog,
                             upgrade_prompt: &mut self.upgrade_prompt,
+                            export_dialog: &mut self.export_dialog,
                             gate: self.gate.as_ref(),
                             conn_name: Box::new(|id| sidebar.conn_name(id)),
                         };
@@ -126,6 +127,13 @@ impl App {
         egui::CentralPanel::default().show_inside(ui, |ui| {
             self.tab_manager.show(ui, &self.cmd_tx);
         });
+
+        // ── Table-viewer export icon clicked? Open export dialog. ────────
+        if let Some((table_name, result)) = self.tab_manager.take_pending_export_request() {
+            self.export_dialog = Some(crate::ui::ExportDialog::for_query_result(
+                table_name, result,
+            ));
+        }
 
         // ── Connection dialog (modal) ───────────────────────────────────
         self.render_connection_dialog(&ctx);
@@ -146,6 +154,9 @@ impl App {
 
         // ── Upgrade prompt dialog (modal) ────────────────────────────────
         self.render_upgrade_prompt(&ctx);
+
+        // ── Export dialog (modal) ────────────────────────────────────────
+        self.render_export_dialog(&ctx);
 
         // ── Structure Sync dialog (modal) ───────────────────────────────
         if let Some(dialog) = &mut self.structure_sync_dialog {

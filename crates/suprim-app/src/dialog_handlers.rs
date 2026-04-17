@@ -159,4 +159,90 @@ impl App {
             }
         }
     }
+
+    /// Shows the export dialog and handles its result.
+    pub(crate) fn render_export_dialog(&mut self, ctx: &egui::Context) {
+        let Some(dialog) = &mut self.export_dialog else {
+            return;
+        };
+        match dialog.show(ctx) {
+            crate::ui::ExportOutcome::Pending => {}
+            crate::ui::ExportOutcome::Cancelled => {
+                self.export_dialog = None;
+            }
+            crate::ui::ExportOutcome::Export(req) => {
+                self.handle_export_request(req);
+                self.export_dialog = None;
+            }
+        }
+    }
+
+    /// Perform an export — either write immediately (QueryResult mode) or
+    /// enqueue DbCommand::Execute for each table (Tables mode).
+    fn handle_export_request(&mut self, req: crate::ui::export::ExportRequest) {
+        use crate::app::PendingExport;
+        use crate::ui::export::{ExportFormatId, ExportModeKind};
+
+        match req.mode_kind {
+            ExportModeKind::QueryResult => {
+                if let Some(result) = &req.query_result {
+                    let res = match req.format {
+                        ExportFormatId::Csv => crate::ui::export::csv_plugin::export(
+                            result,
+                            &req.destination,
+                            &req.csv_options,
+                        ),
+                        ExportFormatId::Json => crate::ui::export::json_plugin::export(
+                            result,
+                            &req.destination,
+                            &req.json_options,
+                        ),
+                    };
+                    match res {
+                        Ok(_) => {
+                            self.status = format!(
+                                "Exported {} rows to {}",
+                                result.rows.len(),
+                                req.destination.display()
+                            );
+                        }
+                        Err(e) => {
+                            self.status = format!("Export failed: {e}");
+                            tracing::error!("Export failed: {e}");
+                        }
+                    }
+                }
+            }
+            ExportModeKind::Tables => {
+                let is_multi = req.selected_tables.len() > 1;
+                for table in req.selected_tables {
+                    let tab_id = uuid::Uuid::new_v4();
+                    let sql = format!("SELECT * FROM \"{}\".\"{}\"", table.schema, table.name);
+                    let dest = if is_multi {
+                        req.destination
+                            .join(format!("{}.{}", table.name, req.format.extension()))
+                    } else {
+                        req.destination.clone()
+                    };
+                    self.pending_exports.insert(
+                        tab_id,
+                        PendingExport {
+                            destination: dest,
+                            format: req.format,
+                            csv_options: req.csv_options.clone(),
+                            json_options: req.json_options.clone(),
+                            table_name: table.name.clone(),
+                        },
+                    );
+                    let _ = self.cmd_tx.try_send(DbCommand::Execute {
+                        conn_id: table.conn_id,
+                        tab_id,
+                        sql,
+                        database: Some(table.database),
+                    });
+                }
+                self.status = "Exporting...".to_string();
+            }
+        }
+    }
 }

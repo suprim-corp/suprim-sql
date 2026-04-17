@@ -18,7 +18,10 @@ pub(super) fn render_sequences_folder(
     let (toggle_resp, header_resp, _body_resp) = state
         .show_header(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(icons::db::sequence(icons::SIDEBAR_ICON, icons::db::COLOR_SEQUENCE));
+                ui.label(icons::db::sequence(
+                    icons::SIDEBAR_ICON,
+                    icons::db::COLOR_SEQUENCE,
+                ));
                 ui.label(format!("Sequences ({})", schema_node.sequences.len()))
             })
         })

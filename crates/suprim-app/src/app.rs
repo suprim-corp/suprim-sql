@@ -10,6 +10,16 @@ use crate::ui::{
     TabManager, UpgradePrompt,
 };
 
+/// A pending export waiting for query results to come back.
+pub struct PendingExport {
+    pub destination: std::path::PathBuf,
+    pub format: crate::ui::export::ExportFormatId,
+    pub csv_options: crate::ui::export::CsvOptions,
+    pub json_options: crate::ui::export::JsonOptions,
+    /// When exporting multiple tables, this tells us the filename template.
+    pub table_name: String,
+}
+
 /// Main application state — owned by the eframe runtime on the UI thread.
 pub struct App {
     /// Sender to the background DbWorker task.
@@ -64,6 +74,12 @@ pub struct App {
 
     /// Upgrade prompt dialog (None = closed).
     pub(crate) upgrade_prompt: Option<UpgradePrompt>,
+
+    /// Export dialog (None = closed).
+    pub(crate) export_dialog: Option<crate::ui::ExportDialog>,
+
+    /// Pending exports awaiting query results — keyed by synthetic tab_id.
+    pub(crate) pending_exports: std::collections::HashMap<uuid::Uuid, crate::app::PendingExport>,
 
     /// Native macOS menu bar channel + retained handler objects.
     #[cfg(target_os = "macos")]
@@ -121,6 +137,8 @@ impl App {
             gate: license,
             license_dialog: None,
             upgrade_prompt: None,
+            export_dialog: None,
+            pending_exports: std::collections::HashMap::new(),
             #[cfg(target_os = "macos")]
             native_menu,
         }

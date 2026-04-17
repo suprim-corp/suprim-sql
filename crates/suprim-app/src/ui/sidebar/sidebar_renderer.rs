@@ -69,7 +69,10 @@ fn render_single_connection(
         let resp = cs
             .show_header(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(icons::engine::by_name(&entry.driver_type, icons::SIDEBAR_ICON));
+                    ui.label(icons::engine::by_name(
+                        &entry.driver_type,
+                        icons::SIDEBAR_ICON,
+                    ));
                     ui.label(text)
                 })
                 .inner
@@ -139,7 +142,10 @@ fn render_single_connection(
     let resp = cs
         .show_header(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(icons::engine::by_name(&entry.driver_type, icons::SIDEBAR_ICON));
+                ui.label(icons::engine::by_name(
+                    &entry.driver_type,
+                    icons::SIDEBAR_ICON,
+                ));
                 ui.label(&header)
             })
             .inner

@@ -61,6 +61,39 @@ impl App {
                     self.status = "Disconnected".to_string();
                 }
                 DbEvent::QueryResult { tab_id, result } => {
+                    // Check if this result belongs to a pending export.
+                    if let Some(pending) = self.pending_exports.remove(&tab_id) {
+                        use crate::ui::export::ExportFormatId;
+                        let res = match pending.format {
+                            ExportFormatId::Csv => crate::ui::export::csv_plugin::export(
+                                &result,
+                                &pending.destination,
+                                &pending.csv_options,
+                            ),
+                            ExportFormatId::Json => crate::ui::export::json_plugin::export(
+                                &result,
+                                &pending.destination,
+                                &pending.json_options,
+                            ),
+                        };
+                        match res {
+                            Ok(_) => {
+                                self.status = format!(
+                                    "Exported '{}' ({} rows) to {}",
+                                    pending.table_name,
+                                    result.rows.len(),
+                                    pending.destination.display()
+                                );
+                            }
+                            Err(e) => {
+                                self.status =
+                                    format!("Export '{}' failed: {e}", pending.table_name);
+                                tracing::error!("Export failed: {e}");
+                            }
+                        }
+                        continue;
+                    }
+
                     let row_count = result.rows.len();
                     let millis = result.execution_time.as_millis();
                     // Record to query history

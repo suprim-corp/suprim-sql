@@ -27,7 +27,10 @@ pub(super) fn render_view_detail(
     let (toggle_resp, header_resp, _body_resp) = state
         .show_header(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(icons::db::column(icons::SIDEBAR_ICON, icons::db::COLOR_COLUMN));
+                ui.label(icons::db::column(
+                    icons::SIDEBAR_ICON,
+                    icons::db::COLOR_COLUMN,
+                ));
                 ui.label(format!("Columns ({})", view.columns.len()))
             })
         })

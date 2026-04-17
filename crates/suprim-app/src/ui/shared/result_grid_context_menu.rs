@@ -103,12 +103,6 @@ pub(crate) fn render_cell_context_menu(
 
     ui.separator();
 
-    // ── Export Results ──
-    if btn(ui, "Export Results...").clicked() {
-        *action_ref.borrow_mut() = Some((CellAction::ExportResults, row, col));
-        ui.close();
-    }
-
     // ── Duplicate Row ──
     if btn_shortcut(ui, "Duplicate", &format!("{m}D")).clicked() {
         *action_ref.borrow_mut() = Some((CellAction::DuplicateRow, row, col));

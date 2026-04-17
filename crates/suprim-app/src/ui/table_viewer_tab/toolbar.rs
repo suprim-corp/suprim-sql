@@ -168,4 +168,46 @@ impl TableViewerTab {
             );
         }
     }
+
+    /// Render the export icon (download-simple). Call in a right-to-left layout
+    /// so it appears at the far right of the filter bar.
+    pub(super) fn render_export_icon(
+        &mut self,
+        ui: &mut egui::Ui,
+        icon_color: egui::Color32,
+        icon_size: f32,
+    ) {
+        let has_data = self.result.as_ref().is_some_and(|r| !r.rows.is_empty());
+        let color = if has_data {
+            icon_color
+        } else {
+            ui.visuals().noninteractive().bg_stroke.color
+        };
+        let resp = ui.add(
+            egui::Label::new(
+                egui::RichText::new(egui_phosphor::regular::DOWNLOAD_SIMPLE)
+                    .color(color)
+                    .size(icon_size),
+            )
+            .selectable(false)
+            .sense(if has_data {
+                egui::Sense::click()
+            } else {
+                egui::Sense::hover()
+            }),
+        );
+        if has_data && resp.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+        if has_data && resp.clicked() {
+            if let Some(result) = &self.result {
+                self.pending_open_export_dialog = Some(result.clone());
+            }
+        }
+        resp.on_hover_text(if has_data {
+            "Export Results\u{2026}"
+        } else {
+            "Export (no data to export)"
+        });
+    }
 }

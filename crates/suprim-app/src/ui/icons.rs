@@ -71,6 +71,7 @@ fn icon_str(pack: Pack, name: &str) -> String {
 // Trả `&str`-like String dùng trong format!() — cần set FontFamily khi render.
 // Hoặc dùng `ph::rich("name", size)` để lấy RichText có sẵn font.
 
+#[allow(dead_code)]
 pub mod ph {
     use super::*;
 
@@ -166,6 +167,7 @@ pub mod ph {
 
 // ── DB Object icons (Tabler — more distinctive for schema browser) ──────────
 
+#[allow(dead_code)]
 pub mod db {
     use super::*;
 
@@ -222,6 +224,7 @@ pub mod db {
 
 // ── DB Engine brand logos (Devicon) ─────────────────────────────────────────
 
+#[allow(dead_code)]
 pub mod engine {
     use super::*;
 

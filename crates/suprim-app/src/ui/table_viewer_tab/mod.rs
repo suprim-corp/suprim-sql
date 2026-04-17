@@ -60,6 +60,8 @@ pub struct TableViewerTab {
     order_autocomplete: AutocompleteState,
     /// Set by event_handler when RowMutated arrives — triggers reload on next frame.
     pub needs_reload_after_mutation: bool,
+    /// When Some, the app should open the export dialog with this result.
+    pub pending_open_export_dialog: Option<QueryResult>,
 }
 
 impl TableViewerTab {
@@ -89,6 +91,7 @@ impl TableViewerTab {
             where_autocomplete: AutocompleteState::new(),
             order_autocomplete: AutocompleteState::new(),
             needs_reload_after_mutation: false,
+            pending_open_export_dialog: None,
         }
     }
 

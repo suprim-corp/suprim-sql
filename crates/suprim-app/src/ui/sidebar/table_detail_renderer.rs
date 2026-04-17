@@ -61,7 +61,10 @@ fn render_columns_folder(
     let (toggle_resp, header_resp, _body_resp) = state
         .show_header(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(icons::db::column(icons::SIDEBAR_ICON, icons::db::COLOR_COLUMN));
+                ui.label(icons::db::column(
+                    icons::SIDEBAR_ICON,
+                    icons::db::COLOR_COLUMN,
+                ));
                 ui.label(format!("Columns ({})", columns.len()))
             })
         })
@@ -124,7 +127,10 @@ fn render_indexes_folder(
     let (toggle_resp, header_resp, _body_resp) = state
         .show_header(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(icons::db::index(icons::SIDEBAR_ICON, icons::db::COLOR_INDEX));
+                ui.label(icons::db::index(
+                    icons::SIDEBAR_ICON,
+                    icons::db::COLOR_INDEX,
+                ));
                 ui.label(format!("Indexes ({})", indexes.len()))
             })
         })
@@ -165,7 +171,10 @@ fn render_foreign_keys_folder(
     let (toggle_resp, header_resp, _body_resp) = state
         .show_header(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(icons::db::foreign_key(icons::SIDEBAR_ICON, icons::db::COLOR_FK));
+                ui.label(icons::db::foreign_key(
+                    icons::SIDEBAR_ICON,
+                    icons::db::COLOR_FK,
+                ));
                 ui.label(format!("Foreign Keys ({})", foreign_keys.len()))
             })
         })

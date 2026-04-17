@@ -111,4 +111,14 @@ pub enum SidebarAction {
     OpenDashboard {
         conn_id: Uuid,
     },
+    /// Open the export dialog for a schema — shows all tables/views,
+    /// optionally with one pre-selected.
+    ExportSchema {
+        conn_id: Uuid,
+        database: String,
+        schema_name: String,
+        preselected_table: Option<String>,
+        all_tables: Vec<String>,
+        all_views: Vec<String>,
+    },
 }

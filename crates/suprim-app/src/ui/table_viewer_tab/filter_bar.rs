@@ -90,10 +90,12 @@ impl TableViewerTab {
                             );
                             ui.fonts_mut(|f| f.layout_job(job))
                         };
+                    // Reserve space on the right for the export icon (~24px)
+                    let order_w = (ui.available_width() - 28.0).max(60.0);
                     let order_out = egui::TextEdit::singleline(&mut self.order_clause)
                         .id(order_id)
                         .hint_text("e.g. id DESC")
-                        .desired_width(ui.available_width())
+                        .desired_width(order_w)
                         .frame(egui::Frame::NONE)
                         .layouter(&mut order_layouter)
                         .show(ui);
@@ -120,6 +122,11 @@ impl TableViewerTab {
                         self.page = 0;
                         self.load(tab_id, cmd_tx);
                     }
+
+                    // Export icon — far right
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        self.render_export_icon(ui, hint_color, 16.0);
+                    });
                 });
             });
     }

@@ -1,6 +1,7 @@
 #[cfg(target_os = "macos")]
 pub(crate) mod custom_title_bar;
 pub(crate) mod dialog;
+pub(crate) mod export;
 pub(crate) mod icons;
 #[cfg(target_os = "macos")]
 pub mod macos_menu;
@@ -23,6 +24,7 @@ pub use dialog::{
     InputDialogKind, InputDialogResult, LicenseDialog, LicenseDialogResult, UpgradePrompt,
     UpgradePromptResult,
 };
+pub use export::{ExportDialog, ExportOutcome};
 pub use sidebar::{Sidebar, SidebarAction};
 pub use statusbar::StatusBar;
 pub use tab_manager::TabManager;

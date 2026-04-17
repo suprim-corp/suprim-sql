@@ -43,7 +43,10 @@ pub(super) fn render_schema_tree(
         let (toggle_resp, header_resp, _body_resp) = db_state
             .show_header(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(icons::db::database(icons::SIDEBAR_ICON, icons::db::COLOR_DATABASE));
+                    ui.label(icons::db::database(
+                        icons::SIDEBAR_ICON,
+                        icons::db::COLOR_DATABASE,
+                    ));
                     ui.label(&db_node.name)
                 })
             })
@@ -125,7 +128,10 @@ fn render_schema_node(
     let (toggle_resp, header_resp, _body_resp) = schema_state
         .show_header(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(icons::db::schema(icons::SIDEBAR_ICON, icons::db::COLOR_SCHEMA));
+                ui.label(icons::db::schema(
+                    icons::SIDEBAR_ICON,
+                    icons::db::COLOR_SCHEMA,
+                ));
                 ui.label(format!("{}{}", schema_name, suffix))
             })
         })

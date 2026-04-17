@@ -1,5 +1,5 @@
 use eframe::egui;
-use suprim_core::db::types::TableNode;
+use suprim_core::db::types::{TableNode, ViewNode};
 use uuid::Uuid;
 
 use super::SidebarAction;
@@ -16,12 +16,13 @@ fn btn(ui: &mut egui::Ui, label: impl Into<egui::WidgetText>) -> egui::Response 
 ///   View Data
 ///   Edit Table
 ///   Refresh
-///   Export  ▸
+///   Export...
 ///   Import  ▸
 ///   ─────────
 ///   Rename
 ///   Truncate
 ///   Delete
+#[allow(clippy::too_many_arguments)]
 pub(super) fn render_table_context_menu(
     response: &egui::Response,
     conn_id: Uuid,
@@ -29,6 +30,8 @@ pub(super) fn render_table_context_menu(
     schema_name: &str,
     table: &TableNode,
     schema_functions: &[String],
+    all_tables: &[TableNode],
+    all_views: &[ViewNode],
     action: &mut Option<SidebarAction>,
 ) {
     let table_name = &table.name;
@@ -64,21 +67,19 @@ pub(super) fn render_table_context_menu(
             ui.close();
         }
 
-        // ── Export/Import submenus ──────────────────────────────────
-        ui.menu_button("Export", |ui| {
-            if btn(ui, "CSV").clicked() {
-                // TODO: implement export CSV
-                ui.close();
-            }
-            if btn(ui, "JSON").clicked() {
-                // TODO: implement export JSON
-                ui.close();
-            }
-            if btn(ui, "SQL INSERT").clicked() {
-                // TODO: implement export SQL
-                ui.close();
-            }
-        });
+        // ── Export — opens a single dialog with all tables + views,
+        //    with the clicked table pre-selected.
+        if btn(ui, "Export\u{2026}").clicked() {
+            *action = Some(SidebarAction::ExportSchema {
+                conn_id,
+                database: db_name.to_owned(),
+                schema_name: schema_name.to_owned(),
+                preselected_table: Some(table_name.to_owned()),
+                all_tables: all_tables.iter().map(|t| t.name.clone()).collect(),
+                all_views: all_views.iter().map(|v| v.name.clone()).collect(),
+            });
+            ui.close();
+        }
 
         ui.menu_button("Import", |ui| {
             if btn(ui, "CSV").clicked() {

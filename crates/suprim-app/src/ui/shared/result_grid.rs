@@ -32,8 +32,6 @@ pub enum CellAction {
     SetEmpty,
     /// Set the cell value to the default column value.
     SetDefault,
-    /// Export all results (opens export dialog).
-    ExportResults,
     /// Duplicate the selected row (Cmd+D).
     DuplicateRow,
     /// Delete the selected row (Backspace/Delete key).
