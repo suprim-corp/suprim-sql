@@ -75,6 +75,10 @@ impl App {
                                 &pending.destination,
                                 &pending.json_options,
                             ),
+                            // Unreachable — SQL/XLSX disabled by validation.
+                            ExportFormatId::Sql | ExportFormatId::Xlsx => {
+                                unreachable!("SQL/XLSX export should be disabled by validation")
+                            }
                         };
                         match res {
                             Ok(_) => {

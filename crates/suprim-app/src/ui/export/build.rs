@@ -18,6 +18,11 @@ impl ExportDialog {
 
     /// Validate state and update `self.error`. Returns true if export is allowed.
     pub(super) fn validate_state(&mut self) -> bool {
+        // Unavailable formats (SQL, XLSX) are always disabled.
+        if !self.format.is_available() {
+            self.error = None;
+            return false;
+        }
         let trimmed = self.file_name.trim();
         if trimmed.is_empty() {
             self.error = None; // Empty is a silent disable, not an error

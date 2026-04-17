@@ -30,22 +30,34 @@ impl ExportDialog {
         ui.horizontal(|ui| {
             for fmt in ExportFormatId::all() {
                 let selected = self.format == *fmt;
-                let button =
-                    egui::Button::new(egui::RichText::new(fmt.label()).color(if selected {
-                        egui::Color32::WHITE
-                    } else {
-                        ui.visuals().text_color()
-                    }))
-                    .fill(if selected {
-                        egui::Color32::from_rgb(59, 130, 246)
-                    } else {
-                        egui::Color32::TRANSPARENT
-                    });
-                if ui
-                    .add(button)
-                    .on_hover_cursor(egui::CursorIcon::PointingHand)
-                    .clicked()
-                {
+                let available = fmt.is_available();
+
+                let text = if available {
+                    egui::RichText::new(fmt.label())
+                } else {
+                    egui::RichText::new(format!("{}", fmt.label())).weak()
+                };
+                let text = text.color(if selected {
+                    egui::Color32::WHITE
+                } else if available {
+                    ui.visuals().text_color()
+                } else {
+                    ui.visuals().weak_text_color()
+                });
+
+                let button = egui::Button::new(text).fill(if selected {
+                    egui::Color32::from_rgb(59, 130, 246)
+                } else {
+                    egui::Color32::TRANSPARENT
+                });
+
+                let resp = ui.add_enabled(available, button);
+                let resp = if available {
+                    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+                } else {
+                    resp.on_hover_text("Coming soon")
+                };
+                if resp.clicked() && available {
                     self.format = *fmt;
                 }
             }
@@ -64,10 +76,34 @@ impl ExportDialog {
         ui.separator();
         ui.add_space(8.0);
 
-        // Format-specific options
+        // Format-specific options (only rendered for available formats)
         match self.format {
             ExportFormatId::Csv => csv_plugin::render_options_ui(ui, &mut self.csv_opts),
             ExportFormatId::Json => json_plugin::render_options_ui(ui, &mut self.json_opts),
+            ExportFormatId::Sql | ExportFormatId::Xlsx => {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(20.0);
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "{}  Coming soon",
+                            egui_phosphor::regular::HOURGLASS
+                        ))
+                        .weak()
+                        .size(14.0),
+                    );
+                    ui.add_space(6.0);
+                    let bare_name = match self.format {
+                        ExportFormatId::Sql => "SQL",
+                        ExportFormatId::Xlsx => "XLSX",
+                        _ => "",
+                    };
+                    ui.label(
+                        egui::RichText::new(format!("{bare_name} export is not yet available."))
+                            .weak()
+                            .size(12.0),
+                    );
+                });
+            }
         }
 
         ui.add_space(12.0);

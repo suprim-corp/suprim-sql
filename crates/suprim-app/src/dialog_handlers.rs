@@ -197,6 +197,10 @@ impl App {
                             &req.destination,
                             &req.json_options,
                         ),
+                        // Unreachable in practice — validation blocks the Export button.
+                        ExportFormatId::Sql | ExportFormatId::Xlsx => {
+                            unreachable!("SQL/XLSX export should be disabled by validation")
+                        }
                     };
                     match res {
                         Ok(_) => {

@@ -37,17 +37,26 @@ pub struct ExportDatabaseItem {
 pub enum ExportFormatId {
     Csv,
     Json,
+    Sql,
+    Xlsx,
 }
 
 impl ExportFormatId {
     pub fn all() -> &'static [ExportFormatId] {
-        &[ExportFormatId::Csv, ExportFormatId::Json]
+        &[
+            ExportFormatId::Csv,
+            ExportFormatId::Json,
+            ExportFormatId::Sql,
+            ExportFormatId::Xlsx,
+        ]
     }
 
     pub fn label(&self) -> &'static str {
         match self {
             ExportFormatId::Csv => "CSV",
             ExportFormatId::Json => "JSON",
+            ExportFormatId::Sql => "SQL",
+            ExportFormatId::Xlsx => "XLSX (Pro)",
         }
     }
 
@@ -55,13 +64,22 @@ impl ExportFormatId {
         match self {
             ExportFormatId::Csv => "csv",
             ExportFormatId::Json => "json",
+            ExportFormatId::Sql => "sql",
+            ExportFormatId::Xlsx => "xlsx",
         }
+    }
+
+    /// Whether this format is fully implemented. Disabled formats show "Coming soon".
+    pub fn is_available(&self) -> bool {
+        matches!(self, ExportFormatId::Csv | ExportFormatId::Json)
     }
 
     pub fn description(&self) -> &'static str {
         match self {
             ExportFormatId::Csv => "Comma-separated values. Compatible with Excel and most tools.",
             ExportFormatId::Json => "JSON array of objects. One element per row.",
+            ExportFormatId::Sql => "SQL INSERT statements. Replay into any SQL database.",
+            ExportFormatId::Xlsx => "Excel workbook. One sheet per table, with formatting.",
         }
     }
 }
