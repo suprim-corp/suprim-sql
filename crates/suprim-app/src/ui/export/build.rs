@@ -70,6 +70,9 @@ impl ExportDialog {
                         database: t.database.clone(),
                         schema: t.schema.clone(),
                         name: t.name.clone(),
+                        sql_include_structure: t.sql_include_structure,
+                        sql_include_drop: t.sql_include_drop,
+                        sql_include_data: t.sql_include_data,
                     })
                     .collect();
 
@@ -94,6 +97,7 @@ impl ExportDialog {
             selected_tables,
             csv_options: self.csv_opts.clone(),
             json_options: self.json_opts.clone(),
+            sql_options: self.sql_opts.clone(),
             query_result,
         })
     }

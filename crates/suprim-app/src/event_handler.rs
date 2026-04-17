@@ -75,9 +75,23 @@ impl App {
                                 &pending.destination,
                                 &pending.json_options,
                             ),
-                            // Unreachable — SQL/XLSX disabled by validation.
-                            ExportFormatId::Sql | ExportFormatId::Xlsx => {
-                                unreachable!("SQL/XLSX export should be disabled by validation")
+                            ExportFormatId::Sql => {
+                                let tbl = crate::ui::export::sql_plugin::SqlTableExport {
+                                    schema: &pending.schema,
+                                    name: &pending.table_name,
+                                    result: &result,
+                                    include_structure: pending.sql_include_structure,
+                                    include_drop: pending.sql_include_drop,
+                                    include_data: pending.sql_include_data,
+                                };
+                                crate::ui::export::sql_plugin::export(
+                                    &[tbl],
+                                    &pending.destination,
+                                    &pending.sql_options,
+                                )
+                            }
+                            ExportFormatId::Xlsx => {
+                                unreachable!("XLSX export should be disabled by validation")
                             }
                         };
                         match res {

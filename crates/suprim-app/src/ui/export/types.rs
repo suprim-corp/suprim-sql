@@ -13,6 +13,25 @@ pub struct ExportTableItem {
     pub schema: String,
     pub is_view: bool,
     pub selected: bool,
+    // ── Per-table options (used only when format supports them, e.g. SQL) ──
+    pub sql_include_structure: bool,
+    pub sql_include_drop: bool,
+    pub sql_include_data: bool,
+}
+
+impl ExportTableItem {
+    pub fn new(name: String, database: String, schema: String, is_view: bool) -> Self {
+        Self {
+            name,
+            database,
+            schema,
+            is_view,
+            selected: false,
+            sql_include_structure: true,
+            sql_include_drop: false,
+            sql_include_data: true,
+        }
+    }
 }
 
 /// Schema group in the export tree (contains tables).
@@ -71,7 +90,10 @@ impl ExportFormatId {
 
     /// Whether this format is fully implemented. Disabled formats show "Coming soon".
     pub fn is_available(&self) -> bool {
-        matches!(self, ExportFormatId::Csv | ExportFormatId::Json)
+        matches!(
+            self,
+            ExportFormatId::Csv | ExportFormatId::Json | ExportFormatId::Sql
+        )
     }
 
     pub fn description(&self) -> &'static str {
@@ -117,6 +139,7 @@ pub struct ExportRequest {
     /// Format-specific options.
     pub csv_options: crate::ui::export::csv_plugin::CsvOptions,
     pub json_options: crate::ui::export::json_plugin::JsonOptions,
+    pub sql_options: crate::ui::export::sql_plugin::SqlOptions,
     /// For QueryResult mode — the already-loaded result to write directly.
     pub query_result: Option<QueryResult>,
 }
@@ -135,4 +158,8 @@ pub struct SelectedTable {
     pub database: String,
     pub schema: String,
     pub name: String,
+    /// Per-table SQL toggles (only used when format is SQL).
+    pub sql_include_structure: bool,
+    pub sql_include_drop: bool,
+    pub sql_include_data: bool,
 }

@@ -197,9 +197,23 @@ impl App {
                             &req.destination,
                             &req.json_options,
                         ),
-                        // Unreachable in practice — validation blocks the Export button.
-                        ExportFormatId::Sql | ExportFormatId::Xlsx => {
-                            unreachable!("SQL/XLSX export should be disabled by validation")
+                        ExportFormatId::Sql => {
+                            let tbl = crate::ui::export::sql_plugin::SqlTableExport {
+                                schema: "public",
+                                name: "query_result",
+                                result,
+                                include_structure: true,
+                                include_drop: false,
+                                include_data: true,
+                            };
+                            crate::ui::export::sql_plugin::export(
+                                &[tbl],
+                                &req.destination,
+                                &req.sql_options,
+                            )
+                        }
+                        ExportFormatId::Xlsx => {
+                            unreachable!("XLSX export should be disabled by validation")
                         }
                     };
                     match res {
@@ -235,7 +249,12 @@ impl App {
                             format: req.format,
                             csv_options: req.csv_options.clone(),
                             json_options: req.json_options.clone(),
+                            sql_options: req.sql_options.clone(),
                             table_name: table.name.clone(),
+                            schema: table.schema.clone(),
+                            sql_include_structure: table.sql_include_structure,
+                            sql_include_drop: table.sql_include_drop,
+                            sql_include_data: table.sql_include_data,
                         },
                     );
                     let _ = self.cmd_tx.try_send(DbCommand::Execute {

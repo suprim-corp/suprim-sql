@@ -16,8 +16,15 @@ pub struct PendingExport {
     pub format: crate::ui::export::ExportFormatId,
     pub csv_options: crate::ui::export::CsvOptions,
     pub json_options: crate::ui::export::JsonOptions,
+    pub sql_options: crate::ui::export::SqlOptions,
     /// When exporting multiple tables, this tells us the filename template.
     pub table_name: String,
+    /// Schema of the table being exported (needed for SQL export).
+    pub schema: String,
+    /// Per-table SQL toggles.
+    pub sql_include_structure: bool,
+    pub sql_include_drop: bool,
+    pub sql_include_data: bool,
 }
 
 /// Main application state — owned by the eframe runtime on the UI thread.

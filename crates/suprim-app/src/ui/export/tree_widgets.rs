@@ -2,11 +2,15 @@
 
 use eframe::egui;
 
-use super::types::{ExportDatabaseItem, ExportSchemaItem};
+use super::types::{ExportDatabaseItem, ExportFormatId, ExportSchemaItem};
 
 // ── Tree node rendering ─────────────────────────────────────────────────────
 
-pub(super) fn render_database_node(ui: &mut egui::Ui, db: &mut ExportDatabaseItem) {
+pub(super) fn render_database_node(
+    ui: &mut egui::Ui,
+    db: &mut ExportDatabaseItem,
+    format: ExportFormatId,
+) {
     let total: usize = db.schemas.iter().map(|s| s.tables.len()).sum();
     let selected: usize = db
         .schemas
@@ -39,12 +43,13 @@ pub(super) fn render_database_node(ui: &mut egui::Ui, db: &mut ExportDatabaseIte
     })
     .body(|ui| {
         for schema in &mut db.schemas {
-            render_schema_node(ui, schema);
+            render_schema_node(ui, schema, format);
         }
     });
 }
 
-fn render_schema_node(ui: &mut egui::Ui, schema: &mut ExportSchemaItem) {
+fn render_schema_node(ui: &mut egui::Ui, schema: &mut ExportSchemaItem, format: ExportFormatId) {
+    let is_sql = format == ExportFormatId::Sql;
     let total = schema.tables.len();
     let selected = schema.tables.iter().filter(|t| t.selected).count();
 
@@ -87,6 +92,43 @@ fn render_schema_node(ui: &mut egui::Ui, schema: &mut ExportSchemaItem) {
                     ));
                 }
                 ui.label(&tbl.name);
+
+                if is_sql {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let col_w = super::dialog_ui::SQL_COL_W;
+                        // Right-to-left: Data, Drop, Structure
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(col_w, ui.available_height()),
+                            egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
+                            |ui| {
+                                ui.add_enabled(
+                                    tbl.selected,
+                                    egui::Checkbox::new(&mut tbl.sql_include_data, ""),
+                                );
+                            },
+                        );
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(col_w, ui.available_height()),
+                            egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
+                            |ui| {
+                                ui.add_enabled(
+                                    tbl.selected,
+                                    egui::Checkbox::new(&mut tbl.sql_include_drop, ""),
+                                );
+                            },
+                        );
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(col_w, ui.available_height()),
+                            egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
+                            |ui| {
+                                ui.add_enabled(
+                                    tbl.selected,
+                                    egui::Checkbox::new(&mut tbl.sql_include_structure, ""),
+                                );
+                            },
+                        );
+                    });
+                }
             });
         }
     });

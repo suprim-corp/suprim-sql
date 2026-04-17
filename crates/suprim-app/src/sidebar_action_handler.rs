@@ -218,20 +218,22 @@ pub fn handle_sidebar_action(action: SidebarAction, ctx: &mut SidebarContext<'_>
             use crate::ui::export::{ExportDatabaseItem, ExportSchemaItem, ExportTableItem};
             let mut tables: Vec<ExportTableItem> = all_tables
                 .iter()
-                .map(|name| ExportTableItem {
-                    name: name.clone(),
-                    database: database.clone(),
-                    schema: schema_name.clone(),
-                    is_view: false,
-                    selected: Some(name) == preselected_table.as_ref(),
+                .map(|name| {
+                    let mut item = ExportTableItem::new(
+                        name.clone(),
+                        database.clone(),
+                        schema_name.clone(),
+                        false,
+                    );
+                    item.selected = Some(name) == preselected_table.as_ref();
+                    item
                 })
                 .collect();
-            tables.extend(all_views.iter().map(|name| ExportTableItem {
-                name: name.clone(),
-                database: database.clone(),
-                schema: schema_name.clone(),
-                is_view: true,
-                selected: Some(name) == preselected_table.as_ref(),
+            tables.extend(all_views.iter().map(|name| {
+                let mut item =
+                    ExportTableItem::new(name.clone(), database.clone(), schema_name.clone(), true);
+                item.selected = Some(name) == preselected_table.as_ref();
+                item
             }));
 
             let items = vec![ExportDatabaseItem {

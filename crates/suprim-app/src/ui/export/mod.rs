@@ -15,6 +15,7 @@ mod build;
 pub mod csv_plugin;
 mod dialog_ui;
 pub mod json_plugin;
+pub mod sql_plugin;
 mod tree_widgets;
 pub mod types;
 
@@ -22,6 +23,7 @@ use eframe::egui;
 
 pub use csv_plugin::CsvOptions;
 pub use json_plugin::JsonOptions;
+pub use sql_plugin::SqlOptions;
 pub use types::{
     ExportDatabaseItem, ExportFormatId, ExportMode, ExportModeKind, ExportOutcome, ExportRequest,
     ExportSchemaItem, ExportTableItem,
@@ -35,6 +37,7 @@ pub struct ExportDialog {
     pub(super) file_name: String,
     pub(super) csv_opts: CsvOptions,
     pub(super) json_opts: JsonOptions,
+    pub(super) sql_opts: SqlOptions,
     pub(super) error: Option<String>,
 }
 
@@ -51,6 +54,7 @@ impl ExportDialog {
             file_name: default_name,
             csv_opts: CsvOptions::default(),
             json_opts: JsonOptions::default(),
+            sql_opts: SqlOptions::default(),
             error: None,
         }
     }
@@ -66,6 +70,7 @@ impl ExportDialog {
             file_name: suggested_name,
             csv_opts: CsvOptions::default(),
             json_opts: JsonOptions::default(),
+            sql_opts: SqlOptions::default(),
             error: None,
         }
     }
@@ -76,7 +81,8 @@ impl ExportDialog {
         let mut is_open = true;
 
         let is_tables_mode = matches!(self.mode, ExportMode::Tables { .. });
-        let dialog_width = if is_tables_mode { 720.0 } else { 460.0 };
+        let is_sql = self.format == ExportFormatId::Sql;
+        let dialog_width = if is_tables_mode { 920.0 } else { 460.0 };
         let dialog_height = 480.0;
 
         #[allow(unused_mut)]
@@ -107,13 +113,25 @@ impl ExportDialog {
             let body_h = (ui.available_height() - FOOTER_H).max(100.0);
 
             if is_tables_mode {
+                let target_w = if is_sql { 480.0 } else { 380.0 };
+                let left_pane_width = ui.ctx().animate_value_with_time(
+                    egui::Id::new("export_left_pane_w"),
+                    target_w,
+                    0.15,
+                );
                 ui.horizontal(|ui| {
                     ui.set_height(body_h);
                     // LEFT: tables tree
                     ui.vertical(|ui| {
-                        ui.set_min_width(280.0);
-                        ui.set_max_width(280.0);
-                        ui.label(egui::RichText::new("Items").strong());
+                        ui.set_min_width(left_pane_width);
+                        ui.set_max_width(left_pane_width);
+                        // Header row: "Items" left, SQL column headers right
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new("Items").strong());
+                            if is_sql {
+                                dialog_ui::render_sql_column_headers(ui);
+                            }
+                        });
                         ui.add_space(4.0);
                         self.render_tables_tree(ui, body_h - 30.0);
                     });

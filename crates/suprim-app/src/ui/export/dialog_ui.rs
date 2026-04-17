@@ -4,12 +4,46 @@ use eframe::egui;
 
 use super::csv_plugin;
 use super::json_plugin;
+use super::sql_plugin;
 use super::tree_widgets::render_database_node;
 use super::types::{ExportFormatId, ExportMode};
 use super::ExportDialog;
 
+/// Fixed width for each SQL toggle column (Structure / Drop / Data).
+pub(super) const SQL_COL_W: f32 = 48.0;
+
+/// Render the 3 SQL column headers ("Structure", "Drop", "Data") right-aligned.
+/// Call this inside a horizontal layout — it consumes remaining width.
+pub(super) fn render_sql_column_headers(ui: &mut egui::Ui) {
+    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        // Right-to-left: Data, Drop, Structure (reversed order)
+        ui.allocate_ui_with_layout(
+            egui::vec2(SQL_COL_W, ui.available_height()),
+            egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
+            |ui| {
+                ui.label(egui::RichText::new("Data").weak().size(11.0));
+            },
+        );
+        ui.allocate_ui_with_layout(
+            egui::vec2(SQL_COL_W, ui.available_height()),
+            egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
+            |ui| {
+                ui.label(egui::RichText::new("Drop").weak().size(11.0));
+            },
+        );
+        ui.allocate_ui_with_layout(
+            egui::vec2(SQL_COL_W, ui.available_height()),
+            egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
+            |ui| {
+                ui.label(egui::RichText::new("Structure").weak().size(11.0));
+            },
+        );
+    });
+}
+
 impl ExportDialog {
     pub(super) fn render_tables_tree(&mut self, ui: &mut egui::Ui, max_h: f32) {
+        let format = self.format;
         let ExportMode::Tables { items, .. } = &mut self.mode else {
             return;
         };
@@ -20,7 +54,7 @@ impl ExportDialog {
             .auto_shrink(false)
             .show(ui, |ui| {
                 for db in items.iter_mut() {
-                    render_database_node(ui, db);
+                    render_database_node(ui, db, format);
                 }
             });
     }
@@ -80,7 +114,8 @@ impl ExportDialog {
         match self.format {
             ExportFormatId::Csv => csv_plugin::render_options_ui(ui, &mut self.csv_opts),
             ExportFormatId::Json => json_plugin::render_options_ui(ui, &mut self.json_opts),
-            ExportFormatId::Sql | ExportFormatId::Xlsx => {
+            ExportFormatId::Sql => sql_plugin::render_options_ui(ui, &mut self.sql_opts),
+            ExportFormatId::Xlsx => {
                 ui.vertical_centered(|ui| {
                     ui.add_space(20.0);
                     ui.label(
@@ -92,13 +127,8 @@ impl ExportDialog {
                         .size(14.0),
                     );
                     ui.add_space(6.0);
-                    let bare_name = match self.format {
-                        ExportFormatId::Sql => "SQL",
-                        ExportFormatId::Xlsx => "XLSX",
-                        _ => "",
-                    };
                     ui.label(
-                        egui::RichText::new(format!("{bare_name} export is not yet available."))
+                        egui::RichText::new("XLSX export is not yet available.")
                             .weak()
                             .size(12.0),
                     );
