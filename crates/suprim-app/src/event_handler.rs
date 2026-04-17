@@ -83,6 +83,7 @@ impl App {
                                     include_structure: pending.sql_include_structure,
                                     include_drop: pending.sql_include_drop,
                                     include_data: pending.sql_include_data,
+                                    table_node: pending.table_node.as_ref(),
                                 };
                                 crate::ui::export::sql_plugin::export(
                                     &[tbl],

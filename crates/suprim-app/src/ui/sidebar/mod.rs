@@ -14,7 +14,7 @@ mod views_folder_renderer;
 use connection_entry::{ConnectionEntry, ConnectionStatus};
 use eframe::egui;
 use suprim_core::db::connection::ConnectionConfig;
-use suprim_core::db::types::{SchemaNode, SchemaTree};
+use suprim_core::db::types::{SchemaNode, SchemaTree, TableNode};
 use uuid::Uuid;
 
 use crate::ui::icons;
@@ -239,5 +239,23 @@ impl Sidebar {
 
     fn find_mut(&mut self, conn_id: Uuid) -> Option<&mut ConnectionEntry> {
         self.connections.iter_mut().find(|c| c.conn_id == conn_id)
+    }
+
+    // ─── Public lookups ─────────────────────────────────────────────────
+
+    /// Lookup a `TableNode` by connection, database, schema, and table name.
+    /// Returns a clone because the caller typically stores it for deferred use.
+    pub fn find_table_node(
+        &self,
+        conn_id: Uuid,
+        database: &str,
+        schema_name: &str,
+        table_name: &str,
+    ) -> Option<TableNode> {
+        let entry = self.find(conn_id)?;
+        let tree = entry.schema.as_ref()?;
+        let db = tree.databases.iter().find(|d| d.name == database)?;
+        let schema = db.schemas.iter().find(|s| s.name == schema_name)?;
+        schema.tables.iter().find(|t| t.name == table_name).cloned()
     }
 }

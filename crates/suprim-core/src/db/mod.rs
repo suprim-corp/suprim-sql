@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod connection;
+pub mod ddl_generator;
 pub mod driver;
 pub mod drivers;
 pub mod factory;

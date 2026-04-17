@@ -9,6 +9,7 @@ use std::path::Path;
 use eframe::egui;
 
 use suprim_core::db::values::{DbValue, QueryResult};
+use suprim_core::db::TableNode;
 
 // ── Options ─────────────────────────────────────────────────────────────────
 
@@ -113,6 +114,9 @@ pub struct SqlTableExport<'a> {
     pub include_structure: bool,
     pub include_drop: bool,
     pub include_data: bool,
+    /// Full table metadata from the sidebar (columns, indexes, FKs).
+    /// When present, DDL is generated from real metadata instead of a skeleton.
+    pub table_node: Option<&'a TableNode>,
 }
 
 /// Export tables (one or many) to a single SQL file.
@@ -151,28 +155,36 @@ fn write_table(
     }
 
     if tbl.include_structure {
-        // TODO: fetch real DDL via dedicated DbCommand. For now emit a
-        // columns-only CREATE skeleton so the output is useful but clearly marked.
-        writeln!(
-            f,
-            "-- TODO: full DDL (indexes, FKs, constraints) not yet included."
-        )?;
-        writeln!(f, "CREATE TABLE IF NOT EXISTS {qualified} (")?;
-        let cols: Vec<String> = tbl
-            .result
-            .columns
-            .iter()
-            .map(|c| {
-                let ty = if c.db_type.is_empty() {
-                    "text".to_string()
-                } else {
-                    c.db_type.clone()
-                };
-                format!("    \"{}\" {}", c.name, ty)
-            })
-            .collect();
-        writeln!(f, "{}", cols.join(",\n"))?;
-        writeln!(f, ");")?;
+        if let Some(node) = tbl.table_node {
+            // Real DDL from schema metadata (includes indexes, FKs)
+            writeln!(
+                f,
+                "{}",
+                suprim_core::db::ddl_generator::full_table_ddl(tbl.schema, node)
+            )?;
+        } else {
+            // Fallback: columns-only skeleton from query result metadata
+            writeln!(
+                f,
+                "-- Note: full DDL not available (exported from query result)."
+            )?;
+            writeln!(f, "CREATE TABLE IF NOT EXISTS {qualified} (")?;
+            let cols: Vec<String> = tbl
+                .result
+                .columns
+                .iter()
+                .map(|c| {
+                    let ty = if c.db_type.is_empty() {
+                        "text".to_string()
+                    } else {
+                        c.db_type.clone()
+                    };
+                    format!("    \"{}\" {}", c.name, ty)
+                })
+                .collect();
+            writeln!(f, "{}", cols.join(",\n"))?;
+            writeln!(f, ");")?;
+        }
     }
 
     if tbl.include_data && !tbl.result.rows.is_empty() {

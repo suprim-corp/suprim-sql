@@ -205,6 +205,7 @@ impl App {
                                 include_structure: true,
                                 include_drop: false,
                                 include_data: true,
+                                table_node: None,
                             };
                             crate::ui::export::sql_plugin::export(
                                 &[tbl],
@@ -242,6 +243,15 @@ impl App {
                     } else {
                         req.destination.clone()
                     };
+
+                    // Lookup full table metadata for DDL generation
+                    let table_node = self.sidebar.find_table_node(
+                        table.conn_id,
+                        &table.database,
+                        &table.schema,
+                        &table.name,
+                    );
+
                     self.pending_exports.insert(
                         tab_id,
                         PendingExport {
@@ -255,6 +265,7 @@ impl App {
                             sql_include_structure: table.sql_include_structure,
                             sql_include_drop: table.sql_include_drop,
                             sql_include_data: table.sql_include_data,
+                            table_node,
                         },
                     );
                     let _ = self.cmd_tx.try_send(DbCommand::Execute {

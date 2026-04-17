@@ -25,6 +25,8 @@ pub struct PendingExport {
     pub sql_include_structure: bool,
     pub sql_include_drop: bool,
     pub sql_include_data: bool,
+    /// Full table metadata for DDL generation (populated from sidebar schema tree).
+    pub table_node: Option<suprim_core::db::TableNode>,
 }
 
 /// Main application state — owned by the eframe runtime on the UI thread.
