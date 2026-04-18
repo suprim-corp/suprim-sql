@@ -20,7 +20,7 @@ fn quote_ident(s: &str) -> String {
 fn quote_table(table: &str) -> String {
     table
         .split('.')
-        .map(|part| quote_ident(part))
+        .map(quote_ident)
         .collect::<Vec<_>>()
         .join(".")
 }
