@@ -9,15 +9,18 @@ use crate::error::{AppError, Result};
 
 use super::type_mapping::rows_to_query_result;
 
+/// Quote a SQL identifier: escape internal `"` → `""`, wrap in double quotes.
+fn quote_ident(s: &str) -> String {
+    let clean = s.trim_matches('"').replace('"', "\"\"");
+    format!("\"{}\"", clean)
+}
+
 /// Quote a table reference for SQL: handles `schema.table` → `"schema"."table"`,
 /// and plain `table` → `"table"`. Strips existing quotes, escapes internal `"`.
 fn quote_table(table: &str) -> String {
     table
         .split('.')
-        .map(|part| {
-            let clean = part.trim_matches('"').replace('"', "\"\"");
-            format!("\"{}\"", clean)
-        })
+        .map(|part| quote_ident(part))
         .collect::<Vec<_>>()
         .join(".")
 }
@@ -82,11 +85,11 @@ pub async fn table_data(
 ) -> Result<QueryResult> {
     let start = Instant::now();
     let offset = (page as u64) * (page_size as u64);
-    let schema_prefix = schema
-        .map(|s| format!("\"{}\".", s))
-        .unwrap_or_default();
 
-    let table_ref = format!("{}\"{}\"", schema_prefix, table);
+    let table_ref = match schema {
+        Some(s) => format!("{}.{}", quote_ident(s), quote_ident(table)),
+        None => quote_ident(table),
+    };
 
     // Validate user-provided clauses before injecting into SQL.
     let where_clause = match where_clause {
@@ -190,7 +193,7 @@ pub async fn insert_row(
         quote_table(table),
         pairs
             .iter()
-            .map(|(k, _)| format!("\"{}\"", k))
+            .map(|(k, _)| quote_ident(k))
             .collect::<Vec<_>>()
             .join(", "),
         placeholders.join(", ")
@@ -225,7 +228,7 @@ pub async fn update_row(
     let set_clause: Vec<String> = change_pairs
         .iter()
         .map(|(k, _)| {
-            let s = format!("\"{}\" = ${idx}", k);
+            let s = format!("{} = ${idx}", quote_ident(k));
             idx += 1;
             s
         })
@@ -234,7 +237,7 @@ pub async fn update_row(
     let where_clause: Vec<String> = pk_pairs
         .iter()
         .map(|(k, _)| {
-            let s = format!("\"{}\" = ${idx}", k);
+            let s = format!("{} = ${idx}", quote_ident(k));
             idx += 1;
             s
         })
@@ -269,10 +272,13 @@ pub async fn delete_row(
     table: &str,
     pk: HashMap<String, DbValue>,
 ) -> Result<u64> {
-    let where_clause: Vec<String> = pk
-        .keys()
+    // Collect into Vec to guarantee consistent key-value pairing.
+    let pk_pairs: Vec<(&String, &DbValue)> = pk.iter().collect();
+
+    let where_clause: Vec<String> = pk_pairs
+        .iter()
         .enumerate()
-        .map(|(i, k)| format!("\"{}\" = ${}", k, i + 1))
+        .map(|(i, (k, _))| format!("{} = ${}", quote_ident(k), i + 1))
         .collect();
 
     let sql = format!(
@@ -282,7 +288,7 @@ pub async fn delete_row(
     );
 
     let mut query = sqlx::query(AssertSqlSafe(sql.clone()));
-    for val in pk.values() {
+    for (_, val) in &pk_pairs {
         query = bind_db_value(query, val);
     }
 
@@ -323,7 +329,22 @@ fn bind_db_value<'q>(
 
 #[cfg(test)]
 mod tests {
-    use super::quote_table;
+    use super::{quote_ident, quote_table};
+
+    #[test]
+    fn quote_ident_plain() {
+        assert_eq!(quote_ident("name"), "\"name\"");
+    }
+
+    #[test]
+    fn quote_ident_internal_double_quote() {
+        assert_eq!(quote_ident("my\"col"), "\"my\"\"col\"");
+    }
+
+    #[test]
+    fn quote_ident_already_quoted() {
+        assert_eq!(quote_ident("\"name\""), "\"name\"");
+    }
 
     #[test]
     fn insert_sql_structure() {
@@ -332,7 +353,7 @@ mod tests {
         let sql = format!(
             "INSERT INTO \"users\" ({}) VALUES ({})",
             cols.iter()
-                .map(|c| format!("\"{}\"", c))
+                .map(|c| quote_ident(c))
                 .collect::<Vec<_>>()
                 .join(", "),
             placeholders.join(", ")
@@ -348,7 +369,7 @@ mod tests {
         let where_clause: Vec<String> = pk_cols
             .iter()
             .enumerate()
-            .map(|(i, k)| format!("\"{}\" = ${}", k, i + 1))
+            .map(|(i, k)| format!("{} = ${}", quote_ident(k), i + 1))
             .collect();
         let sql = format!(
             "DELETE FROM \"users\" WHERE {}",
@@ -362,10 +383,10 @@ mod tests {
         let page = 0u32;
         let page_size = 50u32;
         let offset = page * page_size;
-        let schema_prefix = "";
+        let table_ref = quote_ident("users");
         let sql = format!(
-            "SELECT * FROM {}\"{}\"\nLIMIT {} OFFSET {}",
-            schema_prefix, "users", page_size, offset
+            "SELECT * FROM {}\nLIMIT {} OFFSET {}",
+            table_ref, page_size, offset
         );
         assert_eq!(sql, "SELECT * FROM \"users\"\nLIMIT 50 OFFSET 0");
     }
@@ -375,24 +396,24 @@ mod tests {
         let page = 1u32;
         let page_size = 25u32;
         let offset = page * page_size;
-        let schema_prefix = "\"public\".";
+        let table_ref = format!("{}.{}", quote_ident("public"), quote_ident("orders"));
         let sql = format!(
-            "SELECT * FROM {}\"{}\"\nLIMIT {} OFFSET {}",
-            schema_prefix, "orders", page_size, offset
+            "SELECT * FROM {}\nLIMIT {} OFFSET {}",
+            table_ref, page_size, offset
         );
         assert_eq!(sql, "SELECT * FROM \"public\".\"orders\"\nLIMIT 25 OFFSET 25");
     }
 
     #[test]
     fn update_sql_structure() {
-        let set = vec!["name = $1"];
-        let whr = vec!["id = $2"];
+        let set = vec![format!("{} = $1", quote_ident("name"))];
+        let whr = vec![format!("{} = $2", quote_ident("id"))];
         let sql = format!(
             "UPDATE \"users\" SET {} WHERE {}",
             set.join(", "),
             whr.join(" AND ")
         );
-        assert_eq!(sql, "UPDATE \"users\" SET name = $1 WHERE id = $2");
+        assert_eq!(sql, "UPDATE \"users\" SET \"name\" = $1 WHERE \"id\" = $2");
     }
 
     #[test]
@@ -415,7 +436,6 @@ mod tests {
 
     #[test]
     fn quote_table_internal_double_quote() {
-        // Table name with " inside should be escaped to ""
         assert_eq!(
             quote_table("my\"table"),
             "\"my\"\"table\""
