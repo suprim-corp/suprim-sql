@@ -4,6 +4,7 @@ pub mod ddl_generator;
 pub mod driver;
 pub mod drivers;
 pub mod factory;
+pub mod sanitize;
 pub mod schema;
 pub mod sql_keywords;
 pub mod ssh_tunnel;

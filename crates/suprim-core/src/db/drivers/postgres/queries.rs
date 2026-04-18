@@ -78,9 +78,19 @@ pub async fn table_data(
 
     let table_ref = format!("{}\"{}\"", schema_prefix, table);
 
+    // Validate user-provided clauses before injecting into SQL.
+    let where_clause = match where_clause {
+        Some(w) => Some(crate::db::sanitize::validate_where_clause(w)?),
+        None => None,
+    };
+    let order_clause = match order_clause {
+        Some(o) => Some(crate::db::sanitize::validate_order_clause(o)?),
+        None => None,
+    };
+
     // Build WHERE fragment (shared by both COUNT and SELECT)
-    let where_fragment = match where_clause {
-        Some(w) if !w.trim().is_empty() => format!("\nWHERE {}", w.trim()),
+    let where_fragment = match &where_clause {
+        Some(w) if !w.is_empty() => format!("\nWHERE {}", w),
         _ => String::new(),
     };
 
@@ -89,8 +99,7 @@ pub async fn table_data(
 
     // 2) Data query — paginated
     let mut data_sql = format!("SELECT * FROM {}{}", table_ref, where_fragment);
-    if let Some(o) = order_clause {
-        let o = o.trim();
+    if let Some(o) = &order_clause {
         if !o.is_empty() {
             data_sql.push_str(&format!("\nORDER BY {}", o));
         }
