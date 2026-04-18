@@ -41,7 +41,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: macos-check-${{ hashFiles('**/Cargo.lock') }}
+          key: linux-check-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            linux-check-
 
       - name: Build
         run: cargo build --features dev-test
