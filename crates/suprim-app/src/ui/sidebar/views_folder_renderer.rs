@@ -94,10 +94,7 @@ fn render_view_like_folder(
         .show_header(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(icon_kind.rich(icons::SIDEBAR_ICON));
-                ui.add(
-                    egui::Label::new(format!("{} ({})", folder_name, views.len()))
-                        .sense(egui::Sense::click()),
-                )
+                ui.selectable_label(false, format!("{} ({})", folder_name, views.len()))
             })
         })
         .body(|ui| {
@@ -117,10 +114,7 @@ fn render_view_like_folder(
                     .show_header(ui, |ui| {
                         ui.horizontal(|ui| {
                             ui.label(icon_kind.rich(icons::SIDEBAR_ICON));
-                            ui.add(
-                                egui::Label::new(v_name)
-                                    .sense(egui::Sense::click()),
-                            )
+                            ui.selectable_label(false, v_name)
                         })
                     })
                     .body(|ui| {
@@ -156,6 +150,22 @@ fn render_view_like_folder(
                     .on_hover_cursor(CursorIcon::PointingHand);
             }
         });
+    // Right-click on folder header → "Refresh"
+    header_resp.inner.response.context_menu(|ui| {
+        if ui
+            .button(format!("{}  Refresh", icons::ph::arrows_clockwise()))
+            .on_hover_cursor(CursorIcon::PointingHand)
+            .clicked()
+        {
+            *action = Some(SidebarAction::RefreshSchema {
+                conn_id,
+                database: db_name.to_owned(),
+                schema_name: schema_name.to_owned(),
+            });
+            ui.close();
+        }
+    });
+
     // Click folder label → toggle expand/collapse. Must run before
     // `on_hover_cursor` (which consumes the response).
     super::sidebar_renderer::toggle_on_label_click(

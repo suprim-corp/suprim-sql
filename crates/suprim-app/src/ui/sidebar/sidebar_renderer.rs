@@ -146,7 +146,7 @@ fn render_single_connection(
                     &entry.driver_type.to_string(),
                     icons::SIDEBAR_ICON,
                 ));
-                ui.add(egui::Label::new(&header).sense(egui::Sense::click()))
+                ui.selectable_label(false, &header)
             })
             .inner
             .on_hover_cursor(CursorIcon::PointingHand)
@@ -211,6 +211,11 @@ pub(super) fn truncate_label(s: &str, max_chars: usize) -> String {
 }
 
 fn build_header_label(label: &str, total: usize, visible: &Option<Vec<String>>) -> String {
+    // Before schema tree loaded (total == 0, no visible filter), show a
+    // placeholder ellipsis rather than a misleading "[0]" count.
+    if total == 0 && visible.is_none() {
+        return format!("{}  [\u{2026}]", label); // …
+    }
     let badge = match visible {
         Some(v) => format!("{}/{}", v.len(), total),
         None => total.to_string(),

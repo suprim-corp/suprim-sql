@@ -30,13 +30,14 @@ pub(super) fn render_tables_folder(
                     icons::SIDEBAR_ICON,
                     icons::db::COLOR_TABLE,
                 ));
-                ui.add(
-                    egui::Label::new(format!("Tables ({})", schema_node.tables.len()))
-                        .sense(egui::Sense::click()),
-                )
+                ui.selectable_label(false, format!("Tables ({})", schema_node.tables.len()))
             })
         })
         .body(|ui| {
+            if schema_node.tables.is_empty() {
+                ui.weak("No tables. Right-click folder to create one.");
+                return;
+            }
             for table in &schema_node.tables {
                 let tbl_name = &table.name;
                 let tbl_suffix = match table.row_count {

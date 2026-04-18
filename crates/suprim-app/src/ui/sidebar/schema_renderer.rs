@@ -47,10 +47,7 @@ pub(super) fn render_schema_tree(
                         icons::SIDEBAR_ICON,
                         icons::db::COLOR_DATABASE,
                     ));
-                    ui.add(
-                        egui::Label::new(&db_node.name)
-                            .sense(egui::Sense::click()),
-                    )
+                    ui.selectable_label(false, &db_node.name)
                 })
             })
             .body(|ui| {
@@ -143,10 +140,7 @@ fn render_schema_node(
                     icons::SIDEBAR_ICON,
                     icons::db::COLOR_SCHEMA,
                 ));
-                ui.add(
-                    egui::Label::new(format!("{}{}", schema_name, suffix))
-                        .sense(egui::Sense::click()),
-                )
+                ui.selectable_label(false, format!("{}{}", schema_name, suffix))
             })
         })
         .body(|ui| {
@@ -190,6 +184,7 @@ fn render_schema_node(
                 db_name,
                 schema_name,
                 schema_node,
+                action,
             );
         });
     // Click schema label → toggle expand/collapse. Must run before
@@ -199,6 +194,41 @@ fn render_schema_node(
         schema_id,
         &header_resp.inner.inner,
     );
+
+    // Right-click context menu on schema label.
+    // Note: Drop Schema is intentionally omitted here — that requires a new
+    // DbCommand + dialect impl + confirmation dialog. Track in follow-up.
+    header_resp.inner.inner.context_menu(|ui| {
+        if ui
+            .button(format!("{}  Refresh", icons::ph::arrows_clockwise()))
+            .on_hover_cursor(CursorIcon::PointingHand)
+            .clicked()
+        {
+            *action = Some(SidebarAction::RefreshSchema {
+                conn_id,
+                database: db_name.to_owned(),
+                schema_name: schema_name.to_owned(),
+            });
+            ui.close();
+        }
+        if ui
+            .button(format!("{}  New Table...", icons::ph::plus_circle()))
+            .on_hover_cursor(CursorIcon::PointingHand)
+            .clicked()
+        {
+            *action = Some(SidebarAction::NewTable {
+                conn_id,
+                database: db_name.to_owned(),
+                schema_name: schema_name.to_owned(),
+                schema_functions: schema_node
+                    .functions
+                    .iter()
+                    .map(|f| f.signature.clone())
+                    .collect(),
+            });
+            ui.close();
+        }
+    });
 
     toggle_resp.on_hover_cursor(CursorIcon::PointingHand);
     header_resp
