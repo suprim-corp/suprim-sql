@@ -3,6 +3,7 @@
 use std::io::Write;
 use std::path::Path;
 
+use suprim_core::db::dialect::SqlDialect;
 use suprim_core::db::values::{DbValue, QueryResult};
 use suprim_core::db::TableNode;
 
@@ -19,6 +20,8 @@ pub struct SqlTableExport<'a> {
     /// Full table metadata from the sidebar (columns, indexes, FKs).
     /// When present, DDL is generated from real metadata instead of a skeleton.
     pub table_node: Option<&'a TableNode>,
+    /// SQL dialect — determines quoting style and literal formatting.
+    pub dialect: SqlDialect,
 }
 
 /// Export tables (one or many) to a single SQL file.
@@ -48,7 +51,8 @@ fn write_table(
     tbl: &SqlTableExport<'_>,
     opts: &SqlOptions,
 ) -> std::io::Result<()> {
-    let qualified = format!("\"{}\".\"{}\"", tbl.schema, tbl.name);
+    let dialect = tbl.dialect;
+    let qualified = dialect.quote_table(tbl.schema, tbl.name);
 
     writeln!(f, "-- ── Table: {qualified} ──")?;
 
@@ -62,7 +66,7 @@ fn write_table(
             writeln!(
                 f,
                 "{}",
-                suprim_core::db::ddl_generator::full_table_ddl(tbl.schema, node)
+                suprim_core::db::ddl_generator::full_table_ddl(tbl.schema, node, dialect)
             )?;
         } else {
             // Fallback: columns-only skeleton from query result metadata
@@ -81,7 +85,7 @@ fn write_table(
                     } else {
                         c.db_type.clone()
                     };
-                    format!("    \"{}\" {}", c.name, ty)
+                    format!("    {} {}", dialect.quote_ident(&c.name), ty)
                 })
                 .collect();
             writeln!(f, "{}", cols.join(",\n"))?;
@@ -101,12 +105,13 @@ fn write_insert_statements(
     tbl: &SqlTableExport<'_>,
     opts: &SqlOptions,
 ) -> std::io::Result<()> {
-    let qualified = format!("\"{}\".\"{}\"", tbl.schema, tbl.name);
+    let dialect = tbl.dialect;
+    let qualified = dialect.quote_table(tbl.schema, tbl.name);
     let col_list: Vec<String> = tbl
         .result
         .columns
         .iter()
-        .map(|c| format!("\"{}\"", c.name))
+        .map(|c| dialect.quote_ident(&c.name))
         .collect();
     let col_list = col_list.join(", ");
 
@@ -115,7 +120,7 @@ fn write_insert_statements(
         writeln!(f, "INSERT INTO {qualified} ({col_list}) VALUES")?;
         let last = chunk.len() - 1;
         for (i, row) in chunk.iter().enumerate() {
-            let vals: Vec<String> = row.iter().map(sql_literal).collect();
+            let vals: Vec<String> = row.iter().map(|v| sql_literal(v, dialect)).collect();
             let terminator = if i == last { ";" } else { "," };
             writeln!(f, "  ({}){terminator}", vals.join(", "))?;
         }
@@ -125,7 +130,7 @@ fn write_insert_statements(
 }
 
 /// Render a DbValue as a SQL literal suitable for an INSERT.
-fn sql_literal(val: &DbValue) -> String {
+fn sql_literal(val: &DbValue, dialect: SqlDialect) -> String {
     match val {
         DbValue::Null => "NULL".to_string(),
         DbValue::Bool(b) => if *b { "TRUE" } else { "FALSE" }.to_string(),
@@ -139,14 +144,8 @@ fn sql_literal(val: &DbValue) -> String {
         }
         DbValue::Decimal(s) => s.clone(),
         DbValue::Text(s) => format!("'{}'", s.replace('\'', "''")),
-        DbValue::Json(v) => {
-            let raw = v.to_string().replace('\'', "''");
-            format!("'{raw}'::jsonb")
-        }
-        DbValue::Bytes(b) => {
-            let hex: String = b.iter().map(|byte| format!("{:02x}", byte)).collect();
-            format!("'\\x{hex}'")
-        }
+        DbValue::Json(v) => dialect.json_literal(&v.to_string()),
+        DbValue::Bytes(b) => dialect.bytes_literal(b),
         DbValue::Timestamp(t) => format!("'{}'", t.format("%Y-%m-%d %H:%M:%S")),
     }
 }

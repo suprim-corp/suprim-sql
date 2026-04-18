@@ -129,6 +129,7 @@ impl ExportDialog {
             selected_tables,
             format_options,
             query_result,
+            dialect: self.dialect,
         })
     }
 }

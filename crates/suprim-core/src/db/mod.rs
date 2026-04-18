@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod connection;
 pub mod ddl_generator;
+pub mod dialect;
 pub mod driver;
 pub mod drivers;
 pub mod factory;
@@ -14,6 +15,7 @@ pub mod worker;
 
 pub use commands::{DbCommand, DbEvent};
 pub use connection::{ConnectionConfig, DriverParams, DriverType, SshConfig, SslMode, TlsConfig};
+pub use dialect::SqlDialect;
 pub use driver::DatabaseDriver;
 pub use factory::DbFactory;
 pub use worker::DbWorker;

@@ -23,6 +23,7 @@ pub mod types;
 pub mod writers;
 
 use eframe::egui;
+use suprim_core::db::dialect::SqlDialect;
 
 pub use csv_options::CsvOptions;
 pub use json_options::JsonOptions;
@@ -42,6 +43,8 @@ pub struct ExportDialog {
     pub(super) json_opts: JsonOptions,
     pub(super) sql_opts: SqlOptions,
     pub(super) error: Option<String>,
+    /// SQL dialect for the connection this export targets.
+    pub(super) dialect: SqlDialect,
 }
 
 impl ExportDialog {
@@ -50,6 +53,7 @@ impl ExportDialog {
         conn_id: uuid::Uuid,
         items: Vec<ExportDatabaseItem>,
         default_name: String,
+        dialect: SqlDialect,
     ) -> Self {
         Self {
             mode: ExportMode::Tables { conn_id, items },
@@ -59,6 +63,7 @@ impl ExportDialog {
             json_opts: JsonOptions::default(),
             sql_opts: SqlOptions::default(),
             error: None,
+            dialect,
         }
     }
 
@@ -75,6 +80,7 @@ impl ExportDialog {
             json_opts: JsonOptions::default(),
             sql_opts: SqlOptions::default(),
             error: None,
+            dialect: SqlDialect::default(),
         }
     }
 

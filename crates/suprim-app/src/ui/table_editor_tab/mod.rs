@@ -6,6 +6,7 @@ mod sql_generator;
 
 use eframe::egui;
 use suprim_core::db::commands::DbCommand;
+use suprim_core::db::dialect::SqlDialect;
 use suprim_core::db::types::{ForeignKeyNode, IndexNode, TableNode};
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -75,6 +76,8 @@ pub struct TableEditorTab {
     pub is_new_table: bool,
     /// Function signatures available in the current schema (for default value autocomplete).
     pub schema_functions: Vec<String>,
+    /// SQL dialect for this tab's connection (affects quoting/literal formatting).
+    pub dialect: SqlDialect,
 }
 
 impl TableEditorTab {
@@ -92,6 +95,7 @@ impl TableEditorTab {
             status_message: None,
             is_new_table: false,
             schema_functions: Vec::new(),
+            dialect: SqlDialect::default(),
         }
     }
 
@@ -118,6 +122,7 @@ impl TableEditorTab {
             status_message: None,
             is_new_table: true,
             schema_functions: Vec::new(),
+            dialect: SqlDialect::default(),
         }
     }
 
@@ -159,6 +164,7 @@ impl TableEditorTab {
                                 &self.schema_name,
                                 &self.table_name,
                                 &self.columns,
+                                self.dialect,
                             );
                             self.status_message = Some(sql_generator::execute_changes(
                                 self.conn_id,
@@ -169,10 +175,11 @@ impl TableEditorTab {
                                 cmd_tx,
                             ));
                         } else {
-                            let sql = sql_generator::generate_alter_sql(
+                            let sql = sql_generator::generate_add_columns_sql(
                                 &self.schema_name,
                                 &self.table_name,
                                 &self.columns,
+                                self.dialect,
                             );
                             self.status_message = Some(sql_generator::execute_changes(
                                 self.conn_id,
@@ -194,12 +201,14 @@ impl TableEditorTab {
                                 &self.schema_name,
                                 &self.table_name,
                                 &self.columns,
+                                self.dialect,
                             )
                         } else {
-                            sql_generator::generate_alter_sql(
+                            sql_generator::generate_add_columns_sql(
                                 &self.schema_name,
                                 &self.table_name,
                                 &self.columns,
+                                self.dialect,
                             )
                         };
                         self.show_sql_preview = true;
@@ -244,6 +253,7 @@ impl TableEditorTab {
                     columns_grid::render_columns_grid(
                         &mut self.columns,
                         &self.schema_functions,
+                        self.dialect,
                         ui,
                     );
 

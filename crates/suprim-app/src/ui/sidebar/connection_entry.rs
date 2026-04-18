@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use suprim_core::db::connection::DriverType;
 use suprim_core::db::types::{DatabaseNode, SchemaNode, SchemaTree};
 use uuid::Uuid;
 
@@ -16,8 +17,8 @@ pub(super) enum ConnectionStatus {
 pub(super) struct ConnectionEntry {
     pub conn_id: Uuid,
     pub label: String,
-    /// Driver type string for engine icon (e.g. "postgres", "mysql", "sqlite").
-    pub driver_type: String,
+    /// Driver type enum — used for dialect resolution and icon rendering.
+    pub driver_type: DriverType,
     pub status: ConnectionStatus,
     /// Currently displayed schema tree (already filtered).
     pub schema: Option<SchemaTree>,
@@ -48,7 +49,7 @@ impl ConnectionEntry {
     pub fn new(
         conn_id: Uuid,
         label: String,
-        driver_type: String,
+        driver_type: DriverType,
         schema: SchemaTree,
         visible_databases: Option<Vec<String>>,
     ) -> Self {
@@ -72,7 +73,7 @@ impl ConnectionEntry {
     }
 
     /// Create a placeholder entry for a saved connection (not yet connected).
-    pub fn new_disconnected(conn_id: Uuid, label: String, driver_type: String) -> Self {
+    pub fn new_disconnected(conn_id: Uuid, label: String, driver_type: DriverType) -> Self {
         Self {
             conn_id,
             label,

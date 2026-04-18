@@ -13,7 +13,8 @@ mod views_folder_renderer;
 
 use connection_entry::{ConnectionEntry, ConnectionStatus};
 use eframe::egui;
-use suprim_core::db::connection::ConnectionConfig;
+use suprim_core::db::connection::{ConnectionConfig, DriverType};
+use suprim_core::db::dialect::SqlDialect;
 use suprim_core::db::types::{SchemaNode, SchemaTree, TableNode};
 use uuid::Uuid;
 
@@ -49,7 +50,7 @@ impl Sidebar {
                 self.connections.push(ConnectionEntry::new_disconnected(
                     cfg.id,
                     cfg.name.clone(),
-                    cfg.driver_type().to_string(),
+                    cfg.driver_type(),
                 ));
             }
         }
@@ -111,7 +112,7 @@ impl Sidebar {
         &mut self,
         conn_id: Uuid,
         name: String,
-        driver_type: String,
+        driver_type: DriverType,
         schema: SchemaTree,
         visible: Option<Vec<String>>,
         server_version: Option<String>,
@@ -257,5 +258,12 @@ impl Sidebar {
         let db = tree.databases.iter().find(|d| d.name == database)?;
         let schema = db.schemas.iter().find(|s| s.name == schema_name)?;
         schema.tables.iter().find(|t| t.name == table_name).cloned()
+    }
+
+    /// Resolve the SQL dialect for a connection by its id.
+    pub fn dialect_for(&self, conn_id: Uuid) -> SqlDialect {
+        self.find(conn_id)
+            .map(|entry| SqlDialect::from(entry.driver_type))
+            .unwrap_or_default()
     }
 }

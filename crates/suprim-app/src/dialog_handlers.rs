@@ -183,6 +183,8 @@ impl App {
         use crate::ui::export::types::{FormatOptions, PendingExport};
         use crate::ui::export::ExportModeKind;
 
+        let dialect = req.dialect;
+
         match req.mode_kind {
             ExportModeKind::QueryResult => {
                 if let Some(result) = &req.query_result {
@@ -212,7 +214,11 @@ impl App {
                 let ext = req.format_options.extension();
                 for table in req.selected_tables {
                     let tab_id = uuid::Uuid::new_v4();
-                    let sql = format!("SELECT * FROM \"{}\".\"{}\"", table.schema, table.name);
+                    let table_dialect = self.sidebar.dialect_for(table.conn_id);
+                    let sql = format!(
+                        "SELECT * FROM {}",
+                        table_dialect.quote_table(&table.schema, &table.name)
+                    );
                     let dest = if is_multi {
                         req.destination.join(format!("{}.{ext}", table.name))
                     } else {
@@ -245,6 +251,7 @@ impl App {
                             sql_include_drop: table.sql_include_drop,
                             sql_include_data: table.sql_include_data,
                             table_node,
+                            dialect,
                         },
                     );
                     let _ = self.cmd_tx.try_send(DbCommand::Execute {

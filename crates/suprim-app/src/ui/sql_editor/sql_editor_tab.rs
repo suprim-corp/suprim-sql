@@ -1,6 +1,7 @@
 /// SQL Editor tab — interactive query execution and result display.
 use eframe::egui;
 use suprim_core::db::commands::DbCommand;
+use suprim_core::db::dialect::SqlDialect;
 use suprim_core::db::types::QueryResult;
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -29,6 +30,8 @@ pub struct SqlEditorTab {
     selected_row: Option<usize>,
     /// SQL keyword autocomplete state.
     pub(crate) autocomplete: AutocompleteState,
+    /// SQL dialect for this tab's connection (affects quoting/literal formatting).
+    pub dialect: SqlDialect,
 }
 
 impl SqlEditorTab {
@@ -45,6 +48,7 @@ impl SqlEditorTab {
             selected_cell: None,
             selected_row: None,
             autocomplete: AutocompleteState::new(),
+            dialect: SqlDialect::default(),
         }
     }
 
@@ -102,7 +106,7 @@ impl SqlEditorTab {
                 .copy_text(clipboard_formatters::format_as_csv(db_val)),
             CellAction::CopyAsSql => ui
                 .ctx()
-                .copy_text(clipboard_formatters::format_as_sql(db_val)),
+                .copy_text(clipboard_formatters::format_as_sql(db_val, self.dialect)),
             // Other actions not supported in SQL editor (read-only results)
             _ => {}
         }

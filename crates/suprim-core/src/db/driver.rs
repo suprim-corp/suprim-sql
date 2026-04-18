@@ -1,6 +1,7 @@
 use crate::{
     db::{
         connection::ConnectionConfig,
+        dialect::SqlDialect,
         schema::{ExtensionInfo, ServerMetrics, SessionInfo, SlowQueryInfo},
         types::{QueryResult, SchemaNode},
     },
@@ -107,30 +108,35 @@ pub trait DatabaseDriver: Send + Sync + std::fmt::Debug {
 
     /// Truncate a table (remove all rows without dropping the table).
     async fn truncate_table(&self, schema: &str, table: &str) -> Result<()> {
-        let sql = format!("TRUNCATE TABLE \"{}\".\"{}\"", schema, table);
+        let dialect = SqlDialect::from(self.driver_type());
+        let sql = format!("TRUNCATE TABLE {}", dialect.quote_table(schema, table));
         self.execute(&sql).await?;
         Ok(())
     }
 
     /// Drop a table.
     async fn drop_table(&self, schema: &str, table: &str) -> Result<()> {
-        let sql = format!("DROP TABLE \"{}\".\"{}\"", schema, table);
+        let dialect = SqlDialect::from(self.driver_type());
+        let sql = format!("DROP TABLE {}", dialect.quote_table(schema, table));
         self.execute(&sql).await?;
         Ok(())
     }
 
     /// Drop a view.
     async fn drop_view(&self, schema: &str, view: &str) -> Result<()> {
-        let sql = format!("DROP VIEW IF EXISTS \"{}\".\"{}\"", schema, view);
+        let dialect = SqlDialect::from(self.driver_type());
+        let sql = format!("DROP VIEW IF EXISTS {}", dialect.quote_table(schema, view));
         self.execute(&sql).await?;
         Ok(())
     }
 
     /// Rename a table.
     async fn rename_table(&self, schema: &str, old_name: &str, new_name: &str) -> Result<()> {
+        let dialect = SqlDialect::from(self.driver_type());
         let sql = format!(
-            "ALTER TABLE \"{}\".\"{}\" RENAME TO \"{}\"",
-            schema, old_name, new_name
+            "ALTER TABLE {} RENAME TO {}",
+            dialect.quote_table(schema, old_name),
+            dialect.quote_ident(new_name)
         );
         self.execute(&sql).await?;
         Ok(())
@@ -138,14 +144,16 @@ pub trait DatabaseDriver: Send + Sync + std::fmt::Debug {
 
     /// Create a new database.
     async fn create_database(&self, name: &str) -> Result<()> {
-        let sql = format!("CREATE DATABASE \"{}\"", name);
+        let dialect = SqlDialect::from(self.driver_type());
+        let sql = format!("CREATE DATABASE {}", dialect.quote_ident(name));
         self.execute(&sql).await?;
         Ok(())
     }
 
     /// Create a new schema in a specific database.
     async fn create_schema(&self, database: &str, name: &str) -> Result<()> {
-        let sql = format!("CREATE SCHEMA \"{}\"", name);
+        let dialect = SqlDialect::from(self.driver_type());
+        let sql = format!("CREATE SCHEMA {}", dialect.quote_ident(name));
         self.execute_on_database(&sql, database).await?;
         Ok(())
     }

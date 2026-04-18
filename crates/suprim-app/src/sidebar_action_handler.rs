@@ -2,6 +2,7 @@
 /// or application state changes. Extracted from `app.rs` to isolate sidebar
 /// action routing from core application wiring.
 use suprim_core::db::commands::DbCommand;
+use suprim_core::db::dialect::SqlDialect;
 use suprim_core::storage::AppConfig;
 use tokio::sync::mpsc;
 
@@ -27,6 +28,8 @@ pub struct SidebarContext<'a> {
     pub gate: &'a dyn PremiumGate,
     /// Closure to look up a connection name by id (delegates to sidebar).
     pub conn_name: Box<dyn Fn(uuid::Uuid) -> String + 'a>,
+    /// Closure to resolve SQL dialect for a connection (delegates to sidebar).
+    pub conn_dialect: Box<dyn Fn(uuid::Uuid) -> SqlDialect + 'a>,
 }
 
 /// Dispatch a single `SidebarAction` — translating it into the appropriate
@@ -54,8 +57,14 @@ pub fn handle_sidebar_action(action: SidebarAction, ctx: &mut SidebarContext<'_>
             databases,
         } => {
             let name = (ctx.conn_name)(conn_id);
-            ctx.tab_manager
-                .open_sql_tab(Some(conn_id), name, database, databases);
+            let dialect = (ctx.conn_dialect)(conn_id);
+            ctx.tab_manager.open_sql_tab_with_dialect(
+                Some(conn_id),
+                name,
+                database,
+                databases,
+                dialect,
+            );
         }
         SidebarAction::OpenTableViewer {
             conn_id,
@@ -64,8 +73,15 @@ pub fn handle_sidebar_action(action: SidebarAction, ctx: &mut SidebarContext<'_>
             table_name,
         } => {
             let name = (ctx.conn_name)(conn_id);
-            ctx.tab_manager
-                .open_table_viewer(conn_id, name, database, schema_name, table_name);
+            let dialect = (ctx.conn_dialect)(conn_id);
+            ctx.tab_manager.open_table_viewer_with_dialect(
+                conn_id,
+                name,
+                database,
+                schema_name,
+                table_name,
+                dialect,
+            );
         }
         SidebarAction::EditTable {
             conn_id,
@@ -75,13 +91,15 @@ pub fn handle_sidebar_action(action: SidebarAction, ctx: &mut SidebarContext<'_>
             schema_functions,
         } => {
             let name = (ctx.conn_name)(conn_id);
-            ctx.tab_manager.open_table_editor(
+            let dialect = (ctx.conn_dialect)(conn_id);
+            ctx.tab_manager.open_table_editor_with_dialect(
                 conn_id,
                 name,
                 database,
                 schema_name,
                 &table,
                 schema_functions,
+                dialect,
             );
         }
         SidebarAction::Disconnect { conn_id } => {
@@ -186,12 +204,14 @@ pub fn handle_sidebar_action(action: SidebarAction, ctx: &mut SidebarContext<'_>
             schema_functions,
         } => {
             let name = (ctx.conn_name)(conn_id);
-            ctx.tab_manager.open_new_table_editor(
+            let dialect = (ctx.conn_dialect)(conn_id);
+            ctx.tab_manager.open_new_table_editor_with_dialect(
                 conn_id,
                 name,
                 database,
                 schema_name,
                 schema_functions,
+                dialect,
             );
         }
         SidebarAction::NewDatabase { conn_id } => {
@@ -250,7 +270,13 @@ pub fn handle_sidebar_action(action: SidebarAction, ctx: &mut SidebarContext<'_>
             let default_name = preselected_table
                 .clone()
                 .unwrap_or_else(|| database.clone());
-            *ctx.export_dialog = Some(ExportDialog::for_tables(conn_id, items, default_name));
+            let dialect = (ctx.conn_dialect)(conn_id);
+            *ctx.export_dialog = Some(ExportDialog::for_tables(
+                conn_id,
+                items,
+                default_name,
+                dialect,
+            ));
         }
     }
 }

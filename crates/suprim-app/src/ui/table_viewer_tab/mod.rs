@@ -14,6 +14,7 @@ mod toolbar;
 
 use eframe::egui;
 use suprim_core::db::commands::DbCommand;
+use suprim_core::db::dialect::SqlDialect;
 use suprim_core::db::types::{DbValue, QueryResult};
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -74,6 +75,8 @@ pub struct TableViewerTab {
     pub needs_reload_after_mutation: bool,
     /// When Some, the app should open the export dialog with this result.
     pub pending_open_export_dialog: Option<QueryResult>,
+    /// SQL dialect for this tab's connection (affects quoting/literal formatting).
+    pub dialect: SqlDialect,
 }
 
 impl TableViewerTab {
@@ -107,6 +110,7 @@ impl TableViewerTab {
             filter_popup: FilterPopupState::default(),
             needs_reload_after_mutation: false,
             pending_open_export_dialog: None,
+            dialect: SqlDialect::default(),
         }
     }
 

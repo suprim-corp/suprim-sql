@@ -44,7 +44,7 @@ impl App {
                         .unwrap_or_else(|| conn_id.to_string());
                     let visible_dbs = saved.and_then(|c| c.visible_databases.clone());
                     let driver_type = saved
-                        .map(|c| c.driver_type().to_string())
+                        .map(|c| c.driver_type())
                         .expect("connection config must exist");
                     self.sidebar.on_connected(
                         conn_id,
@@ -71,6 +71,7 @@ impl App {
                             include_drop: pending.sql_include_drop,
                             include_data: pending.sql_include_data,
                             table_node: pending.table_node.as_ref(),
+                            dialect: pending.dialect,
                         };
                         let res = crate::ui::export::writers::execute_export(
                             &result,
@@ -282,8 +283,14 @@ impl App {
                     if let Some((conn_id, name, database, databases)) =
                         self.sidebar.first_connection_info()
                     {
-                        self.tab_manager
-                            .open_sql_tab(Some(conn_id), name, database, databases);
+                        let dialect = self.sidebar.dialect_for(conn_id);
+                        self.tab_manager.open_sql_tab_with_dialect(
+                            Some(conn_id),
+                            name,
+                            database,
+                            databases,
+                            dialect,
+                        );
                     } else {
                         self.tab_manager
                             .open_sql_tab(None, String::new(), None, Vec::new());
