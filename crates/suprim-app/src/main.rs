@@ -53,6 +53,7 @@ fn main() {
     let icon = eframe::icon_data::from_png_bytes(include_bytes!("../../../assets/icons/icon.png"))
         .expect("Failed to decode app icon");
 
+    #[allow(unused_mut)]
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("SuprimSQL")
         .with_icon(icon)
