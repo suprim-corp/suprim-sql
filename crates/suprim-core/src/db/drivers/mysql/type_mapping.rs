@@ -105,6 +105,26 @@ pub fn mysql_value_from_row(row: &MySqlRow, idx: usize, type_name: &str) -> DbVa
             });
     }
 
+    // DATE / TIME / YEAR — not full timestamps, decode to text representation
+    if upper == "DATE" {
+        return row
+            .try_get::<chrono::NaiveDate, _>(idx)
+            .map(|d| DbValue::Text(d.to_string()))
+            .unwrap_or(DbValue::Null);
+    }
+    if upper == "TIME" {
+        return row
+            .try_get::<chrono::NaiveTime, _>(idx)
+            .map(|t| DbValue::Text(t.to_string()))
+            .unwrap_or(DbValue::Null);
+    }
+    if upper == "YEAR" {
+        return row
+            .try_get::<i16, _>(idx)
+            .map(|y| DbValue::Int(y as i64))
+            .unwrap_or(DbValue::Null);
+    }
+
     // Default: text (TEXT, VARCHAR, CHAR, ENUM, SET, DATE, TIME, YEAR, etc.)
     row.try_get::<String, _>(idx)
         .map(DbValue::Text)

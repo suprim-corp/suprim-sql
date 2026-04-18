@@ -133,3 +133,69 @@ async fn timestamp_maps_to_timestamp_or_text() {
         "TIMESTAMP should map to Timestamp or Text"
     );
 }
+
+// ── Additional types ─────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn float_via_expression() {
+    let driver = helpers::connected_driver("testdb").await;
+    // 3.14e0 is a DOUBLE literal in MySQL (works on 5.7+)
+    let result = driver.execute("SELECT 3.14e0 AS val").await.unwrap();
+    assert!(
+        matches!(&result.rows[0][0], DbValue::Float(v) if (*v - 3.14).abs() < 0.001),
+        "DOUBLE literal should map to Float(~3.14), got {:?}", result.rows[0][0]
+    );
+}
+
+#[tokio::test]
+async fn blob_type() {
+    let driver = helpers::connected_driver("testdb").await;
+    let result = driver.execute("SELECT CAST('hello' AS BINARY) AS val").await.unwrap();
+    assert!(
+        matches!(&result.rows[0][0], DbValue::Bytes(b) if b == b"hello"),
+        "BINARY should map to Bytes, got {:?}", result.rows[0][0]
+    );
+}
+
+#[tokio::test]
+async fn date_type() {
+    let driver = helpers::connected_driver("testdb").await;
+    let result = driver.execute("SELECT CAST('2026-04-18' AS DATE) AS val").await.unwrap();
+    assert!(
+        matches!(&result.rows[0][0], DbValue::Text(s) if s == "2026-04-18"),
+        "DATE should map to Text('2026-04-18'), got {:?}", result.rows[0][0]
+    );
+}
+
+#[tokio::test]
+async fn time_type() {
+    let driver = helpers::connected_driver("testdb").await;
+    let result = driver.execute("SELECT CAST('14:30:00' AS TIME) AS val").await.unwrap();
+    assert!(
+        matches!(&result.rows[0][0], DbValue::Text(s) if s == "14:30:00"),
+        "TIME should map to Text('14:30:00'), got {:?}", result.rows[0][0]
+    );
+}
+
+#[tokio::test]
+async fn enum_type() {
+    let driver = helpers::connected_driver("testdb").await;
+    let result = driver
+        .execute("SELECT status FROM orders WHERE id = 1")
+        .await
+        .unwrap();
+    assert!(
+        matches!(&result.rows[0][0], DbValue::Text(s) if s == "delivered"),
+        "ENUM should map to Text, got {:?}", result.rows[0][0]
+    );
+}
+
+#[tokio::test]
+async fn smallint_type() {
+    let driver = helpers::connected_driver("testdb").await;
+    let result = driver.execute("SELECT CAST(32000 AS SIGNED) AS val").await.unwrap();
+    assert!(
+        matches!(&result.rows[0][0], DbValue::Int(32000)),
+        "SIGNED INT should map to Int(32000), got {:?}", result.rows[0][0]
+    );
+}

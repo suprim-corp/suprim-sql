@@ -2,6 +2,7 @@ use crate::helpers;
 use suprim_core::db::connection::DriverParams;
 use suprim_core::db::driver::DatabaseDriver;
 use suprim_core::db::drivers::mysql::MysqlDriver;
+use suprim_core::db::values::DbValue;
 
 #[tokio::test]
 async fn connect_and_ping() {
@@ -39,4 +40,23 @@ async fn connect_wrong_params_returns_error() {
     );
     let err = driver.connect(&config).await;
     assert!(err.is_err());
+}
+
+#[tokio::test]
+async fn execute_with_params_multiple_types() {
+    let driver = helpers::connected_driver("testdb").await;
+    let result = driver
+        .execute_with_params(
+            "SELECT ? AS a, ? AS b, ? AS c, ? AS d",
+            vec![
+                DbValue::Int(42),
+                DbValue::Text("hello".to_string()),
+                DbValue::Bool(true),
+                DbValue::Null,
+            ],
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.rows.len(), 1);
+    assert_eq!(result.columns.len(), 4);
 }

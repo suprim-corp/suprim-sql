@@ -69,3 +69,17 @@ async fn create_database() {
 
     driver.execute("DROP DATABASE ddl_test_db").await.unwrap();
 }
+
+#[tokio::test]
+async fn create_schema_creates_database() {
+    let driver = helpers::connected_driver("testdb").await;
+    let _ = driver.execute("DROP DATABASE IF EXISTS ddl_schema_test").await;
+
+    // MySQL: create_schema = create_database
+    driver.create_schema("testdb", "ddl_schema_test").await.unwrap();
+
+    let dbs = driver.list_databases().await.unwrap();
+    assert!(dbs.contains(&"ddl_schema_test".to_string()));
+
+    driver.execute("DROP DATABASE ddl_schema_test").await.unwrap();
+}

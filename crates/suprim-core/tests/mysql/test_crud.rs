@@ -84,3 +84,52 @@ async fn insert_null_values() {
     pk.insert("email".to_string(), DbValue::Text("null@test.com".to_string()));
     driver.delete_row("users", pk).await.unwrap();
 }
+
+#[tokio::test]
+async fn insert_json_value() {
+    let driver = helpers::connected_driver("testdb").await;
+    let _ = driver.execute("DELETE FROM users WHERE email = 'json@crud.com'").await;
+
+    let mut values = HashMap::new();
+    values.insert("name".to_string(), DbValue::Text("JsonCrud".to_string()));
+    values.insert("email".to_string(), DbValue::Text("json@crud.com".to_string()));
+    values.insert("metadata".to_string(), DbValue::Json(serde_json::json!({"k": "v"})));
+
+    let affected = driver.insert_row("users", values).await.unwrap();
+    assert_eq!(affected, 1);
+
+    let mut pk = HashMap::new();
+    pk.insert("email".to_string(), DbValue::Text("json@crud.com".to_string()));
+    driver.delete_row("users", pk).await.unwrap();
+}
+
+#[tokio::test]
+async fn insert_decimal_value() {
+    let driver = helpers::connected_driver("testdb").await;
+    let _ = driver.execute("DELETE FROM users WHERE email = 'dec@crud.com'").await;
+
+    let mut values = HashMap::new();
+    values.insert("name".to_string(), DbValue::Text("DecCrud".to_string()));
+    values.insert("email".to_string(), DbValue::Text("dec@crud.com".to_string()));
+    values.insert("salary".to_string(), DbValue::Decimal("99999.99".to_string()));
+
+    let affected = driver.insert_row("users", values).await.unwrap();
+    assert_eq!(affected, 1);
+
+    // Verify value stored correctly
+    let result = driver
+        .execute("SELECT salary FROM users WHERE email = 'dec@crud.com'")
+        .await
+        .unwrap();
+    match &result.rows[0][0] {
+        DbValue::Decimal(s) => {
+            let v: f64 = s.parse().unwrap();
+            assert!((v - 99999.99).abs() < 0.01);
+        }
+        other => panic!("Expected Decimal, got {:?}", other),
+    }
+
+    let mut pk = HashMap::new();
+    pk.insert("email".to_string(), DbValue::Text("dec@crud.com".to_string()));
+    driver.delete_row("users", pk).await.unwrap();
+}

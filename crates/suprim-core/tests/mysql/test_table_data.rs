@@ -72,7 +72,11 @@ async fn order_clause_sorts_rows() {
     assert_eq!(result.rows.len(), 5);
     // Verify descending order — first row's total should be >= second
     let totals: Vec<f64> = result.rows.iter().filter_map(|r| {
-        if let suprim_core::db::values::DbValue::Float(v) = &r[2] { Some(*v) } else { None }
+        match &r[2] {
+            suprim_core::db::values::DbValue::Float(v) => Some(*v),
+            suprim_core::db::values::DbValue::Decimal(s) => s.parse().ok(),
+            _ => None,
+        }
     }).collect();
     for w in totals.windows(2) {
         assert!(w[0] >= w[1], "Expected descending order: {} >= {}", w[0], w[1]);
@@ -108,4 +112,43 @@ async fn empty_where_clause_ignored() {
         .unwrap();
 
     assert_eq!(result.rows.len(), 5, "empty where should return all rows");
+}
+
+#[tokio::test]
+async fn no_database_param_uses_connection_default() {
+    let driver = helpers::connected_driver("testdb").await;
+    let result = driver
+        .table_data(None, None, "orders", 0, 50, None, None)
+        .await
+        .unwrap();
+    assert_eq!(result.rows.len(), 5);
+}
+
+#[tokio::test]
+async fn page_beyond_data_returns_empty() {
+    let driver = helpers::connected_driver("testdb").await;
+    let result = driver
+        .table_data(Some("testdb"), Some("testdb"), "orders", 100, 50, None, None)
+        .await
+        .unwrap();
+    assert_eq!(result.rows.len(), 0);
+    assert_eq!(result.total_count, Some(5), "total_count should still reflect full table");
+}
+
+#[tokio::test]
+async fn nullable_metadata_correct() {
+    let driver = helpers::connected_driver("testdb").await;
+    let result = driver
+        .table_data(Some("testdb"), Some("testdb"), "users", 0, 1, None, None)
+        .await
+        .unwrap();
+
+    let name_col = result.columns.iter().find(|c| c.name == "name").unwrap();
+    assert!(!name_col.nullable, "name is NOT NULL");
+
+    let email_col = result.columns.iter().find(|c| c.name == "email").unwrap();
+    assert!(email_col.nullable, "email allows NULL");
+
+    let metadata_col = result.columns.iter().find(|c| c.name == "metadata").unwrap();
+    assert!(metadata_col.nullable, "metadata allows NULL");
 }

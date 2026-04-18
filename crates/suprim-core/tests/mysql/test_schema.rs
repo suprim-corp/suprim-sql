@@ -74,3 +74,17 @@ async fn load_schema_detail_mysql_specifics() {
     assert!(schema.materialized_views.is_empty());
     assert!(schema.sequences.is_empty());
 }
+
+#[tokio::test]
+async fn empty_database_returns_empty_schema() {
+    let driver = helpers::connected_driver("testdb").await;
+    let _ = driver.execute("DROP DATABASE IF EXISTS empty_schema_test").await;
+    driver.execute("CREATE DATABASE empty_schema_test").await.unwrap();
+
+    let schema = driver.load_schema_detail("empty_schema_test", "empty_schema_test").await.unwrap();
+    assert!(schema.tables.is_empty());
+    assert!(schema.views.is_empty());
+    assert!(schema.functions.is_empty());
+
+    driver.execute("DROP DATABASE empty_schema_test").await.unwrap();
+}

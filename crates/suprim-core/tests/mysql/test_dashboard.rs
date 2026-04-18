@@ -29,3 +29,10 @@ async fn slow_queries_does_not_crash() {
     let result = driver.list_slow_queries().await;
     assert!(result.is_ok());
 }
+
+#[tokio::test]
+async fn kill_nonexistent_session_errors() {
+    let driver = helpers::connected_driver("testdb").await;
+    let result = driver.kill_session(999999).await;
+    assert!(result.is_err(), "Kill nonexistent PID should error");
+}
