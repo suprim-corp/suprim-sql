@@ -40,8 +40,10 @@ impl UpgradePrompt {
             window = window.title_bar(false);
         }
         #[cfg(not(target_os = "macos"))]
+        let mut title_bar_open = true;
+        #[cfg(not(target_os = "macos"))]
         {
-            window = window.open(&mut is_open);
+            window = window.open(&mut title_bar_open);
         }
 
         window.show(ctx, |ui| {
@@ -131,6 +133,11 @@ impl UpgradePrompt {
                 });
             });
         });
+
+        #[cfg(not(target_os = "macos"))]
+        if !title_bar_open {
+            is_open = false;
+        }
 
         if !is_open {
             return UpgradePromptResult::Dismissed;
