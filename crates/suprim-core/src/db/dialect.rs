@@ -32,7 +32,7 @@ impl SqlDialect {
 
     /// Quote a fully qualified table for cross-database queries.
     /// PG: `"schema"."table"`, MySQL: `` `database`.`table` ``, SQLite: `"table"`.
-    pub fn quote_qualified(&self, database: &str, table: &str) -> String {
+    pub fn quote_cross_db(&self, database: &str, table: &str) -> String {
         match self {
             Self::Postgres => format!("{}.{}", self.quote_ident(database), self.quote_ident(table)),
             Self::Mysql => format!("{}.{}", self.quote_ident(database), self.quote_ident(table)),
@@ -61,7 +61,12 @@ impl SqlDialect {
     }
 
     /// PK skip heuristic for index generation — identifies the index that
-    /// represents the primary key (so we can skip it in DDL output).
+    /// represents the primary key (so we can skip it in DDL output, since PK
+    /// is already declared in CREATE TABLE).
+    ///
+    /// NOTE: This relies on naming conventions. Edge case: if a user creates a
+    /// non-PK index named exactly "PRIMARY" (MySQL) or ending with "_pkey" (PG),
+    /// it would be incorrectly skipped. This is extremely unlikely in practice.
     pub fn is_pk_index(&self, index_name: &str) -> bool {
         match self {
             Self::Postgres => index_name.ends_with("_pkey"),
@@ -116,15 +121,15 @@ mod tests {
     }
 
     #[test]
-    fn quote_qualified_postgres() {
+    fn quote_cross_db_postgres() {
         let d = SqlDialect::Postgres;
-        assert_eq!(d.quote_qualified("mydb", "users"), "\"mydb\".\"users\"");
+        assert_eq!(d.quote_cross_db("mydb", "users"), "\"mydb\".\"users\"");
     }
 
     #[test]
-    fn quote_qualified_mysql() {
+    fn quote_cross_db_mysql() {
         let d = SqlDialect::Mysql;
-        assert_eq!(d.quote_qualified("other_db", "items"), "`other_db`.`items`");
+        assert_eq!(d.quote_cross_db("other_db", "items"), "`other_db`.`items`");
     }
 
     #[test]

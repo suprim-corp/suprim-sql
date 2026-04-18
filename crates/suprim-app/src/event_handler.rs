@@ -44,7 +44,7 @@ impl App {
                         .unwrap_or_else(|| conn_id.to_string());
                     let visible_dbs = saved.and_then(|c| c.visible_databases.clone());
                     let driver_type = saved
-                        .map(|c| c.driver_type().to_string())
+                        .map(|c| c.driver_type())
                         .expect("connection config must exist");
                     self.sidebar.on_connected(
                         conn_id,

@@ -70,7 +70,7 @@ fn render_single_connection(
             .show_header(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(icons::engine::by_name(
-                        &entry.driver_type,
+                        &entry.driver_type.to_string(),
                         icons::SIDEBAR_ICON,
                     ));
                     ui.label(text)
@@ -143,7 +143,7 @@ fn render_single_connection(
         .show_header(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(icons::engine::by_name(
-                    &entry.driver_type,
+                    &entry.driver_type.to_string(),
                     icons::SIDEBAR_ICON,
                 ));
                 ui.label(&header)

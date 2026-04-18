@@ -13,7 +13,7 @@ mod views_folder_renderer;
 
 use connection_entry::{ConnectionEntry, ConnectionStatus};
 use eframe::egui;
-use suprim_core::db::connection::ConnectionConfig;
+use suprim_core::db::connection::{ConnectionConfig, DriverType};
 use suprim_core::db::dialect::SqlDialect;
 use suprim_core::db::types::{SchemaNode, SchemaTree, TableNode};
 use uuid::Uuid;
@@ -50,7 +50,7 @@ impl Sidebar {
                 self.connections.push(ConnectionEntry::new_disconnected(
                     cfg.id,
                     cfg.name.clone(),
-                    cfg.driver_type().to_string(),
+                    cfg.driver_type(),
                 ));
             }
         }
@@ -112,7 +112,7 @@ impl Sidebar {
         &mut self,
         conn_id: Uuid,
         name: String,
-        driver_type: String,
+        driver_type: DriverType,
         schema: SchemaTree,
         visible: Option<Vec<String>>,
         server_version: Option<String>,
@@ -261,17 +261,9 @@ impl Sidebar {
     }
 
     /// Resolve the SQL dialect for a connection by its id.
-    /// Returns `SqlDialect::Postgres` if the connection is unknown.
     pub fn dialect_for(&self, conn_id: Uuid) -> SqlDialect {
         self.find(conn_id)
-            .map(|entry| match entry.driver_type.as_str() {
-                "MySQL" => SqlDialect::Mysql,
-                "SQLite" => SqlDialect::Sqlite,
-                "PostgreSQL" => SqlDialect::Postgres,
-                // DriverType::Display outputs these exact strings.
-                // Fallback for unknown/future drivers.
-                _ => SqlDialect::default(),
-            })
+            .map(|entry| SqlDialect::from(entry.driver_type))
             .unwrap_or_default()
     }
 }

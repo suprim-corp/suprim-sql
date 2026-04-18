@@ -230,18 +230,22 @@ pub fn update_autocomplete(
                 .collect();
 
             // Append matching SQL keywords, types, functions, constants (lowercased for display).
-            for set in [
-                &*SQL_KEYWORDS,
-                &*SQL_TYPES,
-                &*SQL_FUNCTIONS,
-                &*SQL_CONSTANTS,
-            ] {
+            for set in [&*SQL_KEYWORDS, &*SQL_TYPES, &*SQL_CONSTANTS] {
                 for kw in set {
                     if kw.starts_with(&upper) && *kw != upper {
                         let lower_kw = kw.to_lowercase();
                         if !results.contains(&lower_kw) {
                             results.push(lower_kw);
                         }
+                    }
+                }
+            }
+            // Functions get () appended for autocomplete convenience.
+            for kw in SQL_FUNCTIONS.iter() {
+                if kw.starts_with(&upper) && *kw != upper {
+                    let lower_kw = format!("{}()", kw.to_lowercase());
+                    if !results.contains(&lower_kw) {
+                        results.push(lower_kw);
                     }
                 }
             }

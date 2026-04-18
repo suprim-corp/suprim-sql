@@ -60,8 +60,9 @@ pub fn generate_create_table_sql(
     )
 }
 
-/// Generates ALTER TABLE ADD COLUMN statements for newly added columns.
-pub fn generate_alter_sql(
+/// Generates ALTER TABLE ADD COLUMN statements for newly added columns only.
+/// Does not handle column modifications or drops — those are out of scope for now.
+pub fn generate_add_columns_sql(
     schema_name: &str,
     table_name: &str,
     columns: &[EditableColumn],

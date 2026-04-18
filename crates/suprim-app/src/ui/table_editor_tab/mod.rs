@@ -175,7 +175,7 @@ impl TableEditorTab {
                                 cmd_tx,
                             ));
                         } else {
-                            let sql = sql_generator::generate_alter_sql(
+                            let sql = sql_generator::generate_add_columns_sql(
                                 &self.schema_name,
                                 &self.table_name,
                                 &self.columns,
@@ -204,7 +204,7 @@ impl TableEditorTab {
                                 self.dialect,
                             )
                         } else {
-                            sql_generator::generate_alter_sql(
+                            sql_generator::generate_add_columns_sql(
                                 &self.schema_name,
                                 &self.table_name,
                                 &self.columns,
