@@ -80,6 +80,20 @@ echo "==> Patching Info.plist..."
 
 echo "    ✓ Info.plist patched"
 
+# ── Step 2c: Copy app icon into bundle ───────────────────────────────────
+ICNS_SRC="assets/icons/icon.icns"
+if [[ -f "$ICNS_SRC" ]]; then
+    RESOURCES_DIR="${APP_PATH}/Contents/Resources"
+    mkdir -p "$RESOURCES_DIR"
+    cp "$ICNS_SRC" "$RESOURCES_DIR/icon.icns"
+    # Set CFBundleIconFile in Info.plist
+    /usr/libexec/PlistBuddy -c "Delete :CFBundleIconFile" "$PLIST" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string icon" "$PLIST"
+    echo "    ✓ App icon copied"
+else
+    echo "    ⚠ No icon.icns found at ${ICNS_SRC} — dock icon will be generic"
+fi
+
 # ── Step 3: Code signing (optional) ──────────────────────────────────────
 if [[ "$DO_SIGN" == true ]]; then
     if [[ -z "$SIGNING_IDENTITY" ]]; then
