@@ -129,3 +129,99 @@ pub fn execute_changes(
         Err(e) => format!("Failed to send: {}", e),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use suprim_core::db::dialect::SqlDialect;
+
+    fn sample_columns() -> Vec<EditableColumn> {
+        vec![
+            EditableColumn {
+                name: "id".to_string(),
+                db_type: "INT".to_string(),
+                type_param: String::new(),
+                nullable: false,
+                is_primary_key: true,
+                default_value: String::new(),
+                original: false,
+            },
+            EditableColumn {
+                name: "name".to_string(),
+                db_type: "VARCHAR".to_string(),
+                type_param: "255".to_string(),
+                nullable: true,
+                is_primary_key: false,
+                default_value: String::new(),
+                original: false,
+            },
+        ]
+    }
+
+    #[test]
+    fn create_table_pg_uses_double_quotes() {
+        let sql =
+            generate_create_table_sql("public", "users", &sample_columns(), SqlDialect::Postgres);
+        assert!(
+            sql.contains("\"public\".\"users\""),
+            "PG should use schema.table: {sql}"
+        );
+        assert!(
+            sql.contains("\"id\""),
+            "PG should quote column names: {sql}"
+        );
+    }
+
+    #[test]
+    fn create_table_mysql_uses_backticks() {
+        let sql = generate_create_table_sql("mydb", "users", &sample_columns(), SqlDialect::Mysql);
+        assert!(sql.contains("`users`"), "MySQL should use backtick: {sql}");
+        assert!(sql.contains("`id`"), "MySQL should quote columns: {sql}");
+        assert!(
+            !sql.contains("\"users\""),
+            "MySQL should NOT use double-quotes: {sql}"
+        );
+        // MySQL should not prefix schema
+        assert!(
+            !sql.contains("`mydb`."),
+            "MySQL table should not have schema prefix: {sql}"
+        );
+    }
+
+    #[test]
+    fn create_table_empty_name_returns_comment() {
+        let sql = generate_create_table_sql("public", "", &sample_columns(), SqlDialect::Postgres);
+        assert!(sql.contains("-- Table name is required"));
+    }
+
+    #[test]
+    fn create_table_no_columns_returns_comment() {
+        let sql = generate_create_table_sql("public", "t", &[], SqlDialect::Postgres);
+        assert!(sql.contains("-- At least one column is required"));
+    }
+
+    #[test]
+    fn add_columns_mysql_backtick() {
+        let mut cols = sample_columns();
+        cols[0].original = true; // id already exists
+                                 // name is new (original = false)
+        let sql = generate_add_columns_sql("mydb", "users", &cols, SqlDialect::Mysql);
+        assert!(
+            sql.contains("ALTER TABLE `users`"),
+            "MySQL ALTER should use backtick: {sql}"
+        );
+        assert!(
+            sql.contains("ADD COLUMN `name`"),
+            "MySQL ADD COLUMN should use backtick: {sql}"
+        );
+    }
+
+    #[test]
+    fn add_columns_no_new_columns_returns_comment() {
+        let mut cols = sample_columns();
+        cols[0].original = true;
+        cols[1].original = true;
+        let sql = generate_add_columns_sql("public", "t", &cols, SqlDialect::Postgres);
+        assert!(sql.contains("-- No changes"));
+    }
+}

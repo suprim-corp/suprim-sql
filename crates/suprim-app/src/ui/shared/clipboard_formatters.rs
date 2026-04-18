@@ -39,3 +39,70 @@ pub fn format_as_sql(val: &DbValue, dialect: SqlDialect) -> String {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_as_sql_postgres_json() {
+        let val = DbValue::Json(serde_json::json!({"key": "value"}));
+        let result = format_as_sql(&val, SqlDialect::Postgres);
+        assert!(
+            result.contains("::jsonb"),
+            "PG JSON should use ::jsonb cast: {result}"
+        );
+    }
+
+    #[test]
+    fn format_as_sql_mysql_json() {
+        let val = DbValue::Json(serde_json::json!({"key": "value"}));
+        let result = format_as_sql(&val, SqlDialect::Mysql);
+        assert!(
+            result.contains("CAST("),
+            "MySQL JSON should use CAST: {result}"
+        );
+        assert!(
+            result.contains("AS JSON"),
+            "MySQL JSON should cast AS JSON: {result}"
+        );
+        assert!(
+            !result.contains("::jsonb"),
+            "MySQL should NOT use ::jsonb: {result}"
+        );
+    }
+
+    #[test]
+    fn format_as_sql_postgres_bytes() {
+        let val = DbValue::Bytes(vec![0xde, 0xad]);
+        let result = format_as_sql(&val, SqlDialect::Postgres);
+        assert_eq!(result, "'\\xdead'");
+    }
+
+    #[test]
+    fn format_as_sql_mysql_bytes() {
+        let val = DbValue::Bytes(vec![0xde, 0xad]);
+        let result = format_as_sql(&val, SqlDialect::Mysql);
+        assert_eq!(result, "X'dead'");
+    }
+
+    #[test]
+    fn format_as_sql_null() {
+        assert_eq!(format_as_sql(&DbValue::Null, SqlDialect::Postgres), "NULL");
+        assert_eq!(format_as_sql(&DbValue::Null, SqlDialect::Mysql), "NULL");
+    }
+
+    #[test]
+    fn format_as_sql_text_escapes_quotes() {
+        let val = DbValue::Text("it's a test".to_string());
+        let result = format_as_sql(&val, SqlDialect::Postgres);
+        assert_eq!(result, "'it''s a test'");
+    }
+
+    #[test]
+    fn format_as_sql_decimal_no_quotes() {
+        let val = DbValue::Decimal("12345.67".to_string());
+        let result = format_as_sql(&val, SqlDialect::Mysql);
+        assert_eq!(result, "12345.67", "Decimal should not be quoted");
+    }
+}

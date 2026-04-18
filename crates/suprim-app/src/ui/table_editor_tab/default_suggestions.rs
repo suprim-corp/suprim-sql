@@ -142,3 +142,88 @@ pub fn filtered_suggestions(
 
     results
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pg_bigint_has_nextval() {
+        let suggestions = suggestions_for_type("bigint", SqlDialect::Postgres);
+        assert!(
+            suggestions.iter().any(|s| s.contains("nextval")),
+            "PG bigint should suggest nextval: {:?}",
+            suggestions
+        );
+    }
+
+    #[test]
+    fn pg_uuid_has_gen_random() {
+        let suggestions = suggestions_for_type("uuid", SqlDialect::Postgres);
+        assert!(
+            suggestions.iter().any(|s| s.contains("gen_random_uuid")),
+            "PG uuid should suggest gen_random_uuid: {:?}",
+            suggestions
+        );
+    }
+
+    #[test]
+    fn mysql_bigint_no_nextval() {
+        let suggestions = suggestions_for_type("bigint", SqlDialect::Mysql);
+        assert!(
+            !suggestions.iter().any(|s| s.contains("nextval")),
+            "MySQL should NOT suggest nextval: {:?}",
+            suggestions
+        );
+    }
+
+    #[test]
+    fn mysql_timestamp_has_now() {
+        let suggestions = suggestions_for_type("timestamp", SqlDialect::Mysql);
+        assert!(
+            suggestions.iter().any(|s| *s == "NOW()"),
+            "MySQL timestamp should suggest NOW(): {:?}",
+            suggestions
+        );
+    }
+
+    #[test]
+    fn mysql_uuid_has_uuid_function() {
+        let suggestions = suggestions_for_type("uuid", SqlDialect::Mysql);
+        assert!(
+            suggestions.iter().any(|s| *s == "UUID()"),
+            "MySQL uuid should suggest UUID(): {:?}",
+            suggestions
+        );
+    }
+
+    #[test]
+    fn mysql_json_suggestions() {
+        let suggestions = suggestions_for_type("json", SqlDialect::Mysql);
+        assert!(
+            suggestions.contains(&"'{}'"),
+            "MySQL json should suggest '{{}}': {:?}",
+            suggestions
+        );
+    }
+
+    #[test]
+    fn filtered_suggestions_filters_by_input() {
+        let results = filtered_suggestions("timestamp", "cur", &[], SqlDialect::Mysql);
+        assert!(
+            results.iter().all(|s| s.to_lowercase().contains("cur")),
+            "Should only contain items matching 'cur': {:?}",
+            results
+        );
+        assert!(!results.is_empty());
+    }
+
+    #[test]
+    fn filtered_suggestions_empty_input_returns_all() {
+        let results = filtered_suggestions("boolean", "", &[], SqlDialect::Mysql);
+        assert!(
+            !results.is_empty(),
+            "Empty input should return all suggestions"
+        );
+    }
+}
