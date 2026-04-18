@@ -1,6 +1,6 @@
 [package]
 name = "suprim-app"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 rust-version = "1.92"
 
@@ -71,7 +71,7 @@ proptest = "1"
 name = "SuprimSQL"
 identifier = "com.suprim.sql"
 icon = ["../../assets/icons/icon.icns", "../../assets/icons/icon.ico", "../../assets/icons/128x128.png", "../../assets/icons/128x128@2x.png", "../../assets/icons/64x64.png", "../../assets/icons/32x32.png"]
-version = "0.1.1"
+version = "0.1.2"
 copyright = "Copyright © 2025 Suprim. All rights reserved."
 category = "public.app-category.developer-tools"
 short_description = "A modern PostgreSQL client"
