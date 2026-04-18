@@ -1,14 +1,14 @@
 //! Load functions and procedures from PostgreSQL catalog.
 
 use sqlx::postgres::PgPool;
-use sqlx::{AssertSqlSafe, Row};
+use sqlx::Row;
 
 use crate::db::types::FunctionNode;
 
 /// Load user-defined functions and procedures for a given schema from `pg_catalog.pg_proc`.
 /// Excludes C-language functions (from extensions) — those are handled at extension level.
 pub(super) async fn load_functions(pool: &PgPool, schema_name: &str) -> Vec<FunctionNode> {
-    let func_rows = sqlx::query(AssertSqlSafe(format!(
+    let func_rows = sqlx::query(
         "SELECT p.proname AS func_name, \
                 pg_catalog.pg_get_function_identity_arguments(p.oid) AS identity_args, \
                 pg_catalog.pg_get_function_result(p.oid) AS return_type, \
@@ -18,12 +18,12 @@ pub(super) async fn load_functions(pool: &PgPool, schema_name: &str) -> Vec<Func
          FROM pg_catalog.pg_proc p \
          JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace \
          JOIN pg_catalog.pg_language l ON l.oid = p.prolang \
-         WHERE n.nspname = '{}' \
+         WHERE n.nspname = $1 \
            AND p.prokind IN ('f', 'p') \
            AND l.lanname != 'c' \
          ORDER BY p.proname, identity_args",
-        schema_name
-    )))
+    )
+    .bind(schema_name)
     .fetch_all(pool)
     .await
     .unwrap_or_default();

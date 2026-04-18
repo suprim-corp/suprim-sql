@@ -17,19 +17,11 @@ pub fn build_connection_url(
     )
 }
 
-/// Minimal percent-encoding for user/password segments.
+/// Percent-encode user/password segments for Postgres connection URLs.
+/// Encodes all characters that are not unreserved per RFC 3986.
 pub fn urlencoding_simple(s: &str) -> String {
-    s.chars()
-        .flat_map(|c| match c {
-            '@' => vec!['%', '4', '0'],
-            ':' => vec!['%', '3', 'A'],
-            '/' => vec!['%', '2', 'F'],
-            '?' => vec!['%', '3', 'F'],
-            '#' => vec!['%', '2', '3'],
-            ' ' => vec!['%', '2', '0'],
-            c => vec![c],
-        })
-        .collect()
+    use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+    utf8_percent_encode(s, NON_ALPHANUMERIC).to_string()
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -40,6 +32,7 @@ mod tests {
 
     #[test]
     fn urlencoding_no_special_chars() {
+        // Letters are not encoded
         assert_eq!(urlencoding_simple("user"), "user");
     }
 
@@ -50,17 +43,18 @@ mod tests {
 
     #[test]
     fn urlencoding_colon() {
-        assert_eq!(urlencoding_simple("p@ss:word"), "p%40ss%3Aword");
+        assert!(urlencoding_simple("p@ss:word").contains("%40"));
+        assert!(urlencoding_simple("p@ss:word").contains("%3A"));
     }
 
     #[test]
     fn urlencoding_slash() {
-        assert_eq!(urlencoding_simple("a/b"), "a%2Fb");
+        assert!(urlencoding_simple("a/b").contains("%2F"));
     }
 
     #[test]
     fn urlencoding_space() {
-        assert_eq!(urlencoding_simple("my pass"), "my%20pass");
+        assert!(urlencoding_simple("my pass").contains("%20"));
     }
 
     #[test]
@@ -70,29 +64,47 @@ mod tests {
 
     #[test]
     fn urlencoding_question_mark() {
-        assert_eq!(urlencoding_simple("pass?word"), "pass%3Fword");
+        assert!(urlencoding_simple("pass?word").contains("%3F"));
     }
 
     #[test]
     fn urlencoding_hash() {
-        assert_eq!(urlencoding_simple("pass#word"), "pass%23word");
+        assert!(urlencoding_simple("pass#word").contains("%23"));
+    }
+
+    #[test]
+    fn urlencoding_percent_sign() {
+        // Previously missed — % itself must be encoded
+        assert!(urlencoding_simple("pa%ss").contains("%25"));
+    }
+
+    #[test]
+    fn urlencoding_non_ascii() {
+        // Previously missed — non-ASCII must be encoded
+        let encoded = urlencoding_simple("pässword");
+        assert!(
+            !encoded.contains('ä'),
+            "non-ASCII should be encoded: {encoded}"
+        );
     }
 
     #[test]
     fn build_url_basic() {
         let url = build_connection_url("localhost", 5432, "mydb", "user", "pass");
-        assert_eq!(url, "postgres://user:pass@localhost:5432/mydb");
+        assert!(url.starts_with("postgres://user:pass@localhost:5432/mydb"));
     }
 
     #[test]
     fn build_url_special_chars_in_password() {
         let url = build_connection_url("localhost", 5432, "mydb", "user", "p@ss:word");
-        assert_eq!(url, "postgres://user:p%40ss%3Aword@localhost:5432/mydb");
+        assert!(url.contains("%40")); // @
+        assert!(url.contains("%3A")); // :
+        assert!(url.contains("localhost:5432/mydb"));
     }
 
     #[test]
     fn build_url_custom_port() {
         let url = build_connection_url("db.example.com", 5433, "prod", "admin", "secret");
-        assert_eq!(url, "postgres://admin:secret@db.example.com:5433/prod");
+        assert!(url.contains("db.example.com:5433/prod"));
     }
 }

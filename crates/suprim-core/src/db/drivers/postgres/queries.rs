@@ -10,11 +10,14 @@ use crate::error::{AppError, Result};
 use super::type_mapping::rows_to_query_result;
 
 /// Quote a table reference for SQL: handles `schema.table` → `"schema"."table"`,
-/// and plain `table` → `"table"`. Strips any existing quotes first.
+/// and plain `table` → `"table"`. Strips existing quotes, escapes internal `"`.
 fn quote_table(table: &str) -> String {
     table
         .split('.')
-        .map(|part| format!("\"{}\"", part.trim_matches('"')))
+        .map(|part| {
+            let clean = part.trim_matches('"').replace('"', "\"\"");
+            format!("\"{}\"", clean)
+        })
         .collect::<Vec<_>>()
         .join(".")
 }
@@ -178,22 +181,23 @@ pub async fn insert_row(
     table: &str,
     values: HashMap<String, DbValue>,
 ) -> Result<u64> {
-    let cols: Vec<&str> = values.keys().map(|s| s.as_str()).collect();
-    let placeholders: Vec<String> = (1..=cols.len()).map(|i| format!("${i}")).collect();
+    // Collect into Vec to guarantee consistent key-value pairing.
+    let pairs: Vec<(&String, &DbValue)> = values.iter().collect();
+    let placeholders: Vec<String> = (1..=pairs.len()).map(|i| format!("${i}")).collect();
 
     let sql = format!(
         "INSERT INTO {} ({}) VALUES ({})",
         quote_table(table),
-        cols.iter()
-            .map(|c| format!("\"{}\"", c))
+        pairs
+            .iter()
+            .map(|(k, _)| format!("\"{}\"", k))
             .collect::<Vec<_>>()
             .join(", "),
         placeholders.join(", ")
     );
 
     let mut query = sqlx::query(AssertSqlSafe(sql.clone()));
-    for col in &cols {
-        let val = values.get(*col).unwrap();
+    for (_, val) in &pairs {
         query = bind_db_value(query, val);
     }
 
@@ -212,20 +216,24 @@ pub async fn update_row(
     pk: HashMap<String, DbValue>,
     changes: HashMap<String, DbValue>,
 ) -> Result<u64> {
+    // Collect into Vecs to guarantee consistent key-value pairing.
+    let change_pairs: Vec<(&String, &DbValue)> = changes.iter().collect();
+    let pk_pairs: Vec<(&String, &DbValue)> = pk.iter().collect();
+
     let mut idx = 1usize;
 
-    let set_clause: Vec<String> = changes
-        .keys()
-        .map(|k| {
+    let set_clause: Vec<String> = change_pairs
+        .iter()
+        .map(|(k, _)| {
             let s = format!("\"{}\" = ${idx}", k);
             idx += 1;
             s
         })
         .collect();
 
-    let where_clause: Vec<String> = pk
-        .keys()
-        .map(|k| {
+    let where_clause: Vec<String> = pk_pairs
+        .iter()
+        .map(|(k, _)| {
             let s = format!("\"{}\" = ${idx}", k);
             idx += 1;
             s
@@ -240,10 +248,10 @@ pub async fn update_row(
     );
 
     let mut query = sqlx::query(AssertSqlSafe(sql.clone()));
-    for val in changes.values() {
+    for (_, val) in &change_pairs {
         query = bind_db_value(query, val);
     }
-    for val in pk.values() {
+    for (_, val) in &pk_pairs {
         query = bind_db_value(query, val);
     }
 
@@ -402,6 +410,15 @@ mod tests {
         assert_eq!(
             quote_table("\"public\".\"accounts\""),
             "\"public\".\"accounts\""
+        );
+    }
+
+    #[test]
+    fn quote_table_internal_double_quote() {
+        // Table name with " inside should be escaped to ""
+        assert_eq!(
+            quote_table("my\"table"),
+            "\"my\"\"table\""
         );
     }
 }

@@ -339,11 +339,12 @@ impl ConnectionDialog {
                                 .on_hover_cursor(egui::CursorIcon::PointingHand);
                             ui.end_row();
 
-                            // Cert path fields — only shown for Require and Verify CA
+                            // Cert path fields — only shown for Require, Verify CA, and Verify Full
                             if matches!(
                                 self.ssl_mode,
                                 suprim_core::db::connection::SslMode::Require
                                     | suprim_core::db::connection::SslMode::VerifyCa
+                                    | suprim_core::db::connection::SslMode::VerifyFull
                             ) {
                                 ui.label("CA Certificate:");
                                 ui.horizontal(|ui| {

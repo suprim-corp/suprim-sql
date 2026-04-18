@@ -55,10 +55,13 @@ impl PostgresDriver {
     }
 
     /// Get or create a pool for a specific database.
+    /// Limits total pools to MAX_DB_POOLS to prevent connection exhaustion.
     pub(crate) async fn pool_for_db(&self, database: &str) -> Result<PgPool> {
+        const MAX_DB_POOLS: usize = 20;
+
         // Check if pool already exists.
         {
-            let pools = self.db_pools.lock().unwrap();
+            let pools = self.db_pools.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(pool) = pools.get(database) {
                 return Ok(pool.clone());
             }
@@ -77,7 +80,16 @@ impl PostgresDriver {
             .await
             .map_err(|e| AppError::connection(e.to_string()))?;
         {
-            let mut pools = self.db_pools.lock().unwrap();
+            let mut pools = self.db_pools.lock().unwrap_or_else(|e| e.into_inner());
+
+            // Evict oldest pool if at capacity (simple eviction — remove first key).
+            if pools.len() >= MAX_DB_POOLS {
+                if let Some(oldest_key) = pools.keys().next().cloned() {
+                    pools.remove(&oldest_key);
+                    // Pool is dropped here — sqlx closes idle connections on drop.
+                }
+            }
+
             pools.insert(database.to_string(), pool.clone());
         }
         Ok(pool)
