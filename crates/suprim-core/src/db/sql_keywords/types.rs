@@ -60,5 +60,20 @@ pub static SQL_TYPES: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
         "POLYGON",
         "CIRCLE",
         "HSTORE",
+        // MySQL-specific types
+        "TINYINT",
+        "MEDIUMINT",
+        "TINYTEXT",
+        "MEDIUMTEXT",
+        "LONGTEXT",
+        "TINYBLOB",
+        "MEDIUMBLOB",
+        "LONGBLOB",
+        "BLOB",
+        "DATETIME",
+        "YEAR",
+        "ENUM",
+        "SET",
+        "VARBINARY",
     ])
 });

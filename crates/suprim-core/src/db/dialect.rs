@@ -1,0 +1,153 @@
+//! SQL dialect abstraction — quoting, literal formatting, and PK heuristics
+//! that vary between database engines.
+
+use super::connection::DriverType;
+
+/// SQL dialect — determines quoting style, literal format, and engine-specific heuristics.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SqlDialect {
+    #[default]
+    Postgres,
+    Mysql,
+    Sqlite,
+}
+
+impl SqlDialect {
+    /// Quote an identifier (table/column name).
+    pub fn quote_ident(&self, name: &str) -> String {
+        match self {
+            Self::Postgres | Self::Sqlite => format!("\"{}\"", name.replace('"', "\"\"")),
+            Self::Mysql => format!("`{}`", name.replace('`', "``")),
+        }
+    }
+
+    /// Quote a schema-qualified table: `"schema"."table"` or `` `table` `` (MySQL has no schema prefix).
+    pub fn quote_table(&self, schema: &str, table: &str) -> String {
+        match self {
+            Self::Postgres => format!("{}.{}", self.quote_ident(schema), self.quote_ident(table)),
+            Self::Mysql | Self::Sqlite => self.quote_ident(table),
+        }
+    }
+
+    /// Format a JSON literal for SQL.
+    pub fn json_literal(&self, raw: &str) -> String {
+        let escaped = raw.replace('\'', "''");
+        match self {
+            Self::Postgres => format!("'{escaped}'::jsonb"),
+            Self::Mysql => format!("CAST('{escaped}' AS JSON)"),
+            Self::Sqlite => format!("'{escaped}'"),
+        }
+    }
+
+    /// Format a bytes/binary literal for SQL.
+    pub fn bytes_literal(&self, bytes: &[u8]) -> String {
+        let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        match self {
+            Self::Postgres => format!("'\\x{hex}'"),
+            Self::Mysql => format!("X'{hex}'"),
+            Self::Sqlite => format!("X'{hex}'"),
+        }
+    }
+
+    /// PK skip heuristic for index generation — identifies the index that
+    /// represents the primary key (so we can skip it in DDL output).
+    pub fn is_pk_index(&self, index_name: &str) -> bool {
+        match self {
+            Self::Postgres => index_name.ends_with("_pkey"),
+            Self::Mysql => index_name == "PRIMARY",
+            Self::Sqlite => index_name.starts_with("sqlite_autoindex_"),
+        }
+    }
+}
+
+impl From<DriverType> for SqlDialect {
+    fn from(dt: DriverType) -> Self {
+        match dt {
+            DriverType::Postgres => Self::Postgres,
+            DriverType::Mysql => Self::Mysql,
+            DriverType::Sqlite => Self::Sqlite,
+            // Fallback for drivers without SQL DDL support
+            _ => Self::Postgres,
+        }
+    }
+}
+
+// ─── Tests ───────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quote_ident_postgres() {
+        let d = SqlDialect::Postgres;
+        assert_eq!(d.quote_ident("users"), "\"users\"");
+        assert_eq!(d.quote_ident("my\"col"), "\"my\"\"col\"");
+    }
+
+    #[test]
+    fn quote_ident_mysql() {
+        let d = SqlDialect::Mysql;
+        assert_eq!(d.quote_ident("users"), "`users`");
+        assert_eq!(d.quote_ident("my`col"), "`my``col`");
+    }
+
+    #[test]
+    fn quote_table_postgres() {
+        let d = SqlDialect::Postgres;
+        assert_eq!(d.quote_table("public", "users"), "\"public\".\"users\"");
+    }
+
+    #[test]
+    fn quote_table_mysql() {
+        let d = SqlDialect::Mysql;
+        assert_eq!(d.quote_table("mydb", "users"), "`users`");
+    }
+
+    #[test]
+    fn json_literal_postgres() {
+        let d = SqlDialect::Postgres;
+        assert_eq!(d.json_literal(r#"{"a":1}"#), "'{\"a\":1}'::jsonb");
+    }
+
+    #[test]
+    fn json_literal_mysql() {
+        let d = SqlDialect::Mysql;
+        assert_eq!(d.json_literal(r#"{"a":1}"#), "CAST('{\"a\":1}' AS JSON)");
+    }
+
+    #[test]
+    fn bytes_literal_postgres() {
+        let d = SqlDialect::Postgres;
+        assert_eq!(d.bytes_literal(&[0xde, 0xad]), "'\\xdead'");
+    }
+
+    #[test]
+    fn bytes_literal_mysql() {
+        let d = SqlDialect::Mysql;
+        assert_eq!(d.bytes_literal(&[0xde, 0xad]), "X'dead'");
+    }
+
+    #[test]
+    fn is_pk_index_postgres() {
+        let d = SqlDialect::Postgres;
+        assert!(d.is_pk_index("users_pkey"));
+        assert!(!d.is_pk_index("PRIMARY"));
+    }
+
+    #[test]
+    fn is_pk_index_mysql() {
+        let d = SqlDialect::Mysql;
+        assert!(d.is_pk_index("PRIMARY"));
+        assert!(!d.is_pk_index("users_pkey"));
+    }
+
+    #[test]
+    fn from_driver_type() {
+        assert_eq!(SqlDialect::from(DriverType::Postgres), SqlDialect::Postgres);
+        assert_eq!(SqlDialect::from(DriverType::Mysql), SqlDialect::Mysql);
+        assert_eq!(SqlDialect::from(DriverType::Sqlite), SqlDialect::Sqlite);
+        // Fallback
+        assert_eq!(SqlDialect::from(DriverType::Redis), SqlDialect::Postgres);
+    }
+}

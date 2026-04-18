@@ -123,5 +123,21 @@ pub static SQL_KEYWORDS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
         "NULLIF",
         "GREATEST",
         "LEAST",
+        // MySQL-specific keywords
+        "SHOW",
+        "USE",
+        "DESCRIBE",
+        "EXPLAIN",
+        "AUTO_INCREMENT",
+        "ENGINE",
+        "CHARSET",
+        "CHARACTER",
+        "COLLATE",
+        "UNSIGNED",
+        "ZEROFILL",
+        "DUPLICATE",
+        "HANDLER",
+        "DELIMITER",
+        "BINARY",
     ])
 });

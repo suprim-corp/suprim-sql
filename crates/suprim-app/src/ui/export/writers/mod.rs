@@ -6,6 +6,7 @@ pub mod sql;
 
 use std::path::Path;
 
+use suprim_core::db::dialect::SqlDialect;
 use suprim_core::db::values::QueryResult;
 
 use super::types::{FormatOptions, SqlExportInfo};
@@ -47,6 +48,7 @@ pub fn execute_export(
                 include_drop: false,
                 include_data: true,
                 table_node: None,
+                dialect: SqlDialect::default(),
             });
             let tbl = sql::SqlTableExport {
                 schema: info.schema,
@@ -56,6 +58,7 @@ pub fn execute_export(
                 include_drop: info.include_drop,
                 include_data: info.include_data,
                 table_node: info.table_node,
+                dialect: info.dialect,
             };
             sql::export(&[tbl], path, opts)
         }

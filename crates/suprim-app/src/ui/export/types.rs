@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 use uuid::Uuid;
 
+use suprim_core::db::dialect::SqlDialect;
 use suprim_core::db::values::QueryResult;
 use suprim_core::db::TableNode;
 
@@ -157,6 +158,7 @@ pub struct SqlExportInfo<'a> {
     pub include_drop: bool,
     pub include_data: bool,
     pub table_node: Option<&'a TableNode>,
+    pub dialect: SqlDialect,
 }
 
 /// Mode the dialog was opened in.
@@ -192,6 +194,8 @@ pub struct ExportRequest {
     pub format_options: FormatOptions,
     /// For QueryResult mode — the already-loaded result to write directly.
     pub query_result: Option<QueryResult>,
+    /// SQL dialect for correct quoting/literal formatting.
+    pub dialect: SqlDialect,
 }
 
 /// What mode triggered the export — tells the app handler how to proceed.
@@ -227,4 +231,6 @@ pub struct PendingExport {
     pub sql_include_data: bool,
     /// Full table metadata for DDL generation (populated from sidebar schema tree).
     pub table_node: Option<TableNode>,
+    /// SQL dialect for correct quoting/literal formatting.
+    pub dialect: SqlDialect,
 }

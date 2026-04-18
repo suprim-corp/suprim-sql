@@ -99,6 +99,23 @@ pub fn sql_layout_job(text: &str, font_id: FontId, dark_mode: bool) -> LayoutJob
             continue;
         }
 
+        // ── Single-line comment: # (MySQL style) ────────────────────────
+        if ch == '#' {
+            let start = i;
+            while i < len && chars[i] != '\n' {
+                i += 1;
+            }
+            append_token(
+                &mut job,
+                text,
+                start,
+                i,
+                &font_id,
+                color_for(&colors, TokenKind::Comment),
+            );
+            continue;
+        }
+
         // ── Multi-line comment: /* ... */ ────────────────────────────────
         if ch == '/' && i + 1 < len && chars[i + 1] == '*' {
             let start = i;
@@ -253,7 +270,7 @@ pub fn sql_layout_job(text: &str, font_id: FontId, dark_mode: bool) -> LayoutJob
         }
 
         // ── Operators & punctuation ─────────────────────────────────────
-        if "()[]{}.,;:=<>!+-*/%&|^~@#".contains(ch) {
+        if "()[]{}.,;:=<>!+-*/%&|^~@".contains(ch) {
             append_token(
                 &mut job,
                 text,
@@ -276,7 +293,8 @@ pub fn sql_layout_job(text: &str, font_id: FontId, dark_mode: bool) -> LayoutJob
             && chars[i] != '-'
             && chars[i] != '/'
             && chars[i] != '$'
-            && !"()[]{}.,;:=<>!+-*/%&|^~@#".contains(chars[i])
+            && chars[i] != '#'
+            && !"()[]{}.,;:=<>!+-*/%&|^~@".contains(chars[i])
         {
             i += 1;
         }

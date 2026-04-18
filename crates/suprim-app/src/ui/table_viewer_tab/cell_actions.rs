@@ -40,7 +40,7 @@ impl TableViewerTab {
             }
             CellAction::CopyAsSql => {
                 ui.ctx()
-                    .copy_text(clipboard_formatters::format_as_sql(&db_val));
+                    .copy_text(clipboard_formatters::format_as_sql(&db_val, self.dialect));
             }
             CellAction::Paste => {
                 // TODO: read from clipboard and update cell

@@ -2,6 +2,7 @@
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
 
+use suprim_core::db::dialect::SqlDialect;
 use suprim_core::db::drivers::postgres::{PG_COLUMN_TYPES, PG_TYPES_WITH_PARAMS};
 
 use super::default_suggestions;
@@ -11,6 +12,7 @@ use super::EditableColumn;
 pub fn render_columns_grid(
     columns: &mut Vec<EditableColumn>,
     schema_functions: &[String],
+    dialect: SqlDialect,
     ui: &mut egui::Ui,
 ) {
     ui.label(
@@ -146,6 +148,7 @@ pub fn render_columns_grid(
                             &col.db_type,
                             &col.default_value,
                             schema_functions,
+                            dialect,
                         );
                         if !suggestions.is_empty() {
                             let popup_id = response.id.with("default_popup");

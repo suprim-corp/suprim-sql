@@ -117,6 +117,7 @@ impl App {
                             export_dialog: &mut self.export_dialog,
                             gate: self.gate.as_ref(),
                             conn_name: Box::new(|id| sidebar.conn_name(id)),
+                            conn_dialect: Box::new(|id| sidebar.dialect_for(id)),
                         };
                         handle_sidebar_action(act, &mut ctx);
                     }
@@ -246,8 +247,14 @@ impl App {
                         if let Some((conn_id, name, database, databases)) =
                             self.sidebar.first_connection_info()
                         {
-                            self.tab_manager
-                                .open_sql_tab(Some(conn_id), name, database, databases);
+                            let dialect = self.sidebar.dialect_for(conn_id);
+                            self.tab_manager.open_sql_tab_with_dialect(
+                                Some(conn_id),
+                                name,
+                                database,
+                                databases,
+                                dialect,
+                            );
                         } else {
                             self.tab_manager
                                 .open_sql_tab(None, String::new(), None, Vec::new());

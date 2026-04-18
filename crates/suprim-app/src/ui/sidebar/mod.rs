@@ -14,6 +14,7 @@ mod views_folder_renderer;
 use connection_entry::{ConnectionEntry, ConnectionStatus};
 use eframe::egui;
 use suprim_core::db::connection::ConnectionConfig;
+use suprim_core::db::dialect::SqlDialect;
 use suprim_core::db::types::{SchemaNode, SchemaTree, TableNode};
 use uuid::Uuid;
 
@@ -257,5 +258,18 @@ impl Sidebar {
         let db = tree.databases.iter().find(|d| d.name == database)?;
         let schema = db.schemas.iter().find(|s| s.name == schema_name)?;
         schema.tables.iter().find(|t| t.name == table_name).cloned()
+    }
+
+    /// Resolve the SQL dialect for a connection by its id.
+    /// Returns `SqlDialect::Postgres` if the connection is unknown.
+    pub fn dialect_for(&self, conn_id: Uuid) -> SqlDialect {
+        match self.find(conn_id) {
+            Some(entry) => match entry.driver_type.as_str() {
+                "MySQL" => SqlDialect::Mysql,
+                "SQLite" => SqlDialect::Sqlite,
+                _ => SqlDialect::Postgres,
+            },
+            None => SqlDialect::default(),
+        }
     }
 }

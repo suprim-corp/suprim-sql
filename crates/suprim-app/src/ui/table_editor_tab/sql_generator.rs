@@ -1,5 +1,6 @@
 /// SQL generation and execution for table editor changes.
 use suprim_core::db::commands::DbCommand;
+use suprim_core::db::dialect::SqlDialect;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -20,6 +21,7 @@ pub fn generate_create_table_sql(
     schema_name: &str,
     table_name: &str,
     columns: &[EditableColumn],
+    dialect: SqlDialect,
 ) -> String {
     if table_name.is_empty() {
         return "-- Table name is required".to_string();
@@ -29,12 +31,12 @@ pub fn generate_create_table_sql(
         return "-- At least one column is required".to_string();
     }
 
-    let full_table = format!("\"{}\".\"{}\"", schema_name, table_name);
+    let full_table = dialect.quote_table(schema_name, table_name);
     let mut col_defs: Vec<String> = Vec::new();
     let mut pk_cols: Vec<String> = Vec::new();
 
     for col in &valid_cols {
-        let mut def = format!("    \"{}\" {}", col.name, full_type(col));
+        let mut def = format!("    {} {}", dialect.quote_ident(&col.name), full_type(col));
         if !col.nullable {
             def.push_str(" NOT NULL");
         }
@@ -43,7 +45,7 @@ pub fn generate_create_table_sql(
         }
         col_defs.push(def);
         if col.is_primary_key {
-            pk_cols.push(format!("\"{}\"", col.name));
+            pk_cols.push(dialect.quote_ident(&col.name));
         }
     }
 
@@ -63,16 +65,17 @@ pub fn generate_alter_sql(
     schema_name: &str,
     table_name: &str,
     columns: &[EditableColumn],
+    dialect: SqlDialect,
 ) -> String {
-    let full_table = format!("\"{}\".\"{}\"", schema_name, table_name);
+    let full_table = dialect.quote_table(schema_name, table_name);
     let mut statements: Vec<String> = Vec::new();
 
     for col in columns {
         if !col.original && !col.name.is_empty() {
             let mut stmt = format!(
-                "ALTER TABLE {} ADD COLUMN \"{}\" {}",
+                "ALTER TABLE {} ADD COLUMN {} {}",
                 full_table,
-                col.name,
+                dialect.quote_ident(&col.name),
                 full_type(col)
             );
             if !col.nullable {

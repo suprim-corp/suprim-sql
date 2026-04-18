@@ -1,5 +1,6 @@
 /// Tab opening methods — creates and pushes new tabs into the TabManager.
 /// Extracted from `tab_manager.rs` to keep that file focused on lifecycle + rendering.
+use suprim_core::db::dialect::SqlDialect;
 use uuid::Uuid;
 
 use super::server_dashboard::ServerDashboardTab;
@@ -16,22 +17,42 @@ impl TabManager {
         database: Option<String>,
         databases: Vec<String>,
     ) {
+        self.open_sql_tab_with_dialect(
+            conn_id,
+            conn_name,
+            database,
+            databases,
+            SqlDialect::default(),
+        )
+    }
+
+    pub fn open_sql_tab_with_dialect(
+        &mut self,
+        conn_id: Option<Uuid>,
+        conn_name: String,
+        database: Option<String>,
+        databases: Vec<String>,
+        dialect: SqlDialect,
+    ) {
         let tab_id = Uuid::new_v4();
+        let mut tab = SqlEditorTab::new(conn_id, database, databases);
+        tab.dialect = dialect;
         self.tabs.push(TabEntry {
             tab_id,
-            kind: TabKind::SqlEditor(SqlEditorTab::new(conn_id, database, databases)),
+            kind: TabKind::SqlEditor(tab),
             conn_name,
         });
         self.active_tab = Some(tab_id);
     }
 
-    pub fn open_table_viewer(
+    pub fn open_table_viewer_with_dialect(
         &mut self,
         conn_id: Uuid,
         conn_name: String,
         database: String,
         schema_name: String,
         table_name: String,
+        dialect: SqlDialect,
     ) {
         // If a viewer for this exact table is already open, just activate it.
         for entry in &self.tabs {
@@ -48,20 +69,18 @@ impl TabManager {
         }
 
         let tab_id = Uuid::new_v4();
+        let mut tab = TableViewerTab::new(conn_id, database, schema_name, table_name);
+        tab.dialect = dialect;
         self.tabs.push(TabEntry {
             tab_id,
-            kind: TabKind::TableViewer(Box::new(TableViewerTab::new(
-                conn_id,
-                database,
-                schema_name,
-                table_name,
-            ))),
+            kind: TabKind::TableViewer(Box::new(tab)),
             conn_name,
         });
         self.active_tab = Some(tab_id);
     }
 
-    pub fn open_table_editor(
+    #[allow(clippy::too_many_arguments)]
+    pub fn open_table_editor_with_dialect(
         &mut self,
         conn_id: Uuid,
         conn_name: String,
@@ -69,10 +88,12 @@ impl TabManager {
         schema_name: String,
         table: &suprim_core::db::types::TableNode,
         schema_functions: Vec<String>,
+        dialect: SqlDialect,
     ) {
         let tab_id = Uuid::new_v4();
         let mut editor = TableEditorTab::new(conn_id, database, schema_name, table);
         editor.schema_functions = schema_functions;
+        editor.dialect = dialect;
         self.tabs.push(TabEntry {
             tab_id,
             kind: TabKind::TableEditor(editor),
@@ -81,17 +102,19 @@ impl TabManager {
         self.active_tab = Some(tab_id);
     }
 
-    pub fn open_new_table_editor(
+    pub fn open_new_table_editor_with_dialect(
         &mut self,
         conn_id: Uuid,
         conn_name: String,
         database: String,
         schema_name: String,
         schema_functions: Vec<String>,
+        dialect: SqlDialect,
     ) {
         let tab_id = Uuid::new_v4();
         let mut editor = TableEditorTab::new_empty(conn_id, database, schema_name);
         editor.schema_functions = schema_functions;
+        editor.dialect = dialect;
         self.tabs.push(TabEntry {
             tab_id,
             kind: TabKind::TableEditor(editor),
