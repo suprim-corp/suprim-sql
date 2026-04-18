@@ -1,7 +1,9 @@
 # Release workflow — DISABLED
 # macOS builds are done manually on local machine:
 #   ./scripts/build/macos.sh --universal --dmg
-#   gh release create v0.1.0-beta.1 --draft --generate-notes target/release/SuprimSQL.dmg
+#   gh release create 0.1.0 --title "SuprimSQL 0.1.0" --notes-file notes.md SuprimSQL-0.1.0-macos-universal.dmg
+#
+# Convention: tags use semver WITHOUT "v" prefix — e.g. 0.1.0, 1.0.0, NOT v0.1.0
 #
 # name: Release
 # on:
