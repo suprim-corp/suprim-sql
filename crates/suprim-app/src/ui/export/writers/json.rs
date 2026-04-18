@@ -32,7 +32,7 @@ pub fn export(result: &QueryResult, path: &Path, opts: &JsonOptions) -> std::io:
     } else {
         serde_json::to_string(&rows)
     }
-    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    .map_err(std::io::Error::other)?;
 
     let mut f = super::create_writer(path, opts.gzip)?;
     f.write_all(json.as_bytes())

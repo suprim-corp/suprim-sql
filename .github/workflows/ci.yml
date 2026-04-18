@@ -37,4 +37,4 @@ jobs:
         run: cargo test -p suprim-core --lib
 
       - name: Clippy
-        run: cargo clippy --features dev-test -- -D warnings
+        run: cargo clippy -p suprim-core -p suprim-app --features dev-test -- -D warnings

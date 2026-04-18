@@ -65,6 +65,7 @@ const ROW_HEIGHT: f32 = 22.0;
 /// - `sort_state: Some(...)` → column headers clickable for sort.
 /// - `column_filters: Some(...)` → filter funnel icon on headers.
 /// - Both `None` → plain read-only headers (SqlEditorTab).
+#[allow(clippy::too_many_arguments)]
 pub fn render_result_grid(
     ui: &mut egui::Ui,
     result: &QueryResult,
@@ -146,7 +147,7 @@ pub fn render_result_grid(
                     ui.label(egui::RichText::new("#").strong().color(weak));
                 });
 
-                for (_ci, col_meta) in result.columns.iter().enumerate() {
+                for col_meta in result.columns.iter() {
                     header.col(|ui| {
                         if !interactive {
                             ui.add(

@@ -69,7 +69,7 @@ impl ExportDialog {
                 let text = if available {
                     egui::RichText::new(fmt.label())
                 } else {
-                    egui::RichText::new(format!("{}", fmt.label())).weak()
+                    egui::RichText::new(fmt.label()).weak()
                 };
                 let text = text.color(if selected {
                     egui::Color32::WHITE
