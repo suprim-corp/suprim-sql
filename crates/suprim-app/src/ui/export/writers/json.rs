@@ -50,6 +50,14 @@ fn json_value(val: &DbValue, all_as_strings: bool) -> serde_json::Value {
         DbValue::Bool(b) => serde_json::Value::Bool(*b),
         DbValue::Int(i) => serde_json::json!(i),
         DbValue::Float(f) => serde_json::json!(f),
+        DbValue::Decimal(s) => {
+            // Try to preserve as JSON number, fallback to string
+            s.parse::<f64>()
+                .ok()
+                .and_then(serde_json::Number::from_f64)
+                .map(serde_json::Value::Number)
+                .unwrap_or_else(|| serde_json::Value::String(s.clone()))
+        }
         DbValue::Text(s) => serde_json::Value::String(s.clone()),
         DbValue::Json(v) => v.clone(),
         DbValue::Bytes(b) => {

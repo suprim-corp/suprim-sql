@@ -23,7 +23,8 @@ ui       = ["dep:egui"]
 tokio = { version = "1", features = ["full"] }
 
 # Database
-sqlx       = { version = "0.9.0-alpha.1", features = ["runtime-tokio", "tls-rustls", "postgres", "mysql", "sqlite", "chrono", "uuid", "macros", "json"] }
+sqlx       = { version = "0.9.0-alpha.1", features = ["runtime-tokio", "tls-rustls", "postgres", "mysql", "sqlite", "chrono", "uuid", "macros", "json", "rust_decimal"] }
+rust_decimal = { version = "1", features = ["serde"] }
 redis      = { version = "1", features = ["tokio-comp", "aio"], optional = true }
 
 # Serialization

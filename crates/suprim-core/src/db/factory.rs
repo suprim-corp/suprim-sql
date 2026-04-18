@@ -1,5 +1,6 @@
 use crate::db::connection::{ConnectionConfig, DriverType};
 use crate::db::driver::DatabaseDriver;
+use crate::db::drivers::mysql::MysqlDriver;
 use crate::db::drivers::postgres::PostgresDriver;
 use crate::error::{AppError, Result};
 use crate::premium::PremiumGate;
@@ -24,6 +25,7 @@ impl DbFactory {
 
         match config.driver_type() {
             DriverType::Postgres => Ok(Box::new(PostgresDriver::new())),
+            DriverType::Mysql => Ok(Box::new(MysqlDriver::new())),
             other => Err(AppError::connection(format!(
                 "{} driver not yet available — coming soon",
                 other
@@ -71,7 +73,7 @@ mod tests {
     }
 
     #[test]
-    fn create_mysql_returns_not_available() {
+    fn create_mysql_driver_ok() {
         let config = ConnectionConfig::new(
             "test",
             DriverParams::Mysql {
@@ -83,7 +85,9 @@ mod tests {
             },
         );
         let gate = DevGate;
-        assert!(DbFactory::create(&config, &gate).is_err());
+        let driver = DbFactory::create(&config, &gate);
+        assert!(driver.is_ok());
+        assert_eq!(driver.unwrap().driver_type(), DriverType::Mysql);
     }
 
     #[test]

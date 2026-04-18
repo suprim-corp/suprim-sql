@@ -88,6 +88,13 @@ fn redis_value_to_json(val: &RedisValue) -> serde_json::Value {
         DbValue::Bool(b) => serde_json::Value::Bool(b),
         DbValue::Int(i) => serde_json::json!(i),
         DbValue::Float(f) => serde_json::json!(f),
+        DbValue::Decimal(s) => {
+            s.parse::<f64>()
+                .ok()
+                .and_then(serde_json::Number::from_f64)
+                .map(serde_json::Value::Number)
+                .unwrap_or_else(|| serde_json::Value::String(s))
+        }
         DbValue::Text(s) => serde_json::Value::String(s),
         DbValue::Json(j) => j,
         DbValue::Bytes(b) => serde_json::Value::String(format!("<{} bytes>", b.len())),
@@ -301,6 +308,7 @@ impl DatabaseDriver for RedisDriver {
                 DbValue::Bool(b) => cmd.arg(if *b { "1" } else { "0" }),
                 DbValue::Int(i) => cmd.arg(*i),
                 DbValue::Float(f) => cmd.arg(*f),
+                DbValue::Decimal(s) => cmd.arg(s.as_str()),
                 DbValue::Text(s) => cmd.arg(s.as_str()),
                 DbValue::Bytes(b) => cmd.arg(b.as_slice()),
                 DbValue::Json(v) => cmd.arg(v.to_string()),

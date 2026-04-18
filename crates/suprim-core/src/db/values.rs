@@ -12,6 +12,7 @@ pub enum DbValue {
     Bool(bool),
     Int(i64),
     Float(f64),
+    Decimal(String),
     Text(String),
     Bytes(Vec<u8>),
     Json(serde_json::Value),
@@ -30,6 +31,7 @@ impl DbValue {
             DbValue::Bool(b) => b.to_string(),
             DbValue::Int(i) => i.to_string(),
             DbValue::Float(f) => f.to_string(),
+            DbValue::Decimal(s) => s.clone(),
             DbValue::Text(s) => s.clone(),
             DbValue::Bytes(b) => format!("<{} bytes>", b.len()),
             DbValue::Json(v) => v.to_string(),
@@ -116,6 +118,15 @@ mod tests {
     }
 
     #[test]
+    fn db_value_display_decimal() {
+        assert_eq!(
+            DbValue::Decimal("12345.6789".to_string()).display(),
+            "12345.6789"
+        );
+        assert!(!DbValue::Decimal("0.00".to_string()).is_null());
+    }
+
+    #[test]
     fn db_value_display_text() {
         assert_eq!(DbValue::Text("hello".into()).display(), "hello");
     }
@@ -144,6 +155,7 @@ mod tests {
             DbValue::Bool(true),
             DbValue::Int(99),
             DbValue::Float(1.5),
+            DbValue::Decimal("12345.6789".to_string()),
             DbValue::Text("test".into()),
             DbValue::Json(json!(null)),
         ];

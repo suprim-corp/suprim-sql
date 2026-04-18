@@ -39,6 +39,11 @@ pub fn pg_value_from_row(row: &PgRow, idx: usize, type_name: &str) -> DbValue {
             .map(DbValue::Float)
             .unwrap_or(DbValue::Null),
 
+        "NUMERIC" | "DECIMAL" => row
+            .try_get::<rust_decimal::Decimal, _>(idx)
+            .map(|d| DbValue::Decimal(d.to_string()))
+            .unwrap_or(DbValue::Null),
+
         "TEXT" | "VARCHAR" | "CHAR" | "BPCHAR" | "NAME" | "CITEXT" => row
             .try_get::<String, _>(idx)
             .map(DbValue::Text)
@@ -140,6 +145,8 @@ mod tests {
                 | "INT8"
                 | "FLOAT4"
                 | "FLOAT8"
+                | "NUMERIC"
+                | "DECIMAL"
                 | "TEXT"
                 | "VARCHAR"
                 | "CHAR"
@@ -166,6 +173,8 @@ mod tests {
                 | "INT8"
                 | "FLOAT4"
                 | "FLOAT8"
+                | "NUMERIC"
+                | "DECIMAL"
                 | "TEXT"
                 | "VARCHAR"
                 | "CHAR"
