@@ -29,6 +29,7 @@ pub fn format_as_sql(val: &DbValue) -> String {
         DbValue::Bool(b) => if *b { "TRUE" } else { "FALSE" }.to_string(),
         DbValue::Int(i) => i.to_string(),
         DbValue::Float(f) => f.to_string(),
+        DbValue::Decimal(s) => s.clone(),
         DbValue::Text(s) => format!("'{}'", s.replace('\'', "''")),
         DbValue::Json(v) => {
             format!("'{}'::jsonb", v.to_string().replace('\'', "''"))

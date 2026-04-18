@@ -58,29 +58,18 @@ impl DatabaseDriver for MysqlDriver {
 
         // Connect — with fallback for Prefer mode.
         // MySQL 5.7 uses TLS 1.0/1.1 which rustls doesn't support.
-        // When SslMode::Prefer, try TLS first, fallback to plaintext on handshake error.
+        // When SslMode::Prefer, try TLS first, fallback to plaintext on TLS/IO errors.
         let pool = match pool_opts.connect_with(opts.clone()).await {
             Ok(p) => p,
-            Err(e) if config.tls.ssl_mode == SslMode::Prefer => {
-                let err_msg = e.to_string();
-                // NOTE: String matching on "tls"/"ssl" is fragile — it could match hostnames
-                // containing these substrings. This is acceptable because:
-                // 1. SslMode::Prefer is best-effort; a false positive (unnecessary fallback)
-                //    just means no TLS, same outcome as SslMode::Disable.
-                // 2. A false negative (no fallback when needed) results in a connection error,
-                //    which the user can resolve by manually setting SslMode::Disable.
-                if err_msg.contains("HandshakeFailure") || err_msg.contains("tls") || err_msg.contains("ssl") {
-                    let plain_opts = opts.ssl_mode(sqlx::mysql::MySqlSslMode::Disabled);
-                    MySqlPoolOptions::new()
-                        .max_connections(10)
-                        .min_connections(1)
-                        .acquire_timeout(std::time::Duration::from_secs(10))
-                        .connect_with(plain_opts)
-                        .await
-                        .map_err(|e2| AppError::connection(e2.to_string()))?
-                } else {
-                    return Err(AppError::connection(e.to_string()));
-                }
+            Err(ref e) if config.tls.ssl_mode == SslMode::Prefer && is_tls_error(e) => {
+                let plain_opts = opts.ssl_mode(sqlx::mysql::MySqlSslMode::Disabled);
+                MySqlPoolOptions::new()
+                    .max_connections(10)
+                    .min_connections(1)
+                    .acquire_timeout(std::time::Duration::from_secs(10))
+                    .connect_with(plain_opts)
+                    .await
+                    .map_err(|e2| AppError::connection(e2.to_string()))?
             }
             Err(e) => return Err(AppError::connection(e.to_string())),
         };
@@ -273,4 +262,10 @@ fn apply_mysql_ssl(
     }
 
     opts
+}
+
+/// Check if an sqlx error is TLS-related (handshake failure, protocol mismatch, etc.).
+/// Used by the Prefer mode fallback — avoids fragile string matching on error messages.
+fn is_tls_error(err: &sqlx::Error) -> bool {
+    matches!(err, sqlx::Error::Tls(_) | sqlx::Error::Io(_))
 }

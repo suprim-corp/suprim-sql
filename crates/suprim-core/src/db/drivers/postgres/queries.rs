@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use sqlx::postgres::{PgArguments, PgPool};
-use sqlx::{query::Query, AssertSqlSafe, Postgres};
+use sqlx::{query::Query, AssertSqlSafe, Postgres, Row};
 
 use crate::db::types::{DbValue, QueryResult};
 use crate::error::{AppError, Result};
@@ -45,6 +45,13 @@ pub async fn execute_with_params(
             DbValue::Bool(b) => query.bind(b),
             DbValue::Int(i) => query.bind(i),
             DbValue::Float(f) => query.bind(f),
+            DbValue::Decimal(s) => {
+                if let Ok(d) = s.parse::<rust_decimal::Decimal>() {
+                    query.bind(d)
+                } else {
+                    query.bind(s)
+                }
+            }
             DbValue::Text(s) => query.bind(s),
             DbValue::Bytes(b) => query.bind(b),
             DbValue::Json(v) => query.bind(v),
@@ -136,6 +143,32 @@ pub async fn table_data(
 
     let mut result = rows_to_query_result(rows, start.elapsed());
     result.total_count = Some(total_count);
+
+    // Query information_schema for accurate column nullability metadata.
+    let schema_name = schema.unwrap_or("public");
+    let nullable_sql = "SELECT column_name, is_nullable FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position";
+    let nullable_rows = sqlx::query(nullable_sql)
+        .bind(schema_name)
+        .bind(table)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+
+    let nullable_map: std::collections::HashMap<String, bool> = nullable_rows
+        .iter()
+        .filter_map(|r| {
+            let name: String = r.try_get("column_name").ok()?;
+            let nullable: String = r.try_get("is_nullable").ok()?;
+            Some((name, nullable == "YES"))
+        })
+        .collect();
+
+    for col in &mut result.columns {
+        if let Some(&n) = nullable_map.get(&col.name) {
+            col.nullable = n;
+        }
+    }
+
     Ok(result)
 }
 
@@ -264,6 +297,13 @@ fn bind_db_value<'q>(
         DbValue::Bool(b) => query.bind(*b),
         DbValue::Int(i) => query.bind(*i),
         DbValue::Float(f) => query.bind(*f),
+        DbValue::Decimal(s) => {
+            if let Ok(d) = s.parse::<rust_decimal::Decimal>() {
+                query.bind(d)
+            } else {
+                query.bind(s.as_str())
+            }
+        }
         DbValue::Text(s) => query.bind(s.as_str()),
         DbValue::Bytes(b) => query.bind(b.as_slice()),
         DbValue::Json(v) => query.bind(v.clone()),

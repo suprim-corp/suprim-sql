@@ -45,6 +45,7 @@ fn format_db_value(val: &DbValue, sep: char, opts: &CsvOptions) -> String {
         DbValue::Bool(b) => b.to_string(),
         DbValue::Int(i) => i.to_string(),
         DbValue::Float(f) => f.to_string(),
+        DbValue::Decimal(s) => s.clone(),
         DbValue::Timestamp(t) => format_cell(&t.format("%Y-%m-%d %H:%M:%S").to_string(), sep, opts),
         DbValue::Bytes(b) => {
             let hex: String = b.iter().map(|byte| format!("{:02x}", byte)).collect();

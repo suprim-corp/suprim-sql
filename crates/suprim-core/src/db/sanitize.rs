@@ -61,6 +61,9 @@ fn reject_dangerous_patterns(sql: &str, context: &str) -> Result<()> {
         "EXEC ",
         "EXECUTE ",
         "CALL ",
+        // Data leak via UNION or subquery — filter bar should not need these
+        "UNION ",
+        "UNION(",
     ];
     for kw in dangerous {
         if normalized.contains(kw) {
@@ -69,6 +72,14 @@ fn reject_dangerous_patterns(sql: &str, context: &str) -> Result<()> {
                 format!("{context} clause must not contain {}", kw.trim()),
             ));
         }
+    }
+
+    // Subquery — `(SELECT ...)` should not appear in filter clauses
+    if normalized.contains("(SELECT ") || normalized.contains("( SELECT ") {
+        return Err(AppError::query(
+            sql,
+            format!("{context} clause must not contain subqueries"),
+        ));
     }
 
     // Comment markers — could hide injected code
@@ -110,11 +121,19 @@ mod tests {
 
     #[test]
     fn reject_dml_keywords() {
-        assert!(validate_where_clause("1=1 UNION SELECT * FROM mysql.user").is_ok()); // UNION SELECT is not in dangerous list (it's a read)
         assert!(validate_where_clause("1=0 INSERT INTO users VALUES(1)").is_err());
         assert!(validate_where_clause("1=0 UPDATE users SET name='x'").is_err());
         assert!(validate_where_clause("1=0 DELETE FROM users").is_err());
         assert!(validate_where_clause("1=0 DROP TABLE users").is_err());
+    }
+
+    #[test]
+    fn reject_union_and_subquery() {
+        assert!(validate_where_clause("1=0 UNION SELECT * FROM mysql.user").is_err());
+        assert!(validate_where_clause("1=0 UNION ALL SELECT 1").is_err());
+        assert!(validate_where_clause("id IN (SELECT id FROM secrets)").is_err());
+        assert!(validate_where_clause("id IN ( SELECT id FROM secrets)").is_err());
+        assert!(validate_order_clause("(SELECT password FROM users LIMIT 1)").is_err());
     }
 
     #[test]

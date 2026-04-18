@@ -137,6 +137,7 @@ fn sql_literal(val: &DbValue) -> String {
                 f.to_string()
             }
         }
+        DbValue::Decimal(s) => s.clone(),
         DbValue::Text(s) => format!("'{}'", s.replace('\'', "''")),
         DbValue::Json(v) => {
             let raw = v.to_string().replace('\'', "''");

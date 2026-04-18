@@ -68,6 +68,7 @@ fn format_value(val: &DbValue) -> String {
         DbValue::Bool(b) => b.to_string(),
         DbValue::Int(i) => i.to_string(),
         DbValue::Float(f) => f.to_string(),
+        DbValue::Decimal(s) => s.clone(),
         DbValue::Text(s) => format!("'{}'", s.replace('\'', "''")),
         DbValue::Bytes(b) => format!("'\\x{}'", hex_encode(b)),
         DbValue::Json(v) => format!("'{}'::jsonb", v.to_string().replace('\'', "''")),

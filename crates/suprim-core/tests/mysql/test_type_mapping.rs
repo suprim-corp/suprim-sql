@@ -63,10 +63,9 @@ async fn boolean_maps_to_bool_or_int() {
 }
 
 #[tokio::test]
-async fn decimal_maps_to_float() {
+async fn decimal_maps_to_decimal() {
     let driver = helpers::connected_driver("testdb").await;
 
-    // Use raw execute to bypass table_data READ ONLY session — test type mapping directly
     let result = driver
         .execute("SELECT salary FROM users WHERE name = 'Alice'")
         .await
@@ -76,14 +75,11 @@ async fn decimal_maps_to_float() {
     let salary = &result.rows[0][0];
 
     match salary {
-        DbValue::Float(v) => {
+        DbValue::Decimal(s) => {
+            let v: f64 = s.parse().expect("Decimal string should parse to f64");
             assert!((v - 75000.5).abs() < 0.01, "DECIMAL should be ~75000.50, got {}", v);
         }
-        DbValue::Text(s) => {
-            let v: f64 = s.parse().expect("DECIMAL as text should parse to f64");
-            assert!((v - 75000.5).abs() < 0.01, "DECIMAL should be ~75000.50, got {}", v);
-        }
-        other => panic!("DECIMAL should map to Float or Text, got {:?} (col type: {})",
+        other => panic!("DECIMAL should map to Decimal, got {:?} (col type: {})",
             other, result.columns[0].db_type),
     }
 }

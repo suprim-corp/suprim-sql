@@ -52,6 +52,13 @@ pub(super) async fn execute_with_params(
             DbValue::Bool(b) => query.bind(b),
             DbValue::Int(i) => query.bind(i),
             DbValue::Float(f) => query.bind(f),
+            DbValue::Decimal(s) => {
+                if let Ok(d) = s.parse::<rust_decimal::Decimal>() {
+                    query.bind(d)
+                } else {
+                    query.bind(s)
+                }
+            }
             DbValue::Text(s) => query.bind(s),
             DbValue::Bytes(b) => query.bind(b),
             DbValue::Json(v) => query.bind(v.to_string()),
@@ -176,6 +183,31 @@ pub(super) async fn table_data(
 
     let mut result = rows_to_query_result(rows, start.elapsed());
     result.total_count = Some(total_count as u64);
+
+    // Query INFORMATION_SCHEMA for accurate column nullability metadata.
+    let nullable_sql = "SELECT COLUMN_NAME, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION";
+    let nullable_rows = sqlx::query(nullable_sql)
+        .bind(database.unwrap_or(""))
+        .bind(table)
+        .fetch_all(&mut *conn)
+        .await
+        .unwrap_or_default();
+
+    let nullable_map: HashMap<String, bool> = nullable_rows
+        .iter()
+        .filter_map(|r| {
+            let name: String = r.try_get("COLUMN_NAME").ok()?;
+            let nullable: String = r.try_get("IS_NULLABLE").ok()?;
+            Some((name, nullable == "YES"))
+        })
+        .collect();
+
+    for col in &mut result.columns {
+        if let Some(&n) = nullable_map.get(&col.name) {
+            col.nullable = n;
+        }
+    }
+
     Ok(result)
 }
 
@@ -296,6 +328,13 @@ fn bind_db_value<'q>(
         DbValue::Bool(b) => query.bind(*b),
         DbValue::Int(i) => query.bind(*i),
         DbValue::Float(f) => query.bind(*f),
+        DbValue::Decimal(s) => {
+            if let Ok(d) = s.parse::<rust_decimal::Decimal>() {
+                query.bind(d)
+            } else {
+                query.bind(s.as_str())
+            }
+        }
         DbValue::Text(s) => query.bind(s.as_str()),
         DbValue::Bytes(b) => query.bind(b.as_slice()),
         DbValue::Json(v) => query.bind(v.to_string()),
