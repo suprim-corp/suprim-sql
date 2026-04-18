@@ -27,8 +27,8 @@ tokio = { version = "1", features = ["full"] }
 egui        = "0.34.1"
 egui_extras = { version = "0.34.1", features = ["image"] }
 eframe      = { version = "0.34.1", features = ["default_fonts", "persistence"] }
-egui_plot   = "0.34"
-egui_dock   = "0.18"
+egui_plot   = "0.35"
+egui_dock   = "0.19"
 egui-notify = "0.22"
 egui-phosphor = { version = "0.12", features = ["regular"] }
 egui_code_editor = "0.2"
