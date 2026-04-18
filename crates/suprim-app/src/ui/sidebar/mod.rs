@@ -43,10 +43,14 @@ impl Sidebar {
         }
     }
 
-    /// Pre-populate sidebar with all saved connections in "Disconnected" state.
+    /// Sync sidebar with saved connections — add new ones, update existing labels/driver types.
     pub fn init_from_config(&mut self, configs: &[ConnectionConfig]) {
         for cfg in configs {
-            if !self.connections.iter().any(|c| c.conn_id == cfg.id) {
+            if let Some(entry) = self.find_mut(cfg.id) {
+                // Update existing entry if config changed (e.g. user edited connection)
+                entry.label = cfg.name.clone();
+                entry.driver_type = cfg.driver_type();
+            } else {
                 self.connections.push(ConnectionEntry::new_disconnected(
                     cfg.id,
                     cfg.name.clone(),
@@ -54,6 +58,9 @@ impl Sidebar {
                 ));
             }
         }
+        // Remove entries whose config was deleted
+        let config_ids: Vec<Uuid> = configs.iter().map(|c| c.id).collect();
+        self.connections.retain(|e| config_ids.contains(&e.conn_id));
     }
 
     pub fn active_connection_ids(&self) -> Vec<Uuid> {
