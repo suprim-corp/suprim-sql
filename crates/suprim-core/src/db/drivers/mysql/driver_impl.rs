@@ -54,7 +54,10 @@ impl DatabaseDriver for MysqlDriver {
         let pool_opts = MySqlPoolOptions::new()
             .max_connections(10)
             .min_connections(1)
-            .acquire_timeout(std::time::Duration::from_secs(10));
+            .acquire_timeout(std::time::Duration::from_secs(10))
+            .idle_timeout(std::time::Duration::from_secs(300))
+            .max_lifetime(std::time::Duration::from_secs(3600))
+            .test_before_acquire(true);
 
         // Connect — with fallback for Prefer mode.
         // MySQL 5.7 uses TLS 1.0/1.1 which rustls doesn't support.
@@ -67,6 +70,9 @@ impl DatabaseDriver for MysqlDriver {
                     .max_connections(10)
                     .min_connections(1)
                     .acquire_timeout(std::time::Duration::from_secs(10))
+                    .idle_timeout(std::time::Duration::from_secs(300))
+                    .max_lifetime(std::time::Duration::from_secs(3600))
+                    .test_before_acquire(true)
                     .connect_with(plain_opts)
                     .await
                     .map_err(|e2| AppError::connection(e2.to_string()))?
@@ -245,7 +251,8 @@ fn apply_mysql_ssl(
         SslMode::Disable => opts.ssl_mode(sqlx::mysql::MySqlSslMode::Disabled),
         SslMode::Prefer => opts.ssl_mode(sqlx::mysql::MySqlSslMode::Preferred),
         SslMode::Require => opts.ssl_mode(sqlx::mysql::MySqlSslMode::Required),
-        SslMode::VerifyCa | SslMode::VerifyFull => opts.ssl_mode(sqlx::mysql::MySqlSslMode::VerifyCa),
+        SslMode::VerifyCa => opts.ssl_mode(sqlx::mysql::MySqlSslMode::VerifyCa),
+        SslMode::VerifyFull => opts.ssl_mode(sqlx::mysql::MySqlSslMode::VerifyIdentity),
     };
 
     // Cert paths only meaningful for Require, VerifyCa, and VerifyFull

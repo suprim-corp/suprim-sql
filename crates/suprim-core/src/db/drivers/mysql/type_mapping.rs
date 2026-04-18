@@ -125,7 +125,34 @@ pub fn mysql_value_from_row(row: &MySqlRow, idx: usize, type_name: &str) -> DbVa
             .unwrap_or(DbValue::Null);
     }
 
-    // Default: text (TEXT, VARCHAR, CHAR, ENUM, SET, DATE, TIME, YEAR, etc.)
+    // BIT(n) — sqlx decodes as Vec<u8>. Represent as bytes (UI formats as
+    // binary string like b'10101010' for display).
+    if upper.starts_with("BIT") {
+        return row
+            .try_get::<Vec<u8>, _>(idx)
+            .map(DbValue::Bytes)
+            .unwrap_or(DbValue::Null);
+    }
+
+    // GEOMETRY / spatial — sqlx returns raw WKB bytes. Application layer can
+    // decode to WKT if needed; preserved as Bytes for fidelity.
+    if upper == "GEOMETRY"
+        || upper == "POINT"
+        || upper == "LINESTRING"
+        || upper == "POLYGON"
+        || upper == "MULTIPOINT"
+        || upper == "MULTILINESTRING"
+        || upper == "MULTIPOLYGON"
+        || upper == "GEOMETRYCOLLECTION"
+    {
+        return row
+            .try_get::<Vec<u8>, _>(idx)
+            .map(DbValue::Bytes)
+            .unwrap_or(DbValue::Null);
+    }
+
+    // ENUM / SET decode as text (default branch handles them correctly).
+    // Default: text (TEXT, VARCHAR, CHAR, ENUM, SET, etc.)
     row.try_get::<String, _>(idx)
         .map(DbValue::Text)
         .unwrap_or(DbValue::Null)
@@ -166,12 +193,12 @@ pub fn rows_to_query_result(rows: Vec<MySqlRow>, elapsed: Duration) -> QueryResu
         })
         .collect();
 
-    let row_count = data_rows.len() as u64;
-
     QueryResult {
         columns,
         rows: data_rows,
-        rows_affected: row_count,
+        // SELECT results have no "rows affected" — that's a DML concept.
+        // DML drivers (insert/update/delete) set this field explicitly.
+        rows_affected: 0,
         execution_time: elapsed,
         total_count: None,
     }

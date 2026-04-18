@@ -19,6 +19,10 @@ mod queries;
 mod schema_loader;
 mod type_mapping;
 
+// `build_connection_url` + `urlencoding_simple` are test-only — production
+// uses `PgConnectOptions` builder (see `driver_impl.rs`). Exposing them was
+// a leak; gate to tests.
+#[cfg(test)]
 pub use connection_url::{build_connection_url, urlencoding_simple};
 pub use type_mapping::{pg_value_from_row, rows_to_query_result};
 

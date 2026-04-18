@@ -1,5 +1,9 @@
 /// Build a connection URL from DriverParams::Postgres.
 /// Caller provides the plaintext password (retrieved from keychain beforehand).
+///
+/// Test-only helper — production code uses `PgConnectOptions` builder in
+/// `driver_impl.rs` which handles escaping natively.
+#[cfg(test)]
 pub fn build_connection_url(
     host: &str,
     port: u16,
@@ -19,6 +23,9 @@ pub fn build_connection_url(
 
 /// Percent-encode user/password segments for Postgres connection URLs.
 /// Encodes all characters that are not unreserved per RFC 3986.
+///
+/// Test-only — production uses `PgConnectOptions` directly.
+#[cfg(test)]
 pub fn urlencoding_simple(s: &str) -> String {
     use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
     utf8_percent_encode(s, NON_ALPHANUMERIC).to_string()

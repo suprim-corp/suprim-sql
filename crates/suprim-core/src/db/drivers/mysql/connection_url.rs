@@ -21,6 +21,9 @@ pub(super) fn build_connection_url(
 }
 
 /// Minimal percent-encoding for user/password/database segments.
+/// Test-only helper — production code uses `MySqlConnectOptions` builder
+/// in `driver_impl.rs` which handles escaping natively.
+#[cfg(test)]
 pub fn urlencoding_simple(s: &str) -> String {
     s.chars()
         .flat_map(|c| match c {

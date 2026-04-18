@@ -15,6 +15,10 @@ mod queries;
 mod schema_loader;
 mod type_mapping;
 
+// `urlencoding_simple` is test-only — production uses `MySqlConnectOptions`
+// builder directly (see `driver_impl.rs`), avoiding string URL construction
+// entirely. Exposing it publicly was a leak; gate it to tests.
+#[cfg(test)]
 pub use connection_url::urlencoding_simple;
 pub use type_mapping::{mysql_value_from_row, rows_to_query_result};
 
