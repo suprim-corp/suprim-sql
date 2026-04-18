@@ -42,6 +42,30 @@ impl TableViewerTab {
             reload_resp.on_hover_text("Reload Data");
         }
 
+        // Clear Filters (funnel-X) — only shown when column filters are active
+        let filter_count = self.column_filters.active_count();
+        if filter_count > 0 {
+            let clear_resp = ui.add(
+                egui::Label::new(
+                    egui::RichText::new(egui_phosphor::regular::FUNNEL_X)
+                        .color(egui::Color32::from_rgb(220, 120, 50))
+                        .size(icon_size),
+                )
+                .selectable(false)
+                .sense(egui::Sense::click()),
+            );
+            if clear_resp.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if clear_resp.clicked() {
+                self.column_filters.clear();
+                self.where_clause.clear();
+                self.page = 0;
+                self.load(tab_id, cmd_tx);
+            }
+            clear_resp.on_hover_text(format!("Clear {filter_count} filter(s)"));
+        }
+
         // Add Row (+)
         let add_resp = ui.add(
             egui::Label::new(

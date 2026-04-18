@@ -250,6 +250,8 @@ impl SqlEditorTab {
                     &mut self.selected_cell,
                     &mut self.selected_row,
                     &no_pending,
+                    None, // No interactive sort headers for SQL editor
+                    None, // No column filters for SQL editor
                 );
                 // Handle context-menu actions (read-only for SQL editor — only copy actions)
                 if let Some((action, row, col)) = grid_out.action {

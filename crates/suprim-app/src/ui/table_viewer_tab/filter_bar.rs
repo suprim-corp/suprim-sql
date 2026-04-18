@@ -5,6 +5,7 @@ use suprim_core::db::commands::DbCommand;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
+use super::sort_state::SortState;
 use super::TableViewerTab;
 use crate::ui::sql_editor::sql_autocomplete;
 use crate::ui::sql_editor::sql_highlighter;
@@ -39,6 +40,16 @@ impl TableViewerTab {
                     let remaining = ui.available_width();
                     let where_w = (remaining * 0.55 - 50.0).max(80.0);
                     ui.label(egui::RichText::new("WHERE").color(hint_color).small());
+                    // Active filter count badge
+                    let fc = self.column_filters.active_count();
+                    if fc > 0 {
+                        ui.label(
+                            egui::RichText::new(format!("({fc})"))
+                                .color(egui::Color32::from_rgb(59, 130, 246))
+                                .small()
+                                .strong(),
+                        );
+                    }
 
                     let where_id = egui::Id::new("filter_where_text");
                     sql_autocomplete::consume_autocomplete_keys(ui, &mut self.where_autocomplete);
@@ -119,6 +130,8 @@ impl TableViewerTab {
                         && !self.where_autocomplete.open
                         && !self.order_autocomplete.open
                     {
+                        // Sync ORDER BY text → SortState before reload
+                        self.sort_state = SortState::from_order_clause(&self.order_clause);
                         self.page = 0;
                         self.load(tab_id, cmd_tx);
                     }

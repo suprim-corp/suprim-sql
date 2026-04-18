@@ -2,10 +2,13 @@
 mod cell_actions;
 mod cell_editor;
 mod cell_editor_widgets;
+pub(crate) mod column_filter;
+mod column_filter_popup;
 mod filter_bar;
 mod new_row_editor;
 mod pagination_bar;
 pub(crate) mod pending_changes;
+pub(crate) mod sort_state;
 pub(crate) mod sql_preview;
 mod toolbar;
 
@@ -18,8 +21,11 @@ use uuid::Uuid;
 use crate::ui::shared::result_grid::{render_result_grid, CellAction};
 use crate::ui::sql_editor::sql_autocomplete::AutocompleteState;
 use cell_editor::{build_cell_editor, CellEditor};
+use column_filter::ColumnFilterState;
+use column_filter_popup::{render_filter_popup, FilterPopupOutcome, FilterPopupState};
 use new_row_editor::NewRowEditor;
 use pending_changes::PendingChanges;
+use sort_state::SortState;
 
 // ── TableViewerTab ────────────────────────────────────────────────────────────
 
@@ -58,6 +64,12 @@ pub struct TableViewerTab {
     where_autocomplete: AutocompleteState,
     /// Autocomplete state for ORDER BY filter input.
     order_autocomplete: AutocompleteState,
+    /// Click-to-sort state — synced bidirectionally with `order_clause`.
+    pub(super) sort_state: SortState,
+    /// Per-column filter state — builds WHERE clause fragments.
+    pub(super) column_filters: ColumnFilterState,
+    /// State for the currently open filter popup.
+    pub(super) filter_popup: FilterPopupState,
     /// Set by event_handler when RowMutated arrives — triggers reload on next frame.
     pub needs_reload_after_mutation: bool,
     /// When Some, the app should open the export dialog with this result.
@@ -90,6 +102,9 @@ impl TableViewerTab {
             pending: PendingChanges::new(),
             where_autocomplete: AutocompleteState::new(),
             order_autocomplete: AutocompleteState::new(),
+            sort_state: SortState::default(),
+            column_filters: ColumnFilterState::default(),
+            filter_popup: FilterPopupState::default(),
             needs_reload_after_mutation: false,
             pending_open_export_dialog: None,
         }
@@ -276,9 +291,25 @@ impl TableViewerTab {
                     &mut self.selected_cell,
                     &mut self.selected_row,
                     &self.pending,
+                    Some(&self.sort_state),
+                    Some(&self.column_filters),
                 );
                 pending_action = grid_out.action;
                 pending_double_click = grid_out.double_clicked;
+
+                // Handle sort header click → update state → reload
+                if let Some((col_name, is_multi)) = grid_out.sort_clicked {
+                    self.sort_state.toggle(&col_name, is_multi);
+                    self.order_clause = self.sort_state.to_order_clause();
+                    self.page = 0;
+                    self.load(tab_id, cmd_tx);
+                }
+
+                // Handle filter icon click → open popup
+                if let Some((col_name, db_type, anchor)) = grid_out.filter_clicked {
+                    self.filter_popup
+                        .open(&col_name, &db_type, &self.column_filters, anchor);
+                }
             } else if self.is_loading {
                 ui.centered_and_justified(|ui| {
                     ui.spinner();
@@ -304,6 +335,25 @@ impl TableViewerTab {
 
             // ── New row editor popup ──
             self.render_new_row_editor(ui.ctx(), tab_id);
+
+            // ── Column filter popup ──
+            match render_filter_popup(ui.ctx(), &mut self.filter_popup) {
+                FilterPopupOutcome::Apply(filter) => {
+                    self.filter_popup.close();
+                    self.column_filters.set(filter);
+                    self.where_clause = self.column_filters.to_where_clause();
+                    self.page = 0;
+                    self.load(tab_id, cmd_tx);
+                }
+                FilterPopupOutcome::Clear(col_name) => {
+                    self.filter_popup.close();
+                    self.column_filters.remove(&col_name);
+                    self.where_clause = self.column_filters.to_where_clause();
+                    self.page = 0;
+                    self.load(tab_id, cmd_tx);
+                }
+                FilterPopupOutcome::Pending => {}
+            }
         });
     }
 }
