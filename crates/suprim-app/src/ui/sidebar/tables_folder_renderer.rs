@@ -30,7 +30,10 @@ pub(super) fn render_tables_folder(
                     icons::SIDEBAR_ICON,
                     icons::db::COLOR_TABLE,
                 ));
-                ui.label(format!("Tables ({})", schema_node.tables.len()))
+                ui.add(
+                    egui::Label::new(format!("Tables ({})", schema_node.tables.len()))
+                        .sense(egui::Sense::click()),
+                )
             })
         })
         .body(|ui| {
@@ -124,10 +127,18 @@ pub(super) fn render_tables_folder(
             ui.close();
         }
     });
+    // Click "Tables" folder label → toggle expand/collapse. Must run before
+    // `on_hover_cursor` (which consumes the response).
+    super::sidebar_renderer::toggle_on_label_click(
+        ui.ctx(),
+        folder_state_id,
+        &header_resp.inner.inner,
+    );
+
     toggle_resp.on_hover_cursor(CursorIcon::PointingHand);
     header_resp
         .inner
-        .response
+        .inner
         .on_hover_cursor(CursorIcon::PointingHand);
 }
 

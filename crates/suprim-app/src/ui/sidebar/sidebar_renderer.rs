@@ -146,7 +146,7 @@ fn render_single_connection(
                     &entry.driver_type.to_string(),
                     icons::SIDEBAR_ICON,
                 ));
-                ui.label(&header)
+                ui.add(egui::Label::new(&header).sense(egui::Sense::click()))
             })
             .inner
             .on_hover_cursor(CursorIcon::PointingHand)
@@ -169,14 +169,7 @@ fn render_single_connection(
     let (toggle_resp, header_resp, _body) = resp;
 
     // Click on label text also toggles expand/collapse.
-    if header_resp.response.clicked() {
-        if let Some(mut reloaded) =
-            egui::collapsing_header::CollapsingState::load(ui.ctx(), header_id)
-        {
-            reloaded.toggle(ui);
-            reloaded.store(ui.ctx());
-        }
-    }
+    toggle_on_label_click(ui.ctx(), header_id, &header_resp.inner);
 
     context_menus::render_context_menu(&header_resp.inner, conn_id, entry, action, disconnect_id);
     context_menus::render_context_menu(&toggle_resp, conn_id, entry, action, disconnect_id);
@@ -185,6 +178,27 @@ fn render_single_connection(
         .response
         .on_hover_cursor(CursorIcon::PointingHand);
     context_menus::render_database_picker(ui, conn_id, entry, action);
+}
+
+/// Toggle a `CollapsingState` when its label (header inner) is clicked.
+/// Call this after `show_header(...).body(...)` with the `header_resp.response`
+/// (the outer response, not the inner horizontal). The state is reloaded and
+/// stored so the open/closed flag persists across frames.
+pub(super) fn toggle_on_label_click(
+    ctx: &eframe::egui::Context,
+    header_id: eframe::egui::Id,
+    label_resp: &eframe::egui::Response,
+) {
+    if label_resp.clicked() {
+        if let Some(mut cs) =
+            eframe::egui::collapsing_header::CollapsingState::load(ctx, header_id)
+        {
+            // Flip without needing a `ui` — avoids borrow conflicts in callers.
+            let open = cs.is_open();
+            cs.set_open(!open);
+            cs.store(ctx);
+        }
+    }
 }
 
 pub(super) fn truncate_label(s: &str, max_chars: usize) -> String {

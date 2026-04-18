@@ -94,7 +94,10 @@ fn render_view_like_folder(
         .show_header(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(icon_kind.rich(icons::SIDEBAR_ICON));
-                ui.label(format!("{} ({})", folder_name, views.len()))
+                ui.add(
+                    egui::Label::new(format!("{} ({})", folder_name, views.len()))
+                        .sense(egui::Sense::click()),
+                )
             })
         })
         .body(|ui| {
@@ -114,7 +117,10 @@ fn render_view_like_folder(
                     .show_header(ui, |ui| {
                         ui.horizontal(|ui| {
                             ui.label(icon_kind.rich(icons::SIDEBAR_ICON));
-                            ui.label(v_name)
+                            ui.add(
+                                egui::Label::new(v_name)
+                                    .sense(egui::Sense::click()),
+                            )
                         })
                     })
                     .body(|ui| {
@@ -137,16 +143,30 @@ fn render_view_like_folder(
                     open_label,
                     action,
                 );
+                // Click view label → toggle expand/collapse. Before on_hover_cursor.
+                super::sidebar_renderer::toggle_on_label_click(
+                    ui.ctx(),
+                    view_state_id,
+                    &v_header.inner.inner,
+                );
                 v_toggle.on_hover_cursor(CursorIcon::PointingHand);
                 v_header
                     .inner
-                    .response
+                    .inner
                     .on_hover_cursor(CursorIcon::PointingHand);
             }
         });
+    // Click folder label → toggle expand/collapse. Must run before
+    // `on_hover_cursor` (which consumes the response).
+    super::sidebar_renderer::toggle_on_label_click(
+        ui.ctx(),
+        folder_state_id,
+        &header_resp.inner.inner,
+    );
+
     toggle_resp.on_hover_cursor(CursorIcon::PointingHand);
     header_resp
         .inner
-        .response
+        .inner
         .on_hover_cursor(CursorIcon::PointingHand);
 }

@@ -22,7 +22,10 @@ pub(super) fn render_sequences_folder(
                     icons::SIDEBAR_ICON,
                     icons::db::COLOR_SEQUENCE,
                 ));
-                ui.label(format!("Sequences ({})", schema_node.sequences.len()))
+                ui.add(
+                    egui::Label::new(format!("Sequences ({})", schema_node.sequences.len()))
+                        .sense(egui::Sense::click()),
+                )
             })
         })
         .body(|ui| {
@@ -30,9 +33,17 @@ pub(super) fn render_sequences_folder(
                 ui.label(&seq.name);
             }
         });
+    // Click "Sequences" folder label → toggle expand/collapse. Must run before
+    // `on_hover_cursor` (which consumes the response).
+    super::sidebar_renderer::toggle_on_label_click(
+        ui.ctx(),
+        state_id,
+        &header_resp.inner.inner,
+    );
+
     toggle_resp.on_hover_cursor(CursorIcon::PointingHand);
     header_resp
         .inner
-        .response
+        .inner
         .on_hover_cursor(CursorIcon::PointingHand);
 }

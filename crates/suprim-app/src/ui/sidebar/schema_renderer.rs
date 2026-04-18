@@ -47,7 +47,10 @@ pub(super) fn render_schema_tree(
                         icons::SIDEBAR_ICON,
                         icons::db::COLOR_DATABASE,
                     ));
-                    ui.label(&db_node.name)
+                    ui.add(
+                        egui::Label::new(&db_node.name)
+                            .sense(egui::Sense::click()),
+                    )
                 })
             })
             .body(|ui| {
@@ -65,9 +68,17 @@ pub(super) fn render_schema_tree(
                     ui.weak("loading schemas...");
                 }
             });
+        // Click label → toggle expand/collapse. Must run before
+        // `on_hover_cursor` (which consumes the response).
+        super::sidebar_renderer::toggle_on_label_click(
+            ui.ctx(),
+            db_state_id,
+            &header_resp.inner.inner,
+        );
+
         let db_header = header_resp
             .inner
-            .response
+            .inner
             .on_hover_cursor(CursorIcon::PointingHand);
         toggle_resp.on_hover_cursor(CursorIcon::PointingHand);
 
@@ -132,7 +143,10 @@ fn render_schema_node(
                     icons::SIDEBAR_ICON,
                     icons::db::COLOR_SCHEMA,
                 ));
-                ui.label(format!("{}{}", schema_name, suffix))
+                ui.add(
+                    egui::Label::new(format!("{}{}", schema_name, suffix))
+                        .sense(egui::Sense::click()),
+                )
             })
         })
         .body(|ui| {
@@ -178,10 +192,18 @@ fn render_schema_node(
                 schema_node,
             );
         });
+    // Click schema label → toggle expand/collapse. Must run before
+    // `on_hover_cursor` (which consumes the response).
+    super::sidebar_renderer::toggle_on_label_click(
+        ui.ctx(),
+        schema_id,
+        &header_resp.inner.inner,
+    );
+
     toggle_resp.on_hover_cursor(CursorIcon::PointingHand);
     header_resp
         .inner
-        .response
+        .inner
         .on_hover_cursor(CursorIcon::PointingHand);
 
     // Trigger lazy-load when expanded but not yet loaded.
