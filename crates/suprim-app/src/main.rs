@@ -25,9 +25,9 @@ fn main() {
     let _rt_guard = rt.enter();
 
     // Create the premium gate (real license manager or free stub).
-    #[cfg(feature = "premium")]
-    let mut gate: Box<dyn premium::PremiumGate> = Box::new(suprim_premium::PremiumLicense::load());
-    #[cfg(not(feature = "premium"))]
+    #[cfg(feature = "extensions")]
+    let mut gate: Box<dyn premium::PremiumGate> = Box::new(suprim_extensions::PremiumLicense::load());
+    #[cfg(not(feature = "extensions"))]
     let mut gate = premium::create_free_gate();
     if gate.needs_validation() {
         let validate_result = rt.block_on(async {

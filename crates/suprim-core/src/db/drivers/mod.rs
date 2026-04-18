@@ -7,4 +7,4 @@ pub mod postgres;
 // pub mod mysql;
 // pub mod redis;
 //
-// MongoDB and MSSQL drivers are in the private suprim-premium crate.
+// MongoDB and MSSQL drivers are in the private suprim-extensions crate.

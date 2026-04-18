@@ -1,8 +1,8 @@
 //! Shared types for Structure Synchronization — the cross-crate interface.
 //!
 //! These types live in `suprim-core` so both `suprim-app` (binary) and
-//! `suprim-premium` (private crate) can reference them without circular deps.
-//! The actual UI implementation lives in `suprim-premium`.
+//! `suprim-extensions` (private crate) can reference them without circular deps.
+//! The actual UI implementation lives in `suprim-extensions`.
 
 use uuid::Uuid;
 
