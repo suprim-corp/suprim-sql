@@ -109,7 +109,7 @@ async fn where_injection_insert_blocked() {
 async fn order_injection_subquery_blocked() {
     let driver = helpers::connected_driver("testdb").await;
 
-    // Attempt to inject subquery via ORDER BY — should error or be harmless
+    // Subquery in ORDER BY — blocked by sanitizer
     let result = driver
         .table_data(
             Some("testdb"), Some("testdb"), "users", 0, 50,
@@ -117,42 +117,76 @@ async fn order_injection_subquery_blocked() {
         )
         .await;
 
-    // READ ONLY doesn't protect ORDER BY injection for data extraction,
-    // but MySQL should reject the invalid ORDER BY syntax
-    // The key assertion: our users table is untouched regardless
-    let check = driver
-        .table_data(Some("testdb"), Some("testdb"), "users", 0, 50, None, None)
-        .await
-        .unwrap();
-    assert!(check.rows.len() >= 5, "Users table should be intact");
+    assert!(result.is_err(), "Subquery in ORDER BY should be rejected by sanitizer");
 }
 
 #[tokio::test]
-async fn where_union_injection_data_leak() {
+async fn where_union_injection_blocked() {
     let driver = helpers::connected_driver("testdb").await;
 
-    // UNION injection — READ ONLY allows reads, so this tests whether
-    // the query structure prevents UNION-based data extraction.
-    // With READ ONLY, the query won't mutate data, but UNION SELECT could
-    // return sensitive data from other tables.
+    // UNION injection — blocked by sanitizer (UNION keyword rejected)
     let result = driver
         .table_data(
             Some("testdb"), Some("testdb"), "users", 0, 50,
-            Some("1=0 UNION SELECT host,user,authentication_string,4,5,6,7,8 FROM mysql.user; --"), None,
+            Some("1=0 UNION SELECT host,user,authentication_string,4,5,6,7,8 FROM mysql.user"), None,
         )
         .await;
 
-    // This may succeed (READ ONLY allows reads) or fail (column count mismatch).
-    // Document: READ ONLY does NOT prevent data leaks via UNION injection.
-    // The WHERE/ORDER BY filter bar is for trusted user input (the app operator),
-    // not for untrusted external input.
-    //
-    // If it succeeds, verify we at least didn't crash:
-    if let Ok(r) = &result {
-        // The result may contain leaked data — this is a known limitation.
-        // Application-level mitigation: the filter bar is only accessible to
-        // the authenticated database user who already has SELECT access.
-        let _ = r;
-    }
-    // If it fails, that's also acceptable (column count mismatch protection).
+    assert!(result.is_err(), "UNION in WHERE should be rejected by sanitizer");
+}
+
+#[tokio::test]
+async fn mysql_hash_comment_blocked() {
+    let driver = helpers::connected_driver("testdb").await;
+
+    let result = driver
+        .table_data(
+            Some("testdb"), Some("testdb"), "users", 0, 50,
+            Some("1=1 # comment to hide injection"), None,
+        )
+        .await;
+
+    assert!(result.is_err(), "MySQL # comment should be rejected");
+}
+
+#[tokio::test]
+async fn sleep_injection_blocked() {
+    let driver = helpers::connected_driver("testdb").await;
+
+    let result = driver
+        .table_data(
+            Some("testdb"), Some("testdb"), "users", 0, 50,
+            Some("1=1 AND SLEEP(5)"), None,
+        )
+        .await;
+
+    assert!(result.is_err(), "SLEEP() should be rejected by sanitizer");
+}
+
+#[tokio::test]
+async fn load_file_injection_blocked() {
+    let driver = helpers::connected_driver("testdb").await;
+
+    let result = driver
+        .table_data(
+            Some("testdb"), Some("testdb"), "users", 0, 50,
+            Some("1=0 UNION SELECT LOAD_FILE('/etc/passwd')"), None,
+        )
+        .await;
+
+    assert!(result.is_err(), "LOAD_FILE should be rejected by sanitizer");
+}
+
+#[tokio::test]
+async fn into_outfile_blocked() {
+    let driver = helpers::connected_driver("testdb").await;
+
+    let result = driver
+        .table_data(
+            Some("testdb"), Some("testdb"), "users", 0, 50,
+            Some("1=1 INTO OUTFILE '/tmp/dump.csv'"), None,
+        )
+        .await;
+
+    assert!(result.is_err(), "INTO OUTFILE should be rejected by sanitizer");
 }

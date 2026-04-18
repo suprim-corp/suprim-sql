@@ -61,9 +61,16 @@ fn reject_dangerous_patterns(sql: &str, context: &str) -> Result<()> {
         "EXEC ",
         "EXECUTE ",
         "CALL ",
-        // Data leak via UNION or subquery — filter bar should not need these
+        // Data leak via UNION or subquery
         "UNION ",
         "UNION(",
+        // MySQL-specific dangerous functions/statements
+        "SLEEP(",
+        "BENCHMARK(",
+        "LOAD_FILE(",
+        "INTO OUTFILE",
+        "INTO DUMPFILE",
+        "HANDLER ",
     ];
     for kw in dangerous {
         if normalized.contains(kw) {
@@ -83,7 +90,8 @@ fn reject_dangerous_patterns(sql: &str, context: &str) -> Result<()> {
     }
 
     // Comment markers — could hide injected code
-    if sql.contains("--") || sql.contains("/*") {
+    // Includes MySQL `#` single-line comment
+    if sql.contains("--") || sql.contains("/*") || sql.contains('#') {
         return Err(AppError::query(
             sql,
             format!("{context} clause must not contain SQL comments"),
@@ -140,6 +148,8 @@ mod tests {
     fn reject_comments() {
         assert!(validate_where_clause("1=1 -- hide this").is_err());
         assert!(validate_where_clause("1=1 /* block */").is_err());
+        // MySQL # comment
+        assert!(validate_where_clause("1=1 # hide this").is_err());
     }
 
     #[test]
@@ -147,6 +157,24 @@ mod tests {
         assert!(validate_where_clause("1=0 ALTER TABLE users ADD col INT").is_err());
         assert!(validate_where_clause("1=0 CREATE TABLE evil (id INT)").is_err());
         assert!(validate_where_clause("1=0 TRUNCATE TABLE users").is_err());
+    }
+
+    #[test]
+    fn reject_mysql_dangerous_functions() {
+        assert!(validate_where_clause("SLEEP(5)").is_err());
+        assert!(validate_where_clause("BENCHMARK(1000000, SHA1('test'))").is_err());
+        assert!(validate_where_clause("LOAD_FILE('/etc/passwd')").is_err());
+    }
+
+    #[test]
+    fn reject_mysql_file_operations() {
+        assert!(validate_where_clause("1=1 INTO OUTFILE '/tmp/dump.csv'").is_err());
+        assert!(validate_where_clause("1=1 INTO DUMPFILE '/tmp/shell'").is_err());
+    }
+
+    #[test]
+    fn reject_handler_statement() {
+        assert!(validate_where_clause("1=0 HANDLER users OPEN").is_err());
     }
 
     #[test]
