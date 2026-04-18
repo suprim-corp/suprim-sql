@@ -15,8 +15,13 @@ mod queries;
 mod schema_loader;
 mod type_mapping;
 
-pub use connection_url::{build_connection_url, urlencoding_simple};
+pub use connection_url::urlencoding_simple;
 pub use type_mapping::{mysql_value_from_row, rows_to_query_result};
+
+/// Escape a MySQL identifier by doubling backticks.
+pub(super) fn quote_ident(name: &str) -> String {
+    format!("`{}`", name.replace('`', "``"))
+}
 
 use sqlx::mysql::MySqlPool;
 
@@ -239,6 +244,24 @@ mod tests {
     // ── SQL builder helpers ───────────────────────────────────────────────────
 
     #[test]
+    fn quote_ident_plain_name() {
+        assert_eq!(quote_ident("users"), "`users`");
+    }
+
+    #[test]
+    fn quote_ident_escapes_backtick() {
+        assert_eq!(quote_ident("foo`bar"), "`foo``bar`");
+    }
+
+    #[test]
+    fn quote_ident_injection_attempt() {
+        assert_eq!(
+            quote_ident("foo` ; DROP DATABASE x; --"),
+            "`foo`` ; DROP DATABASE x; --`"
+        );
+    }
+
+    #[test]
     fn insert_sql_structure() {
         let cols = ["id", "name"];
         let placeholders: Vec<String> = cols.iter().map(|_| "?".to_string()).collect();
@@ -323,19 +346,19 @@ mod tests {
 
     #[test]
     fn build_url_basic() {
-        let url = build_connection_url("localhost", 3306, "mydb", "user", "pass");
+        let url = connection_url::build_connection_url("localhost", 3306, "mydb", "user", "pass");
         assert_eq!(url, "mysql://user:pass@localhost:3306/mydb");
     }
 
     #[test]
     fn build_url_special_chars_in_password() {
-        let url = build_connection_url("localhost", 3306, "mydb", "user", "p@ss:word");
+        let url = connection_url::build_connection_url("localhost", 3306, "mydb", "user", "p@ss:word");
         assert_eq!(url, "mysql://user:p%40ss%3Aword@localhost:3306/mydb");
     }
 
     #[test]
     fn build_url_custom_port() {
-        let url = build_connection_url("db.example.com", 3307, "prod", "admin", "secret");
+        let url = connection_url::build_connection_url("db.example.com", 3307, "prod", "admin", "secret");
         assert_eq!(url, "mysql://admin:secret@db.example.com:3307/prod");
     }
 }

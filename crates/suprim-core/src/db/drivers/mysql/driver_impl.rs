@@ -63,6 +63,12 @@ impl DatabaseDriver for MysqlDriver {
             Ok(p) => p,
             Err(e) if config.tls.ssl_mode == SslMode::Prefer => {
                 let err_msg = e.to_string();
+                // NOTE: String matching on "tls"/"ssl" is fragile — it could match hostnames
+                // containing these substrings. This is acceptable because:
+                // 1. SslMode::Prefer is best-effort; a false positive (unnecessary fallback)
+                //    just means no TLS, same outcome as SslMode::Disable.
+                // 2. A false negative (no fallback when needed) results in a connection error,
+                //    which the user can resolve by manually setting SslMode::Disable.
                 if err_msg.contains("HandshakeFailure") || err_msg.contains("tls") || err_msg.contains("ssl") {
                     let plain_opts = opts.ssl_mode(sqlx::mysql::MySqlSslMode::Disabled);
                     MySqlPoolOptions::new()
@@ -184,31 +190,35 @@ impl DatabaseDriver for MysqlDriver {
     // ── DDL operations (MySQL backtick quoting) ──────────────────────────────
 
     async fn truncate_table(&self, _schema: &str, table: &str) -> Result<()> {
-        let sql = format!("TRUNCATE TABLE `{}`", table);
+        let sql = format!("TRUNCATE TABLE {}", super::quote_ident(table));
         self.execute(&sql).await?;
         Ok(())
     }
 
     async fn drop_table(&self, _schema: &str, table: &str) -> Result<()> {
-        let sql = format!("DROP TABLE `{}`", table);
+        let sql = format!("DROP TABLE {}", super::quote_ident(table));
         self.execute(&sql).await?;
         Ok(())
     }
 
     async fn drop_view(&self, _schema: &str, view: &str) -> Result<()> {
-        let sql = format!("DROP VIEW IF EXISTS `{}`", view);
+        let sql = format!("DROP VIEW IF EXISTS {}", super::quote_ident(view));
         self.execute(&sql).await?;
         Ok(())
     }
 
     async fn rename_table(&self, _schema: &str, old_name: &str, new_name: &str) -> Result<()> {
-        let sql = format!("RENAME TABLE `{}` TO `{}`", old_name, new_name);
+        let sql = format!(
+            "RENAME TABLE {} TO {}",
+            super::quote_ident(old_name),
+            super::quote_ident(new_name)
+        );
         self.execute(&sql).await?;
         Ok(())
     }
 
     async fn create_database(&self, name: &str) -> Result<()> {
-        let sql = format!("CREATE DATABASE `{}`", name);
+        let sql = format!("CREATE DATABASE {}", super::quote_ident(name));
         self.execute(&sql).await?;
         Ok(())
     }

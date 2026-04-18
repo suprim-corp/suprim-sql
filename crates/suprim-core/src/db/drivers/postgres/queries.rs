@@ -71,7 +71,7 @@ pub async fn table_data(
     order_clause: Option<&str>,
 ) -> Result<QueryResult> {
     let start = Instant::now();
-    let offset = page * page_size;
+    let offset = (page as u64) * (page_size as u64);
     let schema_prefix = schema
         .map(|s| format!("\"{}\".", s))
         .unwrap_or_default();

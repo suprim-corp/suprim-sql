@@ -44,6 +44,9 @@ fn reject_dangerous_patterns(sql: &str, context: &str) -> Result<()> {
         ));
     }
 
+    // Normalize whitespace (tabs, newlines, multi-spaces → single space) before keyword check
+    let normalized = upper.split_whitespace().collect::<Vec<_>>().join(" ");
+
     // DML/DDL keywords — should never appear in WHERE/ORDER BY
     let dangerous = [
         "INSERT ",
@@ -60,7 +63,7 @@ fn reject_dangerous_patterns(sql: &str, context: &str) -> Result<()> {
         "CALL ",
     ];
     for kw in dangerous {
-        if upper.contains(kw) {
+        if normalized.contains(kw) {
             return Err(AppError::query(
                 sql,
                 format!("{context} clause must not contain {}", kw.trim()),
@@ -125,5 +128,21 @@ mod tests {
         assert!(validate_where_clause("1=0 ALTER TABLE users ADD col INT").is_err());
         assert!(validate_where_clause("1=0 CREATE TABLE evil (id INT)").is_err());
         assert!(validate_where_clause("1=0 TRUNCATE TABLE users").is_err());
+    }
+
+    #[test]
+    fn reject_keywords_with_tab_or_newline() {
+        // Tab between keyword and next token should still be caught
+        assert!(validate_where_clause("1=0\tINSERT\tINTO users").is_err());
+        // Newline between keyword and next token should still be caught
+        assert!(validate_where_clause("1=0\nINSERT\nINTO users").is_err());
+        // Mixed whitespace
+        assert!(validate_where_clause("1=0\n\tDROP \t TABLE users").is_err());
+    }
+
+    #[test]
+    fn reject_keywords_with_multiple_spaces() {
+        assert!(validate_where_clause("1=0  INSERT   INTO users").is_err());
+        assert!(validate_where_clause("1=0  DELETE   FROM users").is_err());
     }
 }

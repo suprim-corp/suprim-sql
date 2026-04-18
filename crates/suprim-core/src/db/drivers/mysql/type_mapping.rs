@@ -57,11 +57,16 @@ pub fn mysql_value_from_row(row: &MySqlRow, idx: usize, type_name: &str) -> DbVa
             .unwrap_or(DbValue::Null);
     }
     // DECIMAL/NUMERIC: decoded via rust_decimal::Decimal, then converted to f64.
+    // Falls back to Text representation if f64 conversion would lose precision.
     if upper.contains("DECIMAL") || upper.contains("NUMERIC") || upper.contains("NEWDECIMAL") {
         use rust_decimal::prelude::ToPrimitive;
         return row
             .try_get::<rust_decimal::Decimal, _>(idx)
-            .map(|d| DbValue::Float(d.to_f64().unwrap_or(0.0)))
+            .map(|d| {
+                d.to_f64()
+                    .map(DbValue::Float)
+                    .unwrap_or_else(|| DbValue::Text(d.to_string()))
+            })
             .unwrap_or(DbValue::Null);
     }
     if upper.contains("DOUBLE") {
@@ -130,6 +135,8 @@ pub fn rows_to_query_result(rows: Vec<MySqlRow>, elapsed: Duration) -> QueryResu
         .map(|c| ColumnMeta {
             name: c.name().to_string(),
             db_type: c.type_info().name().to_string(),
+            // TODO(mysql): MySqlRow doesn't expose per-column nullability at runtime.
+            // Would require cross-referencing with INFORMATION_SCHEMA.COLUMNS data.
             nullable: true,
         })
         .collect();

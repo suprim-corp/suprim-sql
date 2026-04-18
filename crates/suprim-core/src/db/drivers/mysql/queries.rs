@@ -76,7 +76,7 @@ pub(super) async fn execute_on_database(
         .acquire()
         .await
         .map_err(|e| AppError::connection(e.to_string()))?;
-    let use_sql = format!("USE `{}`", database);
+    let use_sql = format!("USE {}", super::quote_ident(database));
     sqlx::raw_sql(AssertSqlSafe(use_sql.clone()))
         .execute(&mut *conn)
         .await
@@ -101,7 +101,7 @@ pub(super) async fn table_data(
     order_clause: Option<&str>,
 ) -> Result<QueryResult> {
     let start = Instant::now();
-    let offset = page * page_size;
+    let offset = (page as u64) * (page_size as u64);
 
     // Acquire a single connection to guarantee USE + queries run on the same session.
     let mut conn = pool
@@ -111,7 +111,7 @@ pub(super) async fn table_data(
 
     // Switch to the requested database if specified
     if let Some(db) = database {
-        let use_sql = format!("USE `{}`", db);
+        let use_sql = format!("USE {}", super::quote_ident(db));
         sqlx::raw_sql(AssertSqlSafe(use_sql.clone()))
             .execute(&mut *conn)
             .await
@@ -128,7 +128,7 @@ pub(super) async fn table_data(
         None => None,
     };
 
-    let table_ref = format!("`{}`", table);
+    let table_ref = super::quote_ident(table);
 
     // Build WHERE fragment (shared by both COUNT and SELECT)
     let where_fragment = match &where_clause {
@@ -185,22 +185,22 @@ pub(super) async fn insert_row(
     table: &str,
     values: HashMap<String, DbValue>,
 ) -> Result<u64> {
-    let cols: Vec<&str> = values.keys().map(|s| s.as_str()).collect();
-    let placeholders: Vec<String> = cols.iter().map(|_| "?".to_string()).collect();
+    let entries: Vec<(&String, &DbValue)> = values.iter().collect();
+    let placeholders: Vec<String> = entries.iter().map(|_| "?".to_string()).collect();
 
     let sql = format!(
-        "INSERT INTO `{}` ({}) VALUES ({})",
-        table,
-        cols.iter()
-            .map(|c| format!("`{}`", c))
+        "INSERT INTO {} ({}) VALUES ({})",
+        super::quote_ident(table),
+        entries
+            .iter()
+            .map(|(c, _)| super::quote_ident(c))
             .collect::<Vec<_>>()
             .join(", "),
         placeholders.join(", ")
     );
 
     let mut query = sqlx::query(AssertSqlSafe(sql.clone()));
-    for col in &cols {
-        let val = values.get(*col).unwrap();
+    for (_, val) in &entries {
         query = bind_db_value(query, val);
     }
 
@@ -219,21 +219,30 @@ pub(super) async fn update_row(
     pk: HashMap<String, DbValue>,
     changes: HashMap<String, DbValue>,
 ) -> Result<u64> {
-    let set_clause: Vec<String> = changes.keys().map(|k| format!("`{}` = ?", k)).collect();
-    let where_clause: Vec<String> = pk.keys().map(|k| format!("`{}` = ?", k)).collect();
+    let change_entries: Vec<(&String, &DbValue)> = changes.iter().collect();
+    let pk_entries: Vec<(&String, &DbValue)> = pk.iter().collect();
+
+    let set_clause: Vec<String> = change_entries
+        .iter()
+        .map(|(k, _)| format!("{} = ?", super::quote_ident(k)))
+        .collect();
+    let where_clause: Vec<String> = pk_entries
+        .iter()
+        .map(|(k, _)| format!("{} = ?", super::quote_ident(k)))
+        .collect();
 
     let sql = format!(
-        "UPDATE `{}` SET {} WHERE {}",
-        table,
+        "UPDATE {} SET {} WHERE {}",
+        super::quote_ident(table),
         set_clause.join(", "),
         where_clause.join(" AND ")
     );
 
     let mut query = sqlx::query(AssertSqlSafe(sql.clone()));
-    for val in changes.values() {
+    for (_, val) in &change_entries {
         query = bind_db_value(query, val);
     }
-    for val in pk.values() {
+    for (_, val) in &pk_entries {
         query = bind_db_value(query, val);
     }
 
@@ -251,16 +260,20 @@ pub(super) async fn delete_row(
     table: &str,
     pk: HashMap<String, DbValue>,
 ) -> Result<u64> {
-    let where_clause: Vec<String> = pk.keys().map(|k| format!("`{}` = ?", k)).collect();
+    let pk_entries: Vec<(&String, &DbValue)> = pk.iter().collect();
+    let where_clause: Vec<String> = pk_entries
+        .iter()
+        .map(|(k, _)| format!("{} = ?", super::quote_ident(k)))
+        .collect();
 
     let sql = format!(
-        "DELETE FROM `{}` WHERE {}",
-        table,
+        "DELETE FROM {} WHERE {}",
+        super::quote_ident(table),
         where_clause.join(" AND ")
     );
 
     let mut query = sqlx::query(AssertSqlSafe(sql.clone()));
-    for val in pk.values() {
+    for (_, val) in &pk_entries {
         query = bind_db_value(query, val);
     }
 

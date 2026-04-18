@@ -2,7 +2,8 @@
 
 /// Build a connection URL from DriverParams::Mysql.
 /// Caller provides the plaintext password (retrieved from keychain beforehand).
-pub fn build_connection_url(
+#[cfg(test)]
+pub(super) fn build_connection_url(
     host: &str,
     port: u16,
     database: &str,
@@ -15,14 +16,15 @@ pub fn build_connection_url(
         urlencoding_simple(password),
         host,
         port,
-        database
+        urlencoding_simple(database)
     )
 }
 
-/// Minimal percent-encoding for user/password segments.
+/// Minimal percent-encoding for user/password/database segments.
 pub fn urlencoding_simple(s: &str) -> String {
     s.chars()
         .flat_map(|c| match c {
+            '%' => "%25".chars().collect::<Vec<_>>(),
             '@' => vec!['%', '4', '0'],
             ':' => vec!['%', '3', 'A'],
             '/' => vec!['%', '2', 'F'],
@@ -78,6 +80,11 @@ mod tests {
     #[test]
     fn urlencoding_hash() {
         assert_eq!(urlencoding_simple("pass#word"), "pass%23word");
+    }
+
+    #[test]
+    fn urlencoding_percent() {
+        assert_eq!(urlencoding_simple("100%done"), "100%25done");
     }
 
     #[test]

@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 
 use sqlx::mysql::MySqlPool;
-use sqlx::{AssertSqlSafe, Row};
+use sqlx::Row;
 
 use crate::db::types::{
     ColumnNode, ForeignKeyNode, FunctionNode, IndexNode, SchemaNode, TableNode, ViewNode,
@@ -40,26 +40,26 @@ pub(super) async fn load_schema_detail(
     database: &str,
 ) -> Result<SchemaNode> {
     // ── 1. Tables + views list ────────────────────────────────────────────────
-    let table_rows = sqlx::query(AssertSqlSafe(format!(
+    let table_rows = sqlx::query(
         "SELECT TABLE_NAME, TABLE_TYPE \
          FROM INFORMATION_SCHEMA.TABLES \
-         WHERE TABLE_SCHEMA = '{}' \
+         WHERE TABLE_SCHEMA = ? \
          ORDER BY TABLE_TYPE, TABLE_NAME",
-        database
-    )))
+    )
+    .bind(database)
     .fetch_all(pool)
     .await
     .map_err(|e| AppError::Schema(e.to_string()))?;
 
     // ── 2. ALL columns for this database (single batch query) ─────────────────
-    let col_rows = sqlx::query(AssertSqlSafe(format!(
+    let col_rows = sqlx::query(
         "SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, \
                 COLUMN_DEFAULT, COLUMN_KEY, ORDINAL_POSITION \
          FROM INFORMATION_SCHEMA.COLUMNS \
-         WHERE TABLE_SCHEMA = '{}' \
+         WHERE TABLE_SCHEMA = ? \
          ORDER BY TABLE_NAME, ORDINAL_POSITION",
-        database
-    )))
+    )
+    .bind(database)
     .fetch_all(pool)
     .await
     .map_err(|e| AppError::Schema(e.to_string()))?;
@@ -85,15 +85,15 @@ pub(super) async fn load_schema_detail(
     }
 
     // ── 3. ALL indexes for this database (single batch query) ─────────────────
-    let idx_rows = sqlx::query(AssertSqlSafe(format!(
+    let idx_rows = sqlx::query(
         "SELECT TABLE_NAME, INDEX_NAME, NON_UNIQUE, \
                 GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS col_names \
          FROM INFORMATION_SCHEMA.STATISTICS \
-         WHERE TABLE_SCHEMA = '{}' \
+         WHERE TABLE_SCHEMA = ? \
          GROUP BY TABLE_NAME, INDEX_NAME, NON_UNIQUE \
          ORDER BY TABLE_NAME, INDEX_NAME",
-        database
-    )))
+    )
+    .bind(database)
     .fetch_all(pool)
     .await
     .unwrap_or_default();
@@ -118,7 +118,7 @@ pub(super) async fn load_schema_detail(
     }
 
     // ── 4. ALL foreign keys for this database (single batch query) ────────────
-    let fk_rows = sqlx::query(AssertSqlSafe(format!(
+    let fk_rows = sqlx::query(
         "SELECT kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME, \
                 kcu.REFERENCED_TABLE_NAME, kcu.REFERENCED_COLUMN_NAME \
          FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu \
@@ -126,11 +126,11 @@ pub(super) async fn load_schema_detail(
               ON kcu.CONSTRAINT_NAME = tc.CONSTRAINT_NAME \
              AND kcu.TABLE_SCHEMA = tc.TABLE_SCHEMA \
              AND kcu.TABLE_NAME = tc.TABLE_NAME \
-         WHERE kcu.TABLE_SCHEMA = '{}' \
+         WHERE kcu.TABLE_SCHEMA = ? \
            AND tc.CONSTRAINT_TYPE = 'FOREIGN KEY' \
          ORDER BY kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION",
-        database
-    )))
+    )
+    .bind(database)
     .fetch_all(pool)
     .await
     .unwrap_or_default();
@@ -220,28 +220,28 @@ pub(super) async fn load_schema_detail(
 
 /// Load user-defined functions and procedures from INFORMATION_SCHEMA.ROUTINES.
 async fn load_functions(pool: &MySqlPool, database: &str) -> Vec<FunctionNode> {
-    let func_rows = sqlx::query(AssertSqlSafe(format!(
+    let func_rows = sqlx::query(
         "SELECT ROUTINE_NAME, ROUTINE_TYPE, DTD_IDENTIFIER, \
                 ROUTINE_DEFINITION, ROUTINE_BODY \
          FROM INFORMATION_SCHEMA.ROUTINES \
-         WHERE ROUTINE_SCHEMA = '{}' \
+         WHERE ROUTINE_SCHEMA = ? \
          ORDER BY ROUTINE_TYPE, ROUTINE_NAME",
-        database
-    )))
+    )
+    .bind(database)
     .fetch_all(pool)
     .await
     .unwrap_or_default();
 
     // Load parameters for each routine to build signatures
-    let param_rows = sqlx::query(AssertSqlSafe(format!(
+    let param_rows = sqlx::query(
         "SELECT SPECIFIC_NAME, PARAMETER_NAME, DATA_TYPE, PARAMETER_MODE, \
                 ORDINAL_POSITION \
          FROM INFORMATION_SCHEMA.PARAMETERS \
-         WHERE SPECIFIC_SCHEMA = '{}' \
+         WHERE SPECIFIC_SCHEMA = ? \
            AND ORDINAL_POSITION > 0 \
          ORDER BY SPECIFIC_NAME, ORDINAL_POSITION",
-        database
-    )))
+    )
+    .bind(database)
     .fetch_all(pool)
     .await
     .unwrap_or_default();
