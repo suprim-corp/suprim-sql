@@ -21,11 +21,22 @@ impl SqlDialect {
         }
     }
 
-    /// Quote a schema-qualified table: `"schema"."table"` or `` `table` `` (MySQL has no schema prefix).
+    /// Quote a schema-qualified table for DDL/DML within the current database context.
+    /// PG: `"schema"."table"`, MySQL/SQLite: `` `table` `` (no schema prefix).
     pub fn quote_table(&self, schema: &str, table: &str) -> String {
         match self {
             Self::Postgres => format!("{}.{}", self.quote_ident(schema), self.quote_ident(table)),
             Self::Mysql | Self::Sqlite => self.quote_ident(table),
+        }
+    }
+
+    /// Quote a fully qualified table for cross-database queries.
+    /// PG: `"schema"."table"`, MySQL: `` `database`.`table` ``, SQLite: `"table"`.
+    pub fn quote_qualified(&self, database: &str, table: &str) -> String {
+        match self {
+            Self::Postgres => format!("{}.{}", self.quote_ident(database), self.quote_ident(table)),
+            Self::Mysql => format!("{}.{}", self.quote_ident(database), self.quote_ident(table)),
+            Self::Sqlite => self.quote_ident(table),
         }
     }
 
@@ -102,6 +113,18 @@ mod tests {
     fn quote_table_mysql() {
         let d = SqlDialect::Mysql;
         assert_eq!(d.quote_table("mydb", "users"), "`users`");
+    }
+
+    #[test]
+    fn quote_qualified_postgres() {
+        let d = SqlDialect::Postgres;
+        assert_eq!(d.quote_qualified("mydb", "users"), "\"mydb\".\"users\"");
+    }
+
+    #[test]
+    fn quote_qualified_mysql() {
+        let d = SqlDialect::Mysql;
+        assert_eq!(d.quote_qualified("other_db", "items"), "`other_db`.`items`");
     }
 
     #[test]

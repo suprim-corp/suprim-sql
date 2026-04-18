@@ -263,13 +263,15 @@ impl Sidebar {
     /// Resolve the SQL dialect for a connection by its id.
     /// Returns `SqlDialect::Postgres` if the connection is unknown.
     pub fn dialect_for(&self, conn_id: Uuid) -> SqlDialect {
-        match self.find(conn_id) {
-            Some(entry) => match entry.driver_type.as_str() {
+        self.find(conn_id)
+            .map(|entry| match entry.driver_type.as_str() {
                 "MySQL" => SqlDialect::Mysql,
                 "SQLite" => SqlDialect::Sqlite,
-                _ => SqlDialect::Postgres,
-            },
-            None => SqlDialect::default(),
-        }
+                "PostgreSQL" => SqlDialect::Postgres,
+                // DriverType::Display outputs these exact strings.
+                // Fallback for unknown/future drivers.
+                _ => SqlDialect::default(),
+            })
+            .unwrap_or_default()
     }
 }
