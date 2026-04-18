@@ -12,8 +12,8 @@ async fn where_injection_drop_table_blocked() {
     driver.execute("CREATE TABLE IF NOT EXISTS injection_target (id INT PRIMARY KEY)").await.unwrap();
     driver.execute("INSERT IGNORE INTO injection_target VALUES (1)").await.unwrap();
 
-    // Attempt injection via WHERE clause — should fail because session is READ ONLY
-    let result = driver
+    // Attempt injection via WHERE clause — blocked by sanitizer (semicolon)
+    let _result = driver
         .table_data(
             Some("testdb"), Some("testdb"), "users", 0, 50,
             Some("1=1; DROP TABLE injection_target; --"), None,
@@ -34,8 +34,8 @@ async fn where_injection_update_blocked() {
     let driver = helpers::connected_driver("testdb").await;
     helpers::reset_users_table(&driver).await;
 
-    // Attempt to UPDATE via WHERE injection — READ ONLY should block
-    let result = driver
+    // Attempt to UPDATE via WHERE injection — blocked by sanitizer
+    let _result = driver
         .table_data(
             Some("testdb"), Some("testdb"), "users", 0, 50,
             Some("1=1; UPDATE users SET name='HACKED'; --"), None,

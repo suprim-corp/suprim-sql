@@ -88,3 +88,30 @@ async fn empty_database_returns_empty_schema() {
 
     driver.execute("DROP DATABASE empty_schema_test").await.unwrap();
 }
+
+// ── DDL generation dialect test ──────────────────────────────────────────────
+
+#[tokio::test]
+async fn ddl_generator_uses_backticks_for_mysql() {
+    use suprim_core::db::ddl_generator;
+    use suprim_core::db::dialect::SqlDialect;
+
+    let driver = helpers::connected_driver("testdb").await;
+    let schema = driver.load_schema_detail("testdb", "testdb").await.unwrap();
+
+    let users = schema.tables.iter().find(|t| t.name == "users").expect("users table");
+    let ddl = ddl_generator::full_table_ddl("testdb", users, SqlDialect::Mysql);
+
+    // Must use backtick quoting
+    assert!(ddl.contains("`users`"), "Table name should use backticks: {ddl}");
+    assert!(ddl.contains("`id`"), "Column names should use backticks: {ddl}");
+    assert!(ddl.contains("`name`"), "Column names should use backticks: {ddl}");
+    // Must NOT use double-quote quoting
+    assert!(!ddl.contains("\"users\""), "Should not use PG double-quotes: {ddl}");
+    assert!(!ddl.contains("\"id\""), "Should not use PG double-quotes: {ddl}");
+    // Should have PRIMARY KEY
+    assert!(ddl.contains("PRIMARY KEY"), "Should have PK constraint: {ddl}");
+    // Should skip PRIMARY index (not emit CREATE INDEX PRIMARY)
+    assert!(!ddl.contains("CREATE INDEX `PRIMARY`"), "Should skip PK index: {ddl}");
+    assert!(!ddl.contains("CREATE UNIQUE INDEX `PRIMARY`"), "Should skip PK index: {ddl}");
+}
