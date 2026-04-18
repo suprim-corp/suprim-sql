@@ -51,13 +51,33 @@ impl DatabaseDriver for MysqlDriver {
         // Apply SSL mode
         opts = apply_mysql_ssl(opts, &config.tls);
 
-        let pool = MySqlPoolOptions::new()
+        let pool_opts = MySqlPoolOptions::new()
             .max_connections(10)
             .min_connections(1)
-            .acquire_timeout(std::time::Duration::from_secs(10))
-            .connect_with(opts)
-            .await
-            .map_err(|e| AppError::connection(e.to_string()))?;
+            .acquire_timeout(std::time::Duration::from_secs(10));
+
+        // Connect — with fallback for Prefer mode.
+        // MySQL 5.7 uses TLS 1.0/1.1 which rustls doesn't support.
+        // When SslMode::Prefer, try TLS first, fallback to plaintext on handshake error.
+        let pool = match pool_opts.connect_with(opts.clone()).await {
+            Ok(p) => p,
+            Err(e) if config.tls.ssl_mode == SslMode::Prefer => {
+                let err_msg = e.to_string();
+                if err_msg.contains("HandshakeFailure") || err_msg.contains("tls") || err_msg.contains("ssl") {
+                    let plain_opts = opts.ssl_mode(sqlx::mysql::MySqlSslMode::Disabled);
+                    MySqlPoolOptions::new()
+                        .max_connections(10)
+                        .min_connections(1)
+                        .acquire_timeout(std::time::Duration::from_secs(10))
+                        .connect_with(plain_opts)
+                        .await
+                        .map_err(|e2| AppError::connection(e2.to_string()))?
+                } else {
+                    return Err(AppError::connection(e.to_string()));
+                }
+            }
+            Err(e) => return Err(AppError::connection(e.to_string())),
+        };
 
         self.pool = Some(pool);
         Ok(())

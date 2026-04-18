@@ -9,11 +9,15 @@ use suprim_core::db::driver::DatabaseDriver;
 use suprim_core::db::drivers::mysql::MysqlDriver;
 
 pub fn test_config(database: &str) -> ConnectionConfig {
+    let port: u16 = std::env::var("MYSQL_TEST_PORT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(3307);
     ConnectionConfig::new(
         "mysql-test",
         DriverParams::Mysql {
             host: "127.0.0.1".into(),
-            port: 3307,
+            port,
             database: database.into(),
             user: "root".into(),
             password_key: "testpass".into(),
