@@ -14,7 +14,7 @@ build:
 release:
 	cargo build --bin SuprimSQL --release
 
-# macOS .app bundle (requires: cargo install cargo-bundle)
+# macOS .app bundle
 bundle:
 	./scripts/build/macos.sh
 

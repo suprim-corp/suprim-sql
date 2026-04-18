@@ -179,10 +179,10 @@ async fn proxy_connection(
     let ssh_to_tcp = tokio::spawn(async move {
         loop {
             match ch_read.wait().await {
-                Some(ChannelMsg::Data { data }) => {
-                    if tcp_write.write_all(&data).await.is_err() {
-                        break;
-                    }
+                Some(ChannelMsg::Data { data })
+                    if tcp_write.write_all(&data).await.is_err() =>
+                {
+                    break;
                 }
                 Some(ChannelMsg::Eof | ChannelMsg::Close) | None => break,
                 _ => {}

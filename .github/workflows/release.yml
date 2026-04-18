@@ -38,10 +38,8 @@ jobs:
             target
           key: macos-release-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install cargo-bundle and create-dmg
-        run: |
-          cargo install cargo-bundle
-          brew install create-dmg
+      - name: Install create-dmg
+        run: brew install create-dmg
 
       - name: Build universal .app + .dmg
         run: ./scripts/build/macos.sh --universal --dmg
