@@ -26,6 +26,7 @@ pub enum MenuAction {
     ReloadDatabases,
     QueryHistory,
     License,
+    CheckForUpdates,
     DataTransfer,
     DataGeneration,
     DataDictionary,
@@ -99,7 +100,10 @@ pub fn install_native_menu() -> NativeMenu {
         "",
         &tx,
         &mut handlers,
-        &[("Quit SuprimSQL", MenuAction::Quit, "q")],
+        &[
+            ("Check for Updates\u{2026}", MenuAction::CheckForUpdates, ""),
+            ("Quit SuprimSQL", MenuAction::Quit, "q"),
+        ],
     );
     menubar.addItem(&app_menu);
 

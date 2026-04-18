@@ -300,6 +300,13 @@ impl App {
                 MenuAction::License => {
                     self.open_license_dialog();
                 }
+                MenuAction::CheckForUpdates => {
+                    // Stub: open GitHub releases page in browser.
+                    // TODO: replace with in-app update check (Sparkle or custom).
+                    let _ = std::process::Command::new("open")
+                        .arg(suprim_core::constants::RELEASES_URL)
+                        .spawn();
+                }
                 MenuAction::DataTransfer
                 | MenuAction::DataGeneration
                 | MenuAction::DataDictionary

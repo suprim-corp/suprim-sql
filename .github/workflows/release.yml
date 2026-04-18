@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  APP_NAME: SuprimSQL
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-macos:
+    runs-on: macos-14  # Apple Silicon runner
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout extensions submodule
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.EXTENSIONS_TOKEN }}@github.com/".insteadOf "git@github.com:"
+          git submodule update --init --recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: macos-release-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-bundle and create-dmg
+        run: |
+          cargo install cargo-bundle
+          brew install create-dmg
+
+      - name: Build universal .app + .dmg
+        run: ./scripts/build/macos.sh --universal --dmg
+
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Rename DMG with version
+        run: |
+          mv target/release/${APP_NAME}.dmg \
+             target/release/${APP_NAME}-${{ steps.version.outputs.version }}-macos-universal.dmg
+
+      - name: Generate SHA256
+        run: |
+          cd target/release
+          shasum -a 256 ${APP_NAME}-${{ steps.version.outputs.version }}-macos-universal.dmg \
+            > ${APP_NAME}-${{ steps.version.outputs.version }}-macos-universal.dmg.sha256
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            target/release/${{ env.APP_NAME }}-${{ steps.version.outputs.version }}-macos-universal.dmg
+            target/release/${{ env.APP_NAME }}-${{ steps.version.outputs.version }}-macos-universal.dmg.sha256
