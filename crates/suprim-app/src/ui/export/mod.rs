@@ -105,9 +105,14 @@ impl ExportDialog {
         {
             window = window.title_bar(false);
         }
+
+        // On non-macOS: use a separate bool for the title bar close button to
+        // avoid double mutable borrow of `is_open` (closure also needs it).
+        #[cfg(not(target_os = "macos"))]
+        let mut title_bar_open = true;
         #[cfg(not(target_os = "macos"))]
         {
-            window = window.open(&mut is_open);
+            window = window.open(&mut title_bar_open);
         }
 
         window.show(ctx, |ui| {
@@ -161,6 +166,12 @@ impl ExportDialog {
             ui.separator();
             self.render_footer(ui, can_export, is_tables_mode, &mut is_open, &mut outcome);
         });
+
+        // Merge title bar close into is_open
+        #[cfg(not(target_os = "macos"))]
+        if !title_bar_open {
+            is_open = false;
+        }
 
         if !is_open && matches!(outcome, ExportOutcome::Pending) {
             return ExportOutcome::Cancelled;

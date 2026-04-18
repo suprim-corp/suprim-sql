@@ -25,6 +25,12 @@ env:
 jobs:
   check:
     runs-on: [self-hosted, linux, rust]
+    # Block forked PRs from running on self-hosted runner (security).
+    # push events have no pull_request context → always run.
+    # PR events: only run if PR is from the same repo (not a fork).
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@v4
 
@@ -41,7 +47,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: macos-check-${{ hashFiles('**/Cargo.lock') }}
+          key: linux-check-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            linux-check-
 
       - name: Build
         run: cargo build --features dev-test

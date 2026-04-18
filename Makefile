@@ -33,23 +33,22 @@ dmg-sign:
 test:
 	cargo test --lib
 
+test-pg:
+	cargo test --test postgres
+
+test-mysql:
+	cargo test --test mysql
+
 test-all:
-	cargo test --test postgres_driver_test \
-		--test sqlite_driver_test \
-		--test mysql_driver_test \
-		--test redis_driver_test \
-		--test mongodb_driver_test \
+	cargo test --test postgres \
+		--test mysql \
 		--lib
 
 coverage:
 	cargo tarpaulin \
-		--test postgres_driver_test \
-		--test sqlite_driver_test \
-		--test mysql_driver_test \
-		--test redis_driver_test \
-		--test mongodb_driver_test \
+		--test postgres \
+		--test mysql \
 		--lib \
-		--exclude-files src/db/mssql.rs \
 		--exclude-files src/main.rs
 
 lint:

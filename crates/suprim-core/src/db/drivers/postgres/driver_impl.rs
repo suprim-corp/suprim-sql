@@ -62,6 +62,8 @@ impl DatabaseDriver for PostgresDriver {
             .max_connections(10)
             .min_connections(1)
             .acquire_timeout(std::time::Duration::from_secs(10))
+            .idle_timeout(std::time::Duration::from_secs(300))
+            .test_before_acquire(true)
             .connect_with(opts)
             .await
             .map_err(|e| AppError::connection(e.to_string()))?;
@@ -75,7 +77,7 @@ impl DatabaseDriver for PostgresDriver {
             pool.close().await;
         }
         let pools: Vec<sqlx::postgres::PgPool> = {
-            let mut locked = self.db_pools.lock().unwrap();
+            let mut locked = self.db_pools.lock().unwrap_or_else(|e| e.into_inner());
             locked.drain().map(|(_, p)| p).collect()
         };
         for pool in pools {
@@ -195,10 +197,11 @@ fn apply_pg_ssl(
         SslMode::Prefer => opts.ssl_mode(PgSslMode::Prefer),
         SslMode::Require => opts.ssl_mode(PgSslMode::Require),
         SslMode::VerifyCa => opts.ssl_mode(PgSslMode::VerifyCa),
+        SslMode::VerifyFull => opts.ssl_mode(PgSslMode::VerifyFull),
     };
 
-    // Cert paths only meaningful for Require and VerifyCa
-    if matches!(tls.ssl_mode, SslMode::Require | SslMode::VerifyCa) {
+    // Cert paths only meaningful for Require, VerifyCa, and VerifyFull
+    if matches!(tls.ssl_mode, SslMode::Require | SslMode::VerifyCa | SslMode::VerifyFull) {
         if let Some(ca_path) = &tls.ca_cert_path {
             opts = opts.ssl_root_cert(ca_path);
         }

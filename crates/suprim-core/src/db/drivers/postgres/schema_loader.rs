@@ -65,19 +65,19 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
     .map_err(|e| AppError::Schema(e.to_string()))?;
 
     // ── 1b. Materialized views ────────────────────────────────────────────────
-    let matview_rows = sqlx::query(AssertSqlSafe(format!(
+    let matview_rows = sqlx::query(
         "SELECT matviewname AS name \
          FROM pg_catalog.pg_matviews \
-         WHERE schemaname = '{}' \
+         WHERE schemaname = $1 \
          ORDER BY matviewname",
-        schema_name
-    )))
+    )
+    .bind(schema_name)
     .fetch_all(pool)
     .await
     .unwrap_or_default();
 
     // ── 1c. Sequences ─────────────────────────────────────────────────────────
-    let seq_rows = sqlx::query(AssertSqlSafe(format!(
+    let seq_rows = sqlx::query(
         "SELECT s.sequencename AS sequence_name, \
                 s.data_type, \
                 s.start_value, \
@@ -102,10 +102,10 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
          LEFT JOIN pg_catalog.pg_attribute a \
               ON a.attrelid = dep.refobjid \
               AND a.attnum = dep.refobjsubid \
-         WHERE s.schemaname = '{}' \
+         WHERE s.schemaname = $1 \
          ORDER BY s.sequencename",
-        schema_name
-    )))
+    )
+    .bind(schema_name)
     .fetch_all(pool)
     .await
     .unwrap_or_default();
@@ -173,20 +173,19 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
     .map_err(|e| AppError::Schema(e.to_string()))?;
 
     // ── 3. Primary key columns for the schema (single batch query) ────────────
-    let pk_sql = format!(
+    let pk_rows = sqlx::query(
         "SELECT t.relname AS table_name, a.attname AS col_name \
          FROM pg_catalog.pg_constraint c \
          JOIN pg_catalog.pg_class t ON t.oid = c.conrelid \
          JOIN pg_catalog.pg_namespace n ON n.oid = t.relnamespace \
          JOIN pg_catalog.pg_attribute a ON a.attrelid = t.oid \
               AND a.attnum = ANY(c.conkey) \
-         WHERE n.nspname = '{}' AND c.contype = 'p'",
-        schema_name
-    );
-    let pk_rows = sqlx::query(AssertSqlSafe(pk_sql))
-        .fetch_all(pool)
-        .await
-        .unwrap_or_default();
+         WHERE n.nspname = $1 AND c.contype = 'p'",
+    )
+    .bind(schema_name)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
     let mut pk_set: HashMap<String, std::collections::HashSet<String>> = HashMap::new();
     for r in &pk_rows {
         let tbl: String = r.try_get("table_name").unwrap_or_default();
@@ -195,7 +194,7 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
     }
 
     // ── 4. Indexes for the schema (single batch query) ────────────────────────
-    let idx_sql = format!(
+    let idx_rows = sqlx::query(
         "SELECT t.relname AS table_name, \
                 i.relname AS index_name, \
                 ix.indisunique AS is_unique, \
@@ -212,14 +211,13 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
          JOIN pg_catalog.pg_index ix ON t.oid = ix.indrelid \
          JOIN pg_catalog.pg_class i ON i.oid = ix.indexrelid \
          JOIN pg_catalog.pg_namespace n ON n.oid = t.relnamespace \
-         WHERE n.nspname = '{}' \
+         WHERE n.nspname = $1 \
          ORDER BY t.relname, i.relname",
-        schema_name
-    );
-    let idx_rows = sqlx::query(AssertSqlSafe(idx_sql))
-        .fetch_all(pool)
-        .await
-        .unwrap_or_default();
+    )
+    .bind(schema_name)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
     let mut index_map: HashMap<String, Vec<IndexNode>> = HashMap::new();
     for r in &idx_rows {
         let tbl: String = r.try_get("table_name").unwrap_or_default();
@@ -238,7 +236,7 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
     }
 
     // ── 5. Foreign keys for the schema (single batch query) ───────────────────
-    let fk_sql = format!(
+    let fk_rows = sqlx::query(
         "SELECT \
              tc.table_name, \
              tc.constraint_name, \
@@ -252,14 +250,13 @@ pub async fn load_schema_detail(pool: &PgPool, schema_name: &str) -> Result<Sche
          JOIN information_schema.constraint_column_usage ccu \
               ON tc.constraint_name = ccu.constraint_name \
          WHERE tc.constraint_type = 'FOREIGN KEY' \
-           AND tc.table_schema = '{}' \
+           AND tc.table_schema = $1 \
          ORDER BY tc.table_name, tc.constraint_name, kcu.ordinal_position",
-        schema_name
-    );
-    let fk_rows = sqlx::query(AssertSqlSafe(fk_sql))
-        .fetch_all(pool)
-        .await
-        .unwrap_or_default();
+    )
+    .bind(schema_name)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
     let mut fk_outer: HashMap<String, HashMap<String, ForeignKeyNode>> = HashMap::new();
     for r in &fk_rows {
         let tbl: String = r.try_get("table_name").unwrap_or_default();

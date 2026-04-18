@@ -245,11 +245,11 @@ fn apply_mysql_ssl(
         SslMode::Disable => opts.ssl_mode(sqlx::mysql::MySqlSslMode::Disabled),
         SslMode::Prefer => opts.ssl_mode(sqlx::mysql::MySqlSslMode::Preferred),
         SslMode::Require => opts.ssl_mode(sqlx::mysql::MySqlSslMode::Required),
-        SslMode::VerifyCa => opts.ssl_mode(sqlx::mysql::MySqlSslMode::VerifyCa),
+        SslMode::VerifyCa | SslMode::VerifyFull => opts.ssl_mode(sqlx::mysql::MySqlSslMode::VerifyCa),
     };
 
-    // Cert paths only meaningful for Require and VerifyCa
-    if matches!(tls.ssl_mode, SslMode::Require | SslMode::VerifyCa) {
+    // Cert paths only meaningful for Require, VerifyCa, and VerifyFull
+    if matches!(tls.ssl_mode, SslMode::Require | SslMode::VerifyCa | SslMode::VerifyFull) {
         if let Some(ca_path) = &tls.ca_cert_path {
             opts = opts.ssl_ca(ca_path);
         }

@@ -106,6 +106,8 @@ pub enum SslMode {
     Require,
     /// Require SSL + verify server certificate against CA.
     VerifyCa,
+    /// Require SSL + verify server certificate against CA + verify hostname.
+    VerifyFull,
 }
 
 impl SslMode {
@@ -115,6 +117,7 @@ impl SslMode {
             SslMode::Prefer => "Prefer",
             SslMode::Require => "Require",
             SslMode::VerifyCa => "Verify CA",
+            SslMode::VerifyFull => "Verify Full",
         }
     }
 
@@ -124,6 +127,7 @@ impl SslMode {
             SslMode::Prefer,
             SslMode::Require,
             SslMode::VerifyCa,
+            SslMode::VerifyFull,
         ]
     }
 }

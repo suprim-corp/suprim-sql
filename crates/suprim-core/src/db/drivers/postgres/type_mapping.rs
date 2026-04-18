@@ -74,6 +74,38 @@ pub fn pg_value_from_row(row: &PgRow, idx: usize, type_name: &str) -> DbValue {
             .map(|v| DbValue::Text(v.to_string()))
             .unwrap_or(DbValue::Null),
 
+        "DATE" => row
+            .try_get::<chrono::NaiveDate, _>(idx)
+            .map(|v| DbValue::Text(v.to_string()))
+            .unwrap_or(DbValue::Null),
+
+        "TIME" => row
+            .try_get::<chrono::NaiveTime, _>(idx)
+            .map(|v| DbValue::Text(v.to_string()))
+            .unwrap_or(DbValue::Null),
+
+        "TIMETZ" => row
+            .try_get::<chrono::NaiveTime, _>(idx)
+            .map(|v| DbValue::Text(v.to_string()))
+            .unwrap_or_else(|_| {
+                row.try_get::<String, _>(idx)
+                    .map(DbValue::Text)
+                    .unwrap_or(DbValue::Null)
+            }),
+
+        "INTERVAL" => row
+            .try_get::<String, _>(idx)
+            .map(DbValue::Text)
+            .unwrap_or_else(|_| {
+                // sqlx PgInterval doesn't impl ToString, use debug format
+                DbValue::Text("interval".into())
+            }),
+
+        "OID" => row
+            .try_get::<sqlx::postgres::types::Oid, _>(idx)
+            .map(|v| DbValue::Int(v.0 as i64))
+            .unwrap_or(DbValue::Null),
+
         _ => {
             // Fallback: try String, then Null
             row.try_get::<String, _>(idx)
@@ -117,12 +149,10 @@ pub fn rows_to_query_result(rows: Vec<PgRow>, elapsed: Duration) -> QueryResult 
         })
         .collect();
 
-    let row_count = data_rows.len() as u64;
-
     QueryResult {
         columns,
         rows: data_rows,
-        rows_affected: row_count,
+        rows_affected: 0, // SELECT doesn't "affect" rows — DML operations set this via sqlx
         execution_time: elapsed,
         total_count: None,
     }
