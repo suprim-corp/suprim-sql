@@ -87,6 +87,39 @@ make bundle
 make dmg
 ```
 
+### Build-time configuration
+
+Two optional env vars are baked into the binary at compile time via
+`option_env!`. Leave them unset for stock production builds.
+
+| Variable                   | Default                                          | Purpose                                                                                   |
+|----------------------------|--------------------------------------------------|-------------------------------------------------------------------------------------------|
+| `SUPRIM_UPDATE_ENDPOINT`   | `https://api.suprim.dev/suprim/update/latest`    | Feed the self-updater polls. Override for staging / beta / local mock servers.            |
+| `SUPRIM_TEAM_ID`           | unset → signature check skipped (`tracing::warn`) | Apple Developer ID Team ID (10 chars). Self-updater rejects DMGs signed by another identity. |
+
+Three ways to set them:
+
+```bash
+# 1. Inline (one-off builds)
+SUPRIM_UPDATE_ENDPOINT=https://staging.api.suprim.dev/suprim/update/latest \
+SUPRIM_TEAM_ID=ABCDE12345 \
+  cargo build --release
+
+# 2. .env file (gitignored — copy the template first)
+cp .env.example .env
+# edit .env, then:
+set -a && source .env && set +a
+cargo build --release
+
+# 3. .cargo/config.toml (gitignored — copy the template first)
+cp .cargo/config.toml.example .cargo/config.toml
+# edit, then every cargo build/run picks it up automatically
+cargo build --release
+```
+
+> `option_env!` reads at *compile time*. Re-export the var and
+> `cargo clean` if a new value seems stuck.
+
 ## Roadmap
 
 - [ ] Saved queries

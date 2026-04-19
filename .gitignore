@@ -38,3 +38,10 @@ release-manifest.json
 
 # Local test scripts & generated certs
 scripts/docker-ssl/
+
+# Build-time env overrides (see .env.example / .cargo/config.toml.example)
+.env
+.env.local
+!.env.example
+.cargo/config.toml
+!.cargo/config.toml.example
