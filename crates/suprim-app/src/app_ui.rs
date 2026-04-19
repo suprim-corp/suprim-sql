@@ -61,7 +61,11 @@ impl App {
                     self.open_license_dialog();
                 }
                 other => {
-                    crate::ui::update_banner::handle_status_action(&self.update_state, other);
+                    crate::ui::update_banner::handle_status_action(
+                        &self.update_state,
+                        ui.ctx(),
+                        other,
+                    );
                 }
             }
         }

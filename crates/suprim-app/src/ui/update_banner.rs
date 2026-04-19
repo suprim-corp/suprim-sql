@@ -5,11 +5,17 @@
 //! side-effect: when the user clicks the badge we spawn the install task
 //! or reset the state to `Idle`.
 
+use eframe::egui;
+
 use crate::ui::statusbar::StatusBarAction;
 use crate::update::state::SharedUpdateState;
 use crate::update::UpdateState;
 
-pub fn handle_status_action(shared: &SharedUpdateState, action: StatusBarAction) {
+pub fn handle_status_action(
+    shared: &SharedUpdateState,
+    ctx: &egui::Context,
+    action: StatusBarAction,
+) {
     match action {
         StatusBarAction::InstallUpdate => {
             let release = match shared.lock() {
@@ -20,8 +26,9 @@ pub fn handle_status_action(shared: &SharedUpdateState, action: StatusBarAction)
                 Err(_) => return,
             };
             let shared_clone = shared.clone();
+            let ctx_clone = ctx.clone();
             tokio::spawn(async move {
-                crate::update::install_update(shared_clone, release).await;
+                crate::update::install_update(shared_clone, release, ctx_clone).await;
             });
         }
         StatusBarAction::DismissUpdate => {
@@ -54,11 +61,16 @@ mod tests {
         }
     }
 
+    /// egui::Context default-constructs cheaply; tests never repaint.
+    fn test_ctx() -> egui::Context {
+        egui::Context::default()
+    }
+
     #[test]
     fn dismiss_resets_state_to_idle() {
         let shared: SharedUpdateState =
             Arc::new(Mutex::new(UpdateState::Failed("nope".to_owned())));
-        handle_status_action(&shared, StatusBarAction::DismissUpdate);
+        handle_status_action(&shared, &test_ctx(), StatusBarAction::DismissUpdate);
         let guard = shared.lock().unwrap();
         assert!(matches!(&*guard, UpdateState::Idle));
     }
@@ -69,7 +81,7 @@ mod tests {
         // defend against race conditions where the state changed between
         // click and handler.
         let shared: SharedUpdateState = Arc::new(Mutex::new(UpdateState::Checking));
-        handle_status_action(&shared, StatusBarAction::DismissUpdate);
+        handle_status_action(&shared, &test_ctx(), StatusBarAction::DismissUpdate);
         // Contract: we always set to Idle regardless of prior state — the
         // badge is visually gone either way, and the next check can
         // re-populate.
@@ -82,7 +94,7 @@ mod tests {
         // handle_status_action must NOT mutate the update state for it.
         let shared: SharedUpdateState =
             Arc::new(Mutex::new(UpdateState::Available(sample_release())));
-        handle_status_action(&shared, StatusBarAction::OpenLicense);
+        handle_status_action(&shared, &test_ctx(), StatusBarAction::OpenLicense);
         assert!(matches!(&*shared.lock().unwrap(), UpdateState::Available(_)));
     }
 
@@ -99,7 +111,7 @@ mod tests {
         let _guard = rt.enter();
 
         let shared: SharedUpdateState = Arc::new(Mutex::new(UpdateState::Idle));
-        handle_status_action(&shared, StatusBarAction::InstallUpdate);
+        handle_status_action(&shared, &test_ctx(), StatusBarAction::InstallUpdate);
         assert!(matches!(&*shared.lock().unwrap(), UpdateState::Idle));
     }
 }

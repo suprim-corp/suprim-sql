@@ -45,7 +45,13 @@ impl StatusBar {
 
                 // Update badge — sits immediately to the left of the tier
                 // badge when there's something worth surfacing.
-                let state_snapshot = update_state.lock().ok().map(|g| g.clone());
+                //
+                // We `try_lock()` instead of blocking: if the async worker
+                // holds the mutex during a slow network call, the UI would
+                // otherwise beachball for the whole timeout. Skipping a
+                // frame is invisible to the user (next repaint, ~16 ms
+                // later, retries).
+                let state_snapshot = update_state.try_lock().ok().map(|g| g.clone());
                 if let Some(state) = state_snapshot {
                     if let Some(a) = render_update_badge(ui, bar_h, &state) {
                         action = Some(a);

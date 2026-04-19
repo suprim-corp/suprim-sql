@@ -22,7 +22,10 @@ pub use state::{UpdateProgress, UpdateState};
 
 /// Base URL of the update feed. Override at build time via env var for
 /// staging / local dev: `SUPRIM_UPDATE_ENDPOINT=http://localhost:8080/update/latest`.
-pub const DEFAULT_ENDPOINT: &str = "https://api.sant1ago.dev/suprim/update/latest";
+///
+/// Production uses a corp-owned domain so the client's trust anchor stays
+/// stable across maintainer changes.
+pub const DEFAULT_ENDPOINT: &str = "https://api.suprim.dev/suprim/update/latest";
 
 /// Current version baked in at compile time (matches `Cargo.toml`).
 pub const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -70,10 +70,17 @@ impl UpdateProgress {
 pub type SharedUpdateState = Arc<Mutex<UpdateState>>;
 
 /// Helper: lock + update without bothering callers with poison handling.
+///
+/// Recovers from a poisoned mutex (a previous holder panicked mid-update)
+/// instead of silently dropping the new state — otherwise the update
+/// subsystem would effectively die after any panic in the install pipeline,
+/// with nothing to show in the UI.
 pub fn set(state: &SharedUpdateState, new: UpdateState) {
-    if let Ok(mut guard) = state.lock() {
-        *guard = new;
-    }
+    let mut guard = match state.lock() {
+        Ok(g) => g,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    *guard = new;
 }
 
 #[cfg(test)]

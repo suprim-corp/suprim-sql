@@ -106,9 +106,9 @@ pub(crate) async fn check_at(
     };
 
     let latest = Version::parse(&release.version)
-        .map_err(|_| UpdateError::SemverParse(release.version.clone()))?;
+        .map_err(|e| UpdateError::SemverParse(format!("{}: {e}", release.version)))?;
     let current = Version::parse(current_version)
-        .map_err(|_| UpdateError::SemverParse(current_version.to_owned()))?;
+        .map_err(|e| UpdateError::SemverParse(format!("{current_version}: {e}")))?;
 
     if latest > current {
         Ok(Some(release))
@@ -297,7 +297,9 @@ mod tests {
             .await
             .expect_err("invalid semver must not parse");
         match err {
-            UpdateError::SemverParse(v) => assert_eq!(v, "banana"),
+            UpdateError::SemverParse(v) => {
+                assert!(v.starts_with("banana:"), "expected 'banana: …', got: {v}");
+            }
             other => panic!("expected SemverParse variant, got {other:?}"),
         }
     }
