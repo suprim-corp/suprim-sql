@@ -74,6 +74,10 @@ pub struct App {
     /// Pending exports awaiting query results — keyed by synthetic tab_id.
     pub(crate) pending_exports: std::collections::HashMap<uuid::Uuid, crate::app::PendingExport>,
 
+    /// Self-update state — polled on startup, surfaced via a banner in the
+    /// status bar when a newer release is available.
+    pub(crate) update_state: crate::update::state::SharedUpdateState,
+
     /// Native macOS menu bar channel + retained handler objects.
     #[cfg(target_os = "macos")]
     pub(crate) native_menu: crate::ui::macos_menu::NativeMenu,
@@ -93,6 +97,13 @@ impl App {
         // Add iconflow icon fonts (Devicon + Tabler + Phosphor via iconflow)
         crate::ui::icons::install_fonts(&mut fonts);
         cc.egui_ctx.set_fonts(fonts);
+
+        // Snappier tooltips — default 0.5s feels sluggish, 0.25s keeps
+        // accidental hovers from flashing tooltips while still being instant
+        // enough to feel responsive.
+        cc.egui_ctx.global_style_mut(|style| {
+            style.interaction.tooltip_delay = 0.25;
+        });
 
         // Load saved connections from disk.
         let config = AppConfig::load();
@@ -132,6 +143,7 @@ impl App {
             upgrade_prompt: None,
             export_dialog: None,
             pending_exports: std::collections::HashMap::new(),
+            update_state: spawn_update_check(cc.egui_ctx.clone()),
             #[cfg(target_os = "macos")]
             native_menu,
         }
@@ -201,5 +213,107 @@ impl eframe::App for App {
 
     fn on_exit(&mut self) {
         self.save_workspace();
+    }
+}
+
+/// Spawn an async task that polls the update feed once and stores the result
+/// in the shared state. Called at startup; the banner UI polls the state on
+/// every frame and shows a message when a newer release is available.
+///
+/// Calling `ctx.request_repaint()` at the end forces egui to redraw once the
+/// result lands, so the banner appears without the user having to move the
+/// mouse.
+fn spawn_update_check(ctx: egui::Context) -> crate::update::state::SharedUpdateState {
+    use crate::update::state::{set, SharedUpdateState};
+    use crate::update::{check_for_update, UpdateState};
+
+    let state: SharedUpdateState = std::sync::Arc::new(std::sync::Mutex::new(UpdateState::Idle));
+    let state_clone = state.clone();
+
+    // The tokio runtime was installed by main.rs via #[tokio::main]; we just
+    // fire-and-forget on it.
+    tokio::spawn(async move {
+        set(&state_clone, UpdateState::Checking);
+        ctx.request_repaint();
+
+        let (os, arch) = platform_triple();
+        match check_for_update(os, arch).await {
+            Ok(Some(release)) => {
+                tracing::info!(version = %release.version, "update available");
+                set(&state_clone, UpdateState::Available(release));
+            }
+            Ok(None) => {
+                tracing::debug!("already up to date");
+                set(&state_clone, UpdateState::UpToDate);
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "update check failed");
+                set(&state_clone, UpdateState::Failed(e.to_string()));
+            }
+        }
+        ctx.request_repaint();
+    });
+
+    state
+}
+
+/// Map the compile-time target into the `(os, arch)` tuple the feed expects.
+fn platform_triple() -> (&'static str, &'static str) {
+    #[cfg(target_os = "macos")]
+    let os = "macos";
+    #[cfg(target_os = "windows")]
+    let os = "windows";
+    #[cfg(target_os = "linux")]
+    let os = "linux";
+
+    // SuprimSQL on macOS ships a single universal binary today; non-macOS
+    // reports the actual CPU arch so the server can pick the right asset
+    // when those builds exist.
+    #[cfg(target_os = "macos")]
+    let arch = "universal";
+    #[cfg(not(target_os = "macos"))]
+    let arch = if cfg!(target_arch = "x86_64") {
+        "x86_64"
+    } else if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else {
+        "x86_64" // reasonable default
+    };
+
+    (os, arch)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn platform_triple_matches_compile_target() {
+        // We can only verify this works for the target the test compiles
+        // under. On every other target the constants are cfg'd out, so this
+        // test implicitly confirms the cfg matrix routes to SOMETHING for
+        // each platform (absence of compile error == coverage).
+        let (os, arch) = platform_triple();
+        assert!(!os.is_empty());
+        assert!(!arch.is_empty());
+
+        #[cfg(target_os = "macos")]
+        {
+            assert_eq!(os, "macos");
+            assert_eq!(arch, "universal");
+        }
+        #[cfg(target_os = "linux")]
+        assert_eq!(os, "linux");
+        #[cfg(target_os = "windows")]
+        assert_eq!(os, "windows");
+    }
+
+    #[test]
+    fn platform_arch_is_one_of_known_values() {
+        let (_os, arch) = platform_triple();
+        assert!(
+            matches!(arch, "universal" | "x86_64" | "aarch64"),
+            "arch must stay in the server's enum: got {arch}"
+        );
     }
 }

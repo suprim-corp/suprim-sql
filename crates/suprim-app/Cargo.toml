@@ -52,6 +52,12 @@ async-openai = "0.34"
 tracing            = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
+# Self-update: check, download, verify, replace
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "stream", "query"] }
+semver  = "1"
+sha2    = "0.10"
+futures-util = "0.3"
+
 # SQL formatting (needed by sql_highlighter in UI)
 sqlformat = "0.5"
 iconflow = { version = "1.0.0", features = ["pack-phosphor", "pack-devicon", "pack-tabler"] }
@@ -66,6 +72,9 @@ objc2-foundation = { version = "0.3", features = ["NSString", "NSThread"] }
 egui_kittest = { version = "0.34.1", features = ["wgpu", "snapshot"] }
 insta    = "1"
 proptest = "1"
+wiremock = "0.6"
+tempfile = "3"
+tokio    = { version = "1", features = ["full", "test-util"] }
 
 [package.metadata.bundle]
 name = "SuprimSQL"
