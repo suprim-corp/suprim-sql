@@ -98,9 +98,12 @@ impl App {
         crate::ui::icons::install_fonts(&mut fonts);
         cc.egui_ctx.set_fonts(fonts);
 
-        // Snappier tooltips — default 0.5s feels sluggish, 0.25s keeps
-        // accidental hovers from flashing tooltips while still being instant
-        // enough to feel responsive.
+        // GLOBAL tooltip-delay override — intentional. Default 0.5 s feels
+        // sluggish; 0.25 s is fast enough to catch intentional hovers but
+        // slow enough to avoid flashing tooltips during mouse transit.
+        // Applied at the egui::Context level so every tooltip in the app
+        // (status bar badges, sidebar truncated labels, query history
+        // entries, etc.) reads the same value.
         cc.egui_ctx.global_style_mut(|style| {
             style.interaction.tooltip_delay = 0.25;
         });

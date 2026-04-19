@@ -7,6 +7,11 @@ use serde::Deserialize;
 
 use super::{CURRENT_VERSION, DEFAULT_ENDPOINT};
 
+/// Release channel the client polls for. Mirrors the server's `channel`
+/// query-param enum. When a beta channel lands, this becomes a user-facing
+/// preference; until then all clients are on stable.
+const STABLE_CHANNEL: &str = "stable";
+
 /// Payload returned by the `/update/latest` endpoint on suprim-server.
 /// Fields mirror the server DTO (snake_case on the wire).
 ///
@@ -87,7 +92,7 @@ pub(crate) async fn check_at(
 
     let envelope: BaseResponse<LatestRelease> = client
         .get(endpoint)
-        .query(&[("channel", "stable"), ("os", os), ("arch", arch)])
+        .query(&[("channel", STABLE_CHANNEL), ("os", os), ("arch", arch)])
         .send()
         .await?
         .error_for_status()?

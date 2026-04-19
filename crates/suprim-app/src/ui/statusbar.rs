@@ -228,6 +228,10 @@ fn update_badge_style(ui: &egui::Ui, state: &UpdateState) -> Option<UpdateBadgeS
 /// lifts the background colour a notch so the user gets visual confirmation
 /// the badge reacts to clicks. Tier badges are decorative (non-clickable)
 /// so we leave them untouched.
+///
+/// Text layout goes through `WidgetText::into_galley`, which hits egui's
+/// per-frame text layout cache — important because the status bar repaints
+/// at 60 fps and `painter().layout_no_wrap` would bypass the cache.
 fn draw_badge(
     ui: &mut egui::Ui,
     bar_h: f32,
@@ -237,9 +241,14 @@ fn draw_badge(
     clickable: bool,
 ) -> egui::Response {
     let font_id = egui::FontId::proportional(12.0);
-    let galley = ui
-        .painter()
-        .layout_no_wrap(text.to_owned(), font_id, text_color);
+    let rich = egui::RichText::new(text).font(font_id).color(text_color);
+    let galley = egui::WidgetText::from(rich).into_galley(
+        ui,
+        Some(egui::TextWrapMode::Extend),
+        f32::INFINITY,
+        egui::TextStyle::Body,
+    );
+
     let pad_h: f32 = 8.0;
     let pad_v: f32 = 2.0;
     let badge_w = galley.size().x + pad_h * 2.0;

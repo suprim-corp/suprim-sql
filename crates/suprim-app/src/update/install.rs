@@ -292,13 +292,32 @@ fn mount_dmg(dmg: &Path) -> Result<PathBuf, String> {
 /// Pull the first `<key>mount-point</key><string>…</string>` pair out of the
 /// XML plist hdiutil emits. Split off into a pure function so it's testable
 /// without invoking `hdiutil`.
+///
+/// Applies XML entity unescaping (`&amp;` → `&`, `&lt;`, `&gt;`, `&quot;`,
+/// `&apos;`) so a volume name with special characters resolves to a real
+/// path on disk. SuprimSQL controls its DMG's volume name today, but this
+/// is defensive against metadata changes or user-renamed DMGs.
 fn parse_mount_point(plist: &str) -> Option<String> {
-    plist
+    let raw = plist
         .split("<key>mount-point</key>")
         .nth(1)
         .and_then(|tail| tail.split("<string>").nth(1))
-        .and_then(|tail| tail.split("</string>").next())
-        .map(|s| s.trim().to_owned())
+        .and_then(|tail| tail.split("</string>").next())?
+        .trim();
+    Some(unescape_xml(raw))
+}
+
+/// Minimal XML entity unescape covering the five predefined entities.
+/// We avoid pulling in `quick-xml` for this one spot — the input space is
+/// controlled by Apple's `hdiutil` output format.
+fn unescape_xml(s: &str) -> String {
+    // Order matters: decode `&amp;` last so an input like `&amp;lt;` stays
+    // as `&lt;` literal instead of collapsing to `<`.
+    s.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&amp;", "&")
 }
 
 fn copy_app(mount_point: &Path) -> Result<(), String> {
@@ -656,6 +675,33 @@ mod tests {
         let plist = r#"<key>mount-point</key><string>/Volumes/A</string>
                        <key>mount-point</key><string>/Volumes/B</string>"#;
         assert_eq!(parse_mount_point(plist).as_deref(), Some("/Volumes/A"));
+    }
+
+    #[test]
+    fn parse_mount_point_unescapes_xml_entities() {
+        let plist = r#"<key>mount-point</key><string>/Volumes/A &amp; B</string>"#;
+        assert_eq!(
+            parse_mount_point(plist).as_deref(),
+            Some("/Volumes/A & B")
+        );
+    }
+
+    #[test]
+    fn unescape_xml_handles_all_five_entities() {
+        assert_eq!(unescape_xml("&amp;"), "&");
+        assert_eq!(unescape_xml("&lt;"), "<");
+        assert_eq!(unescape_xml("&gt;"), ">");
+        assert_eq!(unescape_xml("&quot;"), "\"");
+        assert_eq!(unescape_xml("&apos;"), "'");
+        assert_eq!(unescape_xml("plain text"), "plain text");
+    }
+
+    #[test]
+    fn unescape_xml_preserves_amp_in_nested_entities() {
+        // An input like `&amp;lt;` should unescape to the literal `&lt;`,
+        // not the `<` character. This is the classic reason to decode
+        // `&amp;` last.
+        assert_eq!(unescape_xml("&amp;lt;"), "&lt;");
     }
 
     // ── copy_app_to ─────────────────────────────────────────────────────
