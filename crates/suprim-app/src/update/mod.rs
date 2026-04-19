@@ -20,12 +20,27 @@ pub use check::{check_for_update, LatestRelease};
 pub use install::install_update;
 pub use state::{UpdateProgress, UpdateState};
 
-/// Base URL of the update feed. Override at build time via env var for
-/// staging / local dev: `SUPRIM_UPDATE_ENDPOINT=http://localhost:8080/update/latest`.
+/// Base URL of the update feed.
 ///
-/// Production uses a corp-owned domain so the client's trust anchor stays
-/// stable across maintainer changes.
-pub const DEFAULT_ENDPOINT: &str = "https://api.suprim.dev/suprim/update/latest";
+/// Resolved in this order at runtime, first hit wins:
+///
+/// 1. Runtime env var `SUPRIM_UPDATE_ENDPOINT` — local dev override.
+/// 2. Build-time env var `SUPRIM_UPDATE_ENDPOINT` baked in via `option_env!`
+///    at compile time. Set it in the release pipeline so different build
+///    targets (staging vs prod, beta vs stable) can ship with different
+///    defaults without editing source.
+/// 3. The hardcoded fallback below — production feed on the corp domain.
+///
+/// Build with a non-default default:
+///
+/// ```sh
+/// SUPRIM_UPDATE_ENDPOINT=https://staging.api.suprim.dev/suprim/update/latest \
+///   cargo build --release
+/// ```
+pub const DEFAULT_ENDPOINT: &str = match option_env!("SUPRIM_UPDATE_ENDPOINT") {
+    Some(s) => s,
+    None => "https://api.suprim.dev/suprim/update/latest",
+};
 
 /// Current version baked in at compile time (matches `Cargo.toml`).
 pub const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");

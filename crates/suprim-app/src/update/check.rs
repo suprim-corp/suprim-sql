@@ -172,6 +172,18 @@ mod tests {
     }
 
     #[test]
+    fn default_endpoint_resolves_to_https_corp_domain_unless_overridden() {
+        // Either it came from the SUPRIM_UPDATE_ENDPOINT build-time override
+        // (staging / beta builds) or it's the corp default. Both must be
+        // HTTPS — a plaintext default would regress finding #2's threat
+        // model (TLS + signature verification).
+        assert!(
+            DEFAULT_ENDPOINT.starts_with("https://"),
+            "DEFAULT_ENDPOINT must be HTTPS, got: {DEFAULT_ENDPOINT}"
+        );
+    }
+
+    #[test]
     fn latest_release_deserializes_snake_case_from_suprim_server() {
         // Exact shape served by dev.suprim.server.update.UpdateController
         // (JacksonConfig SNAKE_CASE). If this drifts, the client breaks.
