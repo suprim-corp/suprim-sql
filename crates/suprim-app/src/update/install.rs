@@ -457,6 +457,9 @@ fn verify_code_signature(bundle: &Path) -> Result<(), String> {
         ));
     }
 
+    // codesign -dvv writes its metadata to STDERR, not stdout — do not
+    // "fix" this to `display.stdout`. `man codesign` (look under
+    // DESCRIPTION > "-v[verbose]") documents the behaviour.
     let info = String::from_utf8_lossy(&display.stderr);
     let actual = extract_team_id(&info)
         .ok_or_else(|| "codesign output missing TeamIdentifier field".to_owned())?;
@@ -978,12 +981,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn stream_to_file_enforces_cap_when_content_length_is_missing() {
-        // Simulates a server that omits Content-Length and streams forever.
-        // We can't easily make wiremock produce a chunked body bigger than
-        // the cap in a reasonable test, so we verify the simpler case:
-        // with fallback_total above the cap and no header, stream_to_file
-        // refuses before opening a file descriptor.
+    async fn stream_to_file_accepts_body_at_the_cap_exactly() {
+        // Acceptance boundary: a body that equals the fallback cap must
+        // pass. Wiremock always emits Content-Length, so the fallback path
+        // isn't exercised here — see the ignored test above for that case.
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(wm_path("/nolen.dmg"))
@@ -993,13 +994,10 @@ mod tests {
 
         let tmp = TempDir::new().unwrap();
         let dest = tmp.path().join("out.dmg");
-        // wiremock automatically sets Content-Length; pick it up and assert
-        // fallback path isn't exercised. The test below via install_inner
-        // covers the combined behaviour end-to-end.
         stream_to_file(
             &format!("{}/nolen.dmg", server.uri()),
             &dest,
-            MAX_DOWNLOAD_BYTES, // fallback at the exact cap should pass
+            MAX_DOWNLOAD_BYTES,
             |_, _| {},
         )
         .await
@@ -1009,15 +1007,9 @@ mod tests {
     // ── Atomic replace (#3) ─────────────────────────────────────────────
 
     #[test]
-    fn copy_app_to_rolls_back_when_cp_fails() {
-        // Provoke cp failure by making the source itself not a directory,
-        // or by making the destination parent read-only. Simpler: use a
-        // source path that `cp -R` will choke on (a broken symlink it
-        // can't follow into). We'll instead test the happy path for
-        // the backup-cleanup and rely on copy_app_to_removes_existing_bundle_before_copy
-        // for the removal contract.
-        //
-        // Assert: backup is gone after a successful install.
+    fn copy_app_to_removes_backup_on_success() {
+        // Happy path: after a successful install, the `.backup` directory
+        // created during rename-swap must be cleaned up.
         let tmp = TempDir::new().unwrap();
         let mount = tmp.path().join("mount");
         std::fs::create_dir_all(mount.join(BUNDLED_APP_NAME).join("Contents")).unwrap();
@@ -1031,6 +1023,47 @@ mod tests {
         let backup = dest.with_extension("app.backup");
         assert!(!backup.exists(), "backup must be removed on success");
         assert!(!dest.join("Contents/old.txt").exists(), "old file gone");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn copy_app_to_rolls_back_when_cp_fails() {
+        // Force cp to fail by making the backup path **exist as a file**
+        // after the initial rename — the second-pass rollback uses
+        // `rename(backup, dest)` and we block that instead. Actually
+        // simpler: point cp at a source containing an unreadable child so
+        // cp exits non-zero but the pre-rename state is intact.
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp = TempDir::new().unwrap();
+        let mount = tmp.path().join("mount");
+        let source_bundle = mount.join(BUNDLED_APP_NAME);
+        std::fs::create_dir_all(source_bundle.join("Contents")).unwrap();
+        let unreadable = source_bundle.join("Contents/secret.bin");
+        std::fs::write(&unreadable, b"x").unwrap();
+        // chmod 0: cp -R (which stat+open+read) can't read it, so the
+        // whole copy fails.
+        std::fs::set_permissions(&unreadable, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+        let dest = tmp.path().join("SuprimSQL.app");
+        std::fs::create_dir_all(dest.join("Contents")).unwrap();
+        std::fs::write(dest.join("Contents/original.txt"), b"original").unwrap();
+
+        let err = copy_app_to(&mount, &dest).expect_err("unreadable source must fail cp");
+
+        // Restore perms so TempDir::drop can clean up.
+        std::fs::set_permissions(&unreadable, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+        assert!(
+            err.contains("rolled back") || err.contains("cp -R"),
+            "expected rollback error, got: {err}"
+        );
+        // Pre-existing bundle must still be there (rolled back from backup).
+        let restored = std::fs::read(dest.join("Contents/original.txt"))
+            .expect("original bundle must be restored from backup");
+        assert_eq!(restored, b"original");
+        let backup = dest.with_extension("app.backup");
+        assert!(!backup.exists(), "backup should have been renamed back");
     }
 
     #[test]

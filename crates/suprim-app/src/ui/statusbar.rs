@@ -113,6 +113,19 @@ struct UpdateBadgeStyle {
     click_action: Option<StatusBarAction>,
 }
 
+/// Whether self-update is wired up for the current target. Single source of
+/// truth so the statusbar badge, future menu items, and any settings UI
+/// all agree on what platform can self-update.
+#[cfg(target_os = "macos")]
+fn self_update_supported() -> bool {
+    true
+}
+
+#[cfg(not(target_os = "macos"))]
+fn self_update_supported() -> bool {
+    false
+}
+
 fn render_update_badge(
     ui: &mut egui::Ui,
     bar_h: f32,
@@ -147,7 +160,17 @@ fn render_update_badge(
 
 /// Returns the visual config for the update badge, or `None` when the badge
 /// should be hidden entirely (Idle / Checking / UpToDate).
+///
+/// On platforms where the self-updater is not implemented (everything
+/// except macOS today), the badge is always hidden — clicking it would
+/// only produce a `Failed(platform-not-supported)` toast, which is worse
+/// than no badge. The platform check lives here so both the "newer
+/// release available" and the progress / failure states stay consistent.
 fn update_badge_style(ui: &egui::Ui, state: &UpdateState) -> Option<UpdateBadgeStyle> {
+    if !self_update_supported() {
+        return None;
+    }
+
     let dark = ui.visuals().dark_mode;
     match state {
         UpdateState::Idle | UpdateState::Checking | UpdateState::UpToDate => None,
