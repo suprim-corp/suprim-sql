@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Self-update install pipeline (macOS only for now — Linux/Windows follow
 //! similar but distinct flows and are not yet implemented).
 //!
