@@ -39,6 +39,7 @@ pub enum UpdateState {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum UpdateProgress {
     Downloading { bytes_done: u64, bytes_total: u64 },
     Verifying,

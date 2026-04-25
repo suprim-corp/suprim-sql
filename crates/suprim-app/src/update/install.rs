@@ -63,7 +63,6 @@ pub async fn install_update(
             ),
         );
         ctx.request_repaint();
-        return;
     }
 
     #[cfg(target_os = "macos")]
