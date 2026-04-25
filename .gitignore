@@ -24,7 +24,7 @@ target
 # Added by cargo
 
 /target
-Cargo.lock
+# Cargo.lock is committed for reproducible builds (binary application)
 
 build_rs_cov.profraw
 
