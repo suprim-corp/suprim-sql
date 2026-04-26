@@ -1,7 +1,6 @@
 /// Drains DbWorker events and native macOS menu actions each frame.
 /// Extracted from `app.rs` to keep the main application file focused on
 /// struct definition, construction, and the eframe trait impl glue.
-use eframe::egui;
 use suprim_core::db::commands::DbCommand;
 use suprim_core::db::types::{DatabaseNode, SchemaTree};
 use suprim_core::storage::QueryHistoryEntry;

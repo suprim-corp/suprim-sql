@@ -1,0 +1,22 @@
+# SuprimSQL Cargo config — build-time env var overrides.
+#
+# Copy this file to `.cargo/config.toml` (gitignored) to apply these
+# values to every `cargo build` / `cargo run` in the workspace without
+# typing them every time. Prefer `.env` + `set -a; source .env; set +a`
+# if you hop between overrides a lot.
+#
+# See `.env.example` in the repo root for the full list + semantics of
+# each variable.
+
+[env]
+
+# Update feed endpoint. Leave commented out to use the production default
+# (https://api.suprim.dev/suprim/update/latest).
+#
+# SUPRIM_UPDATE_ENDPOINT = "https://staging.api.suprim.dev/suprim/update/latest"
+# SUPRIM_UPDATE_ENDPOINT = "http://localhost:8888/update/latest"
+
+# Apple Developer ID Team ID for self-update signature verification.
+# Leave commented out for unsigned dev builds.
+#
+# SUPRIM_TEAM_ID = "ABCDE12345"

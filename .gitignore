@@ -24,7 +24,7 @@ target
 # Added by cargo
 
 /target
-Cargo.lock
+# Cargo.lock is committed for reproducible builds (binary application)
 
 build_rs_cov.profraw
 
@@ -38,3 +38,10 @@ release-manifest.json
 
 # Local test scripts & generated certs
 scripts/docker-ssl/
+
+# Build-time env overrides (see .env.example / .cargo/config.toml.example)
+.env
+.env.local
+!.env.example
+.cargo/config.toml
+!.cargo/config.toml.example

@@ -47,11 +47,28 @@ impl App {
 
         // ── Status bar (bottom) ─────────────────────────────────────────
         let tier_name = self.gate.tier_name().to_string();
+        let mut status_action = None;
         egui::Panel::bottom("status_bar")
             .exact_size(26.0)
             .show_inside(ui, |ui| {
-                self.statusbar.show(ui, &self.status, &tier_name);
+                status_action =
+                    self.statusbar
+                        .show(ui, &self.status, &tier_name, &self.update_state);
             });
+        if let Some(action) = status_action {
+            match action {
+                crate::ui::statusbar::StatusBarAction::OpenLicense => {
+                    self.open_license_dialog();
+                }
+                other => {
+                    crate::ui::update_banner::handle_status_action(
+                        &self.update_state,
+                        ui.ctx(),
+                        other,
+                    );
+                }
+            }
+        }
 
         // ── Query History panel (bottom, above status bar) ──────────────
         if self.show_history {

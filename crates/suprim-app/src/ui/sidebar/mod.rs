@@ -23,6 +23,7 @@ use crate::ui::icons;
 pub use sidebar_action::SidebarAction;
 
 /// Connection info entry for dialog dropdowns: (conn_id, label, databases_with_schemas, server_version, connected).
+#[allow(dead_code)]
 pub type ConnListEntry = (
     Uuid,
     String,
@@ -70,6 +71,7 @@ impl Sidebar {
     /// Returns a list of connection info entries for all active connections.
     /// Each database entry is (db_name, vec_of_schema_names).
     /// Used by dialogs that need connection/database/schema dropdowns.
+    #[allow(dead_code)]
     pub fn connection_list(&self) -> Vec<ConnListEntry> {
         self.connections
             .iter()

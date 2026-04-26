@@ -181,7 +181,7 @@ mod tests {
     fn mysql_timestamp_has_now() {
         let suggestions = suggestions_for_type("timestamp", SqlDialect::Mysql);
         assert!(
-            suggestions.iter().any(|s| *s == "NOW()"),
+            suggestions.contains(&"NOW()"),
             "MySQL timestamp should suggest NOW(): {:?}",
             suggestions
         );
@@ -191,7 +191,7 @@ mod tests {
     fn mysql_uuid_has_uuid_function() {
         let suggestions = suggestions_for_type("uuid", SqlDialect::Mysql);
         assert!(
-            suggestions.iter().any(|s| *s == "UUID()"),
+            suggestions.contains(&"UUID()"),
             "MySQL uuid should suggest UUID(): {:?}",
             suggestions
         );
