@@ -35,29 +35,20 @@ SuprimSQL is a **native desktop app** — instant startup, low memory, smooth sc
 
 ## Features
 
-### SQL Editor
-Write and run SQL with syntax highlighting, autocomplete, and a built-in formatter. Multi-tab support — work on multiple queries side by side.
-
-### Data Grid
-Browse table data with virtual scrolling (handles millions of rows), inline cell editing, and batch operations. Click column headers to sort, use per-column filter popups to narrow down data.
-
-### Schema Browser
-Explore your database structure — tables, views, indexes, foreign keys, sequences, functions — in a lazy-loading sidebar tree.
-
-### Export
-Export to **CSV**, **JSON**, or **SQL** (with full DDL — CREATE TABLE + indexes + FKs). Multi-table export, gzip compression, and format-specific options.
-
-### Server Dashboard
-Monitor active sessions, transactions, cache hit ratio, and slow queries. Kill sessions directly from the UI.
-
-### SSH Tunnel
-Connect through SSH jump hosts with support for all key formats (Ed25519, RSA, ECDSA) and agent forwarding.
-
-### TLS/SSL
-Connect securely with configurable SSL modes — Disable, Prefer, Require, or Verify CA.
-
-### Structure Sync *(Premium)*
-Compare schemas across connections, review diffs, and generate DDL scripts to synchronize structure between databases.
+| Feature | Basic | Premium |
+|---------|-------|---------|
+| SQL Editor | ✓ | ✓ |
+| Data Grid | ✓ | ✓ |
+| Schema Browser | ✓ | ✓ |
+| Export (CSV, JSON, SQL) | ✓ | ✓ |
+| SSH Tunnel | ✓ | ✓ |
+| TLS/SSL | ✓ | ✓ |
+| Server Dashboard | — | ✓ |
+| Structure Sync | — | ✓ |
+| AI Assistant (NL → SQL) | — | ✓ |
+| ER Diagram | — | ✓ |
+| Saved Queries | — | ✓ |
+| Connection Folders | — | ✓ |
 
 ## Supported Databases
 
