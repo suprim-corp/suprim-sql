@@ -8103,7 +8103,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "suprim-app"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "async-openai",
  "chrono",
@@ -8144,7 +8144,7 @@ dependencies = [
 
 [[package]]
 name = "suprim-core"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "aes-gcm 0.11.0-rc.3",
  "anyhow",
@@ -8179,7 +8179,7 @@ dependencies = [
 
 [[package]]
 name = "suprim-extensions"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "aes-gcm 0.11.0-rc.3",
  "async-trait",
