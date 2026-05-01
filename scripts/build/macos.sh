@@ -3,8 +3,11 @@
 #
 # Usage:
 #   ./scripts/build/macos.sh                      # .app (native arch)
+#   ./scripts/build/macos.sh --arch arm64          # .app (arm64 only)
+#   ./scripts/build/macos.sh --arch x86_64         # .app (x86_64 only)
 #   ./scripts/build/macos.sh --universal           # .app (arm64 + x86_64)
 #   ./scripts/build/macos.sh --dmg                 # .app + .dmg
+#   ./scripts/build/macos.sh --arch arm64 --dmg    # arm64 .app + .dmg
 #   ./scripts/build/macos.sh --universal --dmg     # universal .app + .dmg
 #   ./scripts/build/macos.sh --sign                # .app + codesign
 #   ./scripts/build/macos.sh --universal --dmg --sign  # full pipeline
@@ -22,28 +25,55 @@ APP_NAME="SuprimSQL"
 BIN_NAME="SuprimSQL"
 BUNDLE_DIR="target/release/bundle/osx"
 APP_PATH="${BUNDLE_DIR}/${APP_NAME}.app"
-DMG_NAME="${APP_NAME}"
-DMG_OUTPUT="target/release/${DMG_NAME}.dmg"
 SIGNING_IDENTITY="${CODESIGN_IDENTITY:-}"
 
 # ── Parse args ────────────────────────────────────────────────────────────
 BUILD_DMG=false
 DO_SIGN=false
 UNIVERSAL=false
+TARGET_ARCH=""
 
 for arg in "$@"; do
     case "$arg" in
         --dmg)       BUILD_DMG=true ;;
         --sign)      DO_SIGN=true ;;
         --universal) UNIVERSAL=true ;;
+        --arch=*)    TARGET_ARCH="${arg#*=}" ;;
+        --arch)      ;; # value comes as next arg, handled below
         --sign-identity=*) SIGNING_IDENTITY="${arg#*=}"; DO_SIGN=true ;;
         --help|-h)
-            echo "Usage: $0 [--universal] [--dmg] [--sign] [--sign-identity=ID]"
+            echo "Usage: $0 [--arch arm64|x86_64] [--universal] [--dmg] [--sign] [--sign-identity=ID]"
             exit 0
             ;;
-        *) echo "Unknown arg: $arg"; exit 1 ;;
+        *)
+            # Handle --arch <value> (space-separated)
+            if [[ "${PREV_ARG:-}" == "--arch" ]]; then
+                TARGET_ARCH="$arg"
+                PREV_ARG=""
+                continue
+            fi
+            echo "Unknown arg: $arg"; exit 1
+            ;;
     esac
+    PREV_ARG="$arg"
 done
+
+# Validate --arch value
+if [[ -n "$TARGET_ARCH" ]]; then
+    case "$TARGET_ARCH" in
+        arm64)   TARGET_ARCH="aarch64-apple-darwin" ; ARCH_LABEL="arm64" ;;
+        x86_64)  TARGET_ARCH="x86_64-apple-darwin"  ; ARCH_LABEL="x86_64" ;;
+        aarch64-apple-darwin) ARCH_LABEL="arm64" ;;
+        x86_64-apple-darwin)  ARCH_LABEL="x86_64" ;;
+        *) echo "ERROR: Invalid --arch value '$TARGET_ARCH'. Use arm64 or x86_64."; exit 1 ;;
+    esac
+fi
+
+# --arch and --universal are mutually exclusive
+if [[ -n "$TARGET_ARCH" ]] && [[ "$UNIVERSAL" == true ]]; then
+    echo "ERROR: --arch and --universal are mutually exclusive."
+    exit 1
+fi
 
 # ── Step 1: Check prerequisites ──────────────────────────────────────────
 echo "==> Checking prerequisites..."
@@ -52,6 +82,9 @@ if [[ "$BUILD_DMG" == true ]] && ! command -v create-dmg &>/dev/null; then
     echo "ERROR: create-dmg not found. Install with: brew install create-dmg"
     exit 1
 fi
+
+# Get version from Cargo.toml (needed for DMG filename)
+APP_VERSION=$(grep '^version' crates/suprim-app/Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
 
 # ── Step 2: Build binary ─────────────────────────────────────────────────
 if [[ "$UNIVERSAL" == true ]]; then
@@ -71,10 +104,28 @@ if [[ "$UNIVERSAL" == true ]]; then
     mkdir -p target/release
     lipo -create "$ARM_BIN" "$X86_BIN" -output "$RELEASE_BIN"
     echo "    ✓ Universal binary: $(lipo -archs "$RELEASE_BIN")"
+    ARCH_LABEL="universal"
+elif [[ -n "$TARGET_ARCH" ]]; then
+    echo "==> Building ${ARCH_LABEL} binary (${TARGET_ARCH})..."
+    cargo build --release --target "$TARGET_ARCH" -p suprim-app
+
+    CROSS_BIN="target/${TARGET_ARCH}/release/${BIN_NAME}"
+    if [[ ! -f "$CROSS_BIN" ]]; then
+        echo "ERROR: Build failed for ${TARGET_ARCH}."
+        exit 1
+    fi
+
+    RELEASE_BIN="target/release/${BIN_NAME}"
+    mkdir -p target/release
+    cp "$CROSS_BIN" "$RELEASE_BIN"
+    echo "    ✓ ${ARCH_LABEL} binary built"
 else
     echo "==> Building release binary..."
     cargo build --release -p suprim-app
     RELEASE_BIN="target/release/${BIN_NAME}"
+    # Detect native arch label
+    ARCH_LABEL="$(uname -m)"
+    [[ "$ARCH_LABEL" == "arm64" ]] || [[ "$ARCH_LABEL" == "aarch64" ]] && ARCH_LABEL="arm64"
 fi
 
 # ── Step 2b: Assemble .app bundle (no cargo-bundle needed) ───────────────
@@ -84,9 +135,6 @@ mkdir -p "${APP_PATH}/Contents/MacOS"
 mkdir -p "${APP_PATH}/Contents/Resources"
 
 cp "$RELEASE_BIN" "${APP_PATH}/Contents/MacOS/${BIN_NAME}"
-
-# Get version from Cargo.toml
-APP_VERSION=$(grep '^version' crates/suprim-app/Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
 
 # Write Info.plist
 cat > "${APP_PATH}/Contents/Info.plist" << PLIST
@@ -151,6 +199,7 @@ fi
 
 # ── Step 4: Create .dmg (optional) ───────────────────────────────────────
 if [[ "$BUILD_DMG" == true ]]; then
+    DMG_OUTPUT="target/release/suprimsql-${APP_VERSION}-macos-${ARCH_LABEL}.dmg"
     echo "==> Creating DMG installer..."
     rm -f "$DMG_OUTPUT"
 
@@ -181,6 +230,6 @@ echo ""
 echo "=== Build complete ==="
 echo "  .app:  ${APP_PATH}"
 [[ "$BUILD_DMG" == true ]] && echo "  .dmg:  ${DMG_OUTPUT}"
-[[ "$UNIVERSAL" == true ]] && echo "  arch:  universal (arm64 + x86_64)"
+echo "  arch:  ${ARCH_LABEL}"
 echo ""
 echo "To run: open \"${APP_PATH}\""
