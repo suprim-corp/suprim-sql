@@ -37,29 +37,30 @@ SuprimSQL is a **native desktop app** — instant startup, low memory, smooth sc
 
 | Feature | Basic | Premium |
 |---------|-------|---------|
-| SQL Editor | ✓ | ✓ |
-| Data Grid | ✓ | ✓ |
-| Schema Browser | ✓ | ✓ |
+| SQL Editor (syntax highlighting, autocomplete, formatter) | ✓ | ✓ |
+| Data Grid (inline edit, add/delete rows, cell inspector) | ✓ | ✓ |
+| Schema Browser (databases → schemas → tables/views/columns) | ✓ | ✓ |
 | Export (CSV, JSON, SQL) | ✓ | ✓ |
 | SSH Tunnel | ✓ | ✓ |
-| TLS/SSL | ✓ | ✓ |
-| Server Dashboard | — | ✓ |
+| TLS/SSL (5 modes, CA/client certs) | ✓ | ✓ |
+| Server Dashboard (sessions, metrics, slow queries) | ✓ | ✓ |
+| Query History (search, re-run, persistent) | ✓ | ✓ |
+| Auto-update (macOS) | ✓ | ✓ |
 | Structure Sync | — | ✓ |
-| AI Assistant (NL → SQL) | — | ✓ |
-| ER Diagram | — | ✓ |
-| Saved Queries | — | ✓ |
-| Connection Folders | — | ✓ |
+| Export XLSX | — | ✓ |
+| MongoDB driver | — | ✓ |
+| SQL Server driver | — | ✓ |
 
 ## Supported Databases
 
-| Database | Status |
-|----------|--------|
-| PostgreSQL | Fully supported |
-| MySQL | Coming soon |
-| SQLite | Coming soon |
-| Redis | Coming soon |
-| MongoDB | Coming soon (Premium) |
-| SQL Server | Coming soon (Premium) |
+| Database | Status | Tier |
+|----------|--------|------|
+| PostgreSQL | Supported | Free |
+| MySQL | Supported | Free |
+| SQLite | Coming soon | Free |
+| Redis | Coming soon | Free |
+| MongoDB | Supported | Premium |
+| SQL Server | Supported | Premium |
 
 ## Build from Source
 
@@ -113,11 +114,10 @@ cargo build --release
 
 ## Roadmap
 
-- [ ] Saved queries
-- [ ] Connection folders
+- [ ] SQLite & Redis drivers
 - [ ] AI assistant (natural language → SQL)
 - [ ] ER diagram
-- [ ] Auto-update
+- [ ] Import CSV
 - [ ] Windows & Linux builds
 
 ## License
